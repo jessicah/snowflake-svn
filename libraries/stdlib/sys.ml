@@ -23,7 +23,7 @@
 external get_argv: unit -> string * string array = "caml_sys_get_argv"*)
 
 let (executable_name, argv) = "snowflake", [| |] (*get_argv()*)
-let (os_type, word_size) = "Snowflake", 4 (*get_config()*)
+let (os_type, word_size) = "Snowflake", 32 (*get_config()*)
 let max_array_length = (1 lsl (word_size - 10)) - 1;;
 let max_string_length = word_size / 8 * max_array_length - 1;;
 

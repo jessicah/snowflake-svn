@@ -40,6 +40,8 @@ true: use_custom_compiler
 <libraries/threads/**>: threads
 <libraries/threads/posix.c>: gcc
 
+<libraries/extlib/**>: extlib
+
 ### kernel!
 
-<kernel/**>: snowflake, use_stdlib, use_xbigarray, use_xthreads
+<kernel/**>: snowflake, use_stdlib, use_xbigarray, use_xthreads, use_extlib

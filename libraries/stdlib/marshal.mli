@@ -49,7 +49,6 @@ type extern_flags =
   | Closures                            (** Send function closures *)
 (** The flags to the [Marshal.to_*] functions below. *)
 
-val to_channel : out_channel -> 'a -> extern_flags list -> unit
 (** [Marshal.to_channel chan v flags] writes the representation
    of [v] on channel [chan]. The [flags] argument is a
    possibly empty list of flags that governs the marshaling
@@ -95,7 +94,6 @@ val to_buffer : string -> int -> int -> 'a -> extern_flags list -> int
    of [v] does not fit in [len] characters, the exception [Failure]
    is raised. *)
 
-val from_channel : in_channel -> 'a
 (** [Marshal.from_channel chan] reads from channel [chan] the
    byte representation of a structured value, as produced by
    one of the [Marshal.to_*] functions, and reconstructs and

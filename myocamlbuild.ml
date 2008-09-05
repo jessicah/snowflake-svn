@@ -320,13 +320,13 @@ Pathname.define_context "libraries/kernel" ["libraries/kernel"];;
 
 flag ["ocaml"; "native"; "compile"; "snowflake"] (S[
 		A"-freestanding";
-		A"-nopervasives";
+		(*A"-nopervasives";*)
 	]);;
 
 flag ["ocaml"; "native"; "link"; "snowflake"] (S[
 		P"libraries/kernel/stage1.o";
 		P"libraries/kernel/stage2.o";
-		A"-freestanding"; A"-nopervasives";
+		A"-freestanding"; (*A"-nopervasives";*)
 		A"-use-runtime"; P"libkernel.a";
 		A"-ccopt"; A"-static";
 		A"-cc"; A"ld";
@@ -339,13 +339,23 @@ flag ["ocaml"; "native"; "link"; "snowflake"] (S[
 
 dep ["file:kernel/snowflake.native"] ["libkernel.a"; "libm.a"; "libc.a"; "libgcc.a"];;
 
-Pathname.define_context "kernel" ["kernel"; "libraries/stdlib"; "libraries/bigarray"; "libraries/threads"];;
+Pathname.define_context "kernel" ["kernel"; "libraries/stdlib"; "libraries/bigarray"; "libraries/threads"; "libraries/extlib"];;
 
 (*** stdlib ***)
 
 ocaml_lib ~dir:"libraries/stdlib" ~byte:false "libraries/stdlib/stdlib";;
 
 flag ["ocaml"; "compile"; "stdlib"] (A"-nostdlib");;
+
+(*** extlib ***)
+
+ocaml_lib ~dir:"libraries/extlib" ~byte:false "libraries/extlib/extlib";;
+
+flag ["ocaml"; "compile"; "extlib"] (A"-nostdlib");;
+
+dep ["file:libraries/extlib/IO.cmx"] ["libraries/stdlib/camlinternalOO.cmx"];;
+
+Pathname.define_context "libraries/extlib" ["libraries/extlib"; "libraries/stdlib"];;
 
 (*** bigarray ***)
 

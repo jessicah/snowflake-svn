@@ -20,7 +20,7 @@ type t =
   mutable position : int;
   mutable length : int;
   initial_buffer : string}
-
+  
 let create n =
  let n = if n < 1 then 1 else n in
  let n = if n > Sys.max_string_length then Sys.max_string_length else n in

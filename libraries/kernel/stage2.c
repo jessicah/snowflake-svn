@@ -9,26 +9,23 @@ extern void caml_startup(char **args);
 
 extern void idt_init();
 
-void __startup(void *a, int magic)
+void __startup(void *argv, int magic)
 {
-	char *message = "bootstrapping the snowflake operating system...";
-	char *video = (char *)0xB8000;
-	char * argv[1] = { 0 };
-	
-	while ( *message ) {
-		*video++ = *message++;
-		*video++ = 0x07;
-	}
+	dprintf("beginning bootstrap...\n");
 	
 	thread_init(); /* set up threading basics */
 	idt_init(); /* this also sets up the interrupt handler for threads */
 	
 	asm volatile("int $0x30");
+    
+    dprintf("entering ocaml runtime...\n");
 	
 	caml_startup(argv);
 	
 	dprintf("entering blocking section...\n");
+    
 	caml_enter_blocking_section();
+    
 	dprintf("init finished\n");
 	//thread_exit(); /* we have nothing to do now, so exit */
 }
