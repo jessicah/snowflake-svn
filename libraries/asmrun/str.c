@@ -16,7 +16,6 @@
 /* Operations on strings */
 
 #include <string.h>
-#include <stdio.h>
 #include <ctype.h>
 #include "alloc.h"
 #include "fail.h"

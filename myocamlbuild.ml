@@ -353,7 +353,7 @@ ocaml_lib ~dir:"libraries/extlib" ~byte:false "libraries/extlib/extlib";;
 
 flag ["ocaml"; "compile"; "extlib"] (A"-nostdlib");;
 
-dep ["file:libraries/extlib/IO.cmx"] ["libraries/stdlib/camlinternalOO.cmx"];;
+dep ["file:libraries/extlib/IO.ml"] ["libraries/stdlib/camlinternalOO.cmx"];;
 
 Pathname.define_context "libraries/extlib" ["libraries/extlib"; "libraries/stdlib"];;
 
