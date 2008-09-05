@@ -260,5 +260,5 @@ void idt_init() {
 	descriptor.size = 256 * 8 - 1;
 	descriptor.offset = (unsigned long)descriptors;
 	
-	asm volatile("lidt %0" : "=m" (descriptor));
+	asm volatile("lidt %0" :: "m" (descriptor));
 }
