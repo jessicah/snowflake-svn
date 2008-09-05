@@ -7,6 +7,8 @@
 
 static thread_t * current;
 
+static thread_t * cleanup_stack = NULL;
+
 static unsigned long next_id = 0;
 
 static int num_threads = 0;
@@ -23,6 +25,27 @@ void thread_init() {
 	num_threads = 1;
 }
 
+void schedule_for_deletion(thread_t *thread)
+{
+    if (num_threads == 1) {
+        dprintf("System halted: nothing to run!\n");
+        asm("hlt");
+    }
+    
+    thread->prev->next = thread->next;
+    thread->next->prev = thread->prev;
+    
+    if (cleanup_stack == NULL) {
+        thread->next = NULL;
+        thread->prev = NULL;
+        cleanup_stack = thread;
+    } else {
+        thread->next = cleanup_stack;
+        thread->prev = NULL;
+        cleanup_stack = thread;
+    }
+}
+
 unsigned long *thread_schedule(unsigned long *esp) {
 	thread_t *next;
 
@@ -33,26 +56,36 @@ try_again:
 		}
 	}
 	
-//	dprintf("schedule: %d threads running\n", num_threads);
-//	dprintf("from %d to %d\n", current->id, next->id);
-
 	if (current == next) {
 		if (current->status == BLOCKED) {
+            // nothing to do!
 			asm("hlt");
 			goto try_again;
 		}
 		return esp;
 	}
+    
 	current->esp = esp;
-	/* do some cleanup if required */
+	
 	if (current->status == KILLED) {
-		free(current);
+        // prepare thread to be deleted
+        schedule_for_deletion(current);
 	}
+    
 	current = next;
+    
 	return current->esp;
 }
 
 void thread_yield() {
+    thread_t * thread;
+    // cleanup threads that have terminated
+    while (cleanup_stack != NULL) {
+        thread = cleanup_stack;
+        cleanup_stack = cleanup_stack->next;
+        free(thread->stack);
+        free(thread);
+    }
 	asm volatile("int $0x30");
 }
 
@@ -60,12 +93,9 @@ extern void thread_start();
 
 void thread_exit(void *retval) {
 	num_threads--;
-//	dprintf("exit: %d threads running\n", num_threads);
-	/* exit the thread by unlinking it, then rescheduling */
-	current->prev->next = current->next;
-	current->next->prev = current->prev;
-	asm volatile("movl %0, %%eax" : : "c" (retval));
-	free(current->stack);
+	// exit the thread by unlinking it, then rescheduling
+	schedule_for_deletion(current);
+	asm volatile("movl %0, %%eax" : : "c" (retval));	
 	asm volatile("int $0x30");
 }
 
@@ -105,7 +135,6 @@ void thread_create(thread_t *thread, void *(*closure)(void *), void *arg) {
 	*ebp = (unsigned long)thread->esp;
 
 	++num_threads;
-//	dprintf("created: %d threads running\n", num_threads);
 	
 	thread->next = current->next;
 	thread->prev = current;

@@ -11,36 +11,21 @@ extern void idt_init();
 
 void __startup(void *argv, int magic)
 {
-	dprintf("beginning bootstrap...\n");
+	dprintf("Welcome to Snowflake Serial Debugging!\n");
 	
-	thread_init(); /* set up threading basics */
-	idt_init(); /* this also sets up the interrupt handler for threads */
-	
+    // set up C thread machinery, exception and irq handlers
+	thread_init();
+	idt_init();
 	asm volatile("int $0x30");
     
-    dprintf("entering ocaml runtime...\n");
-	
-	caml_startup(argv);
-	
-	dprintf("entering blocking section...\n");
-    
+    caml_startup(argv);
 	caml_enter_blocking_section();
     
-	dprintf("init finished\n");
-	//thread_exit(); /* we have nothing to do now, so exit */
+    // caml_startup has finished initialising the OS
+	//thread_exit();
 }
 
-value snowflake_print_endline(value str) {
-	char *s = String_val(str);
-	char *video = (char *)0xB8000;
-	
-	while ( *s ) {
-		*video++ = *s++;
-		*video++ = 0x07;
-	}
-	return Val_unit;
-}
-
+// simplistic handing out of memory to malloc()
 extern char *sbrk(int);
 
 char *sbrk(int incr){
@@ -54,5 +39,6 @@ char *sbrk(int incr){
   prev_heap_end = heap_end;
 
   heap_end += incr;
+  // FIXME: require check to see if physical memory is exhausted
   return prev_heap_end;
 }
