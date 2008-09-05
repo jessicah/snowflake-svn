@@ -5,12 +5,12 @@ OCB = ocamlbuild
 
 OCAMLBUILD = $(OCB) $(OCBFLAGS) -log .log -build-dir $(BUILDDIR) -X $(BUILDDIR)
 
-KERNEL = snowflake.native
+KERNEL = $(BUILDDIR)/kernel/snowflake.native
 
 ISO = snowflake.iso
 
 all:
-	$(OCAMLBUILD) kernel/$(KERNEL)
+	$(OCAMLBUILD) $(KERNEL)
 	rm -rf cdrom/iso_prep
 	mkdir -p cdrom/iso_prep/boot/grub/
 	cp cdrom/stage2_eltorito cdrom/iso_prep/boot/grub/
