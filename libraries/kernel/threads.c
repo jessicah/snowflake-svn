@@ -156,7 +156,7 @@ void *thread_getspecific() {
 
 /* could just do a very naive busy waiting scheme :P */
 /* i.e.: check flag, yield & try again, or return */
-
+#if 0
 void mutex_init(mutex_t *mutex) {
 	mutex->locked = 0;
 	mutex->owner = 0;
@@ -232,3 +232,4 @@ void cond_signal(cond_t *cond) {
 void cond_broadcast(cond_t *cond) {
 	cond->waiting = 0;
 }
+#endif

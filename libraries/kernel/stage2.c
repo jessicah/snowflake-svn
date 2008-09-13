@@ -22,7 +22,6 @@ void __startup(void *argv, int magic)
 	caml_enter_blocking_section();
     
     // caml_startup has finished initialising the OS
-	//thread_exit();
 }
 
 // simplistic handing out of memory to malloc()
