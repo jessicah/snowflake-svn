@@ -1,9 +1,9 @@
 
 BUILDDIR = .build
 
-OCB = ocamlbuild
+OCB = ocamlbuild 
 
-OCAMLBUILD = $(OCB) $(OCBFLAGS) -log .log -build-dir $(BUILDDIR) -X $(BUILDDIR)
+OCAMLBUILD = $(OCB) $(OCBFLAGS)
 
 KERNEL = kernel/snowflake.native
 

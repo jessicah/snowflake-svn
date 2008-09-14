@@ -27,7 +27,7 @@ let () =
     end args in        
     let args = String.concat " " args in
     if use_system_compiler then begin
-        let cmd = sprintf "%s %s" (getenv "OCAMLOPT") args in
+        let cmd = sprintf "/usr/bin/ocamlopt.opt %s" args in
         (*printf "+ %s\n" cmd;*)
         exit (command cmd)
     end else begin

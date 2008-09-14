@@ -222,8 +222,6 @@
   Otherwise defaults are for unix.
 */
 
-#include "config.h"
-
 #if defined(STANDALONE)
 #undef linux
 #define HAVE_MEMCPY 1

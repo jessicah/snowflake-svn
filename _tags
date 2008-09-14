@@ -1,47 +1,25 @@
 
-# we need to use our custom compiler for everything
-true: use_custom_compiler
+true: -byte, native, nostdlib
 
-### tools/ocamlopt
+<**/*.*>: snowflake
 
-# except when trying to build the actual custom compiler!
-<tools/ocamlopt/{asmcomp,bytecomp,driver,parsing,tools,typing,utils}/**.ml*>: system_compiler, -use_custom_compiler
-<tools/ocamlopt/driver/optmain.native>: system_compiler, -use_custom_compiler
-<tools/ocamlopt/tools/cvt_emit.byte>: -use_custom_compiler
-
-### libraries/c,m,asmrun,kernel
-
-<libraries/m/**/*.*>: gcc, libm, -use_custom_compiler
-
-<libraries/c/*.*>: gcc, libc, -use_custom_compiler
-
-<libraries/asmrun/*.*>: gcc, libasmrun, -use_custom_compiler
-
-<libraries/kernel/*.*>: gcc, libkernel, -use_custom_compiler
+<tools/ocamlopt/**/*.ml*>: -snowflake, custom_ocaml
+<tools/ocamlopt/**/*.*>: -snowflake
+<ocamloptcomp.*>: -snowflake
 
 ### libraries/stdlib
-
-<libraries/stdlib/**>: -use_stdlib, stdlib
 
 <libraries/stdlib/pervasives.ml> or <libraries/stdlib/pervasives.mli> or <libraries/stdlib/camlinternalOO.mli>: nopervasives
 <libraries/stdlib/camlinternalOO*.cmx>: inline(0)
 <libraries/stdlib/scanf*.cmx>: inline(9)
 <libraries/stdlib/*Labels.ml*>: nolabels
 
-### libraries/bigarray
+<kernel/**.*>: snowflake_stdlib, snowflake_extlib
+<libraries/{bigarray,extlib}/**.ml*>: snowflake_stdlib
 
-<libraries/bigarray/bigarray.cmxa>: ocamlmklib
-<libraries/bigarray/**>: bigarray
-<libraries/bigarray/bigarray_stubs.c>: gcc
+<{libraries,kernel}/**/*.*>: linkall
 
-### libraries/threads
-
-<libraries/threads/threads.cmxa>: ocamlmklib
-<libraries/threads/**>: threads
-<libraries/threads/posix.c>: gcc
-
-<libraries/extlib/**>: extlib
-
-### kernel!
-
-<kernel/**>: snowflake, use_stdlib, use_xbigarray, use_xthreads, use_extlib
+<libraries/m/**/*.*>: libm
+<libraries/c/*.{c,s,S}>: libc
+<libraries/asmrun/*.{c,s,S}>: libasmrun
+<libraries/bigarray/*.{c,s,S}>: libbigarray
