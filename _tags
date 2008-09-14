@@ -23,3 +23,4 @@ true: -byte, native, nostdlib
 <libraries/c/*.{c,s,S}>: libc
 <libraries/asmrun/*.{c,s,S}>: libasmrun
 <libraries/bigarray/*.{c,s,S}>: libbigarray
+<libraries/kernel/*.{c,s,S}>: libkernel

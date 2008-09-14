@@ -12,7 +12,7 @@
 (***********************************************************************)
 
 (* $Id: filename.ml,v 1.41 2007-01-09 13:42:17 doligez Exp $ *)
-
+(*
 let generic_quote quotequote s =
   let l = String.length s in
   let b = Buffer.create (l + 20) in
@@ -215,3 +215,4 @@ let open_temp_file ?(mode = [Open_text]) prefix suffix =
     with Sys_error _ as e ->
       if counter >= 1000 then raise e else try_name (counter + 1)
   in try_name 0
+*)

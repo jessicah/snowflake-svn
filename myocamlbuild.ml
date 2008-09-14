@@ -277,6 +277,58 @@ let mk_stlib ?(copy = true) stlib =
             Cmd (Sh "cp `gcc -m32 -print-file-name=libgcc.a` libgcc.a")
         end;;
 
+(*** libkernel.a ***)
+
+    rule "libkernel.a"
+        ~insert:`top
+        ~prod:"libraries/kernel/libkernel.a"
+        ~deps:["libraries/kernel/libkernel.stlib"; "libraries/asmrun/libasmrun.a"]
+        begin fun env build ->
+            let stlib = env "libraries/kernel/libkernel.stlib"
+            and kernel = env "libraries/kernel/libkernel.a"
+            and asmrun = env "libraries/asmrun/libasmrun.a" in
+            let objs = string_list_of_file stlib in
+            let include_dirs = Pathname.include_dirs_of (Pathname.dirname kernel) in
+            let results = build (List.map (fun o -> List.map (fun dir -> dir/o) include_dirs) objs) in
+            let objs = List.map begin function
+                | Good o -> o
+                | Bad exn -> raise exn
+            end results in
+            Seq [
+                (* copy libasmrun.a to libkernel.a... *)
+                cp asmrun kernel;
+                (* add compiled objects to libkernel.a... *)
+                Cmd(S[A"ar";A"-rb"; A"startup.o"; Px kernel; T(tags_of_pathname kernel++"c"++"staticlib"); atomize objs]);
+                Cmd(S[A"ranlib";Px kernel]);
+            ]
+        end;;
+
+    flag ["compile"; "c"; "libkernel"] (S[A"-I"; A"libraries/include"; A"-DCAML_NAME_SPACE"; A"-DSYS_linux_elf"; A"-DTARGET_i386"; A"-DNATIVE_CODE"; A"-O2"]);;
+
+    dep ["compile"; "c"; "libkernel"] ["libraries/include/caml/bigarray.h"; "libraries/kernel/idt.h"];;
+
+    copy_rule' "libraries/kernel/libkernel.a" "libkernel.a";;
+
+(*** snowflake.native ***)
+
+    flag ["ocaml"; "native"; "program"; "snowflake"] (S[
+            P"libraries/kernel/stage1.o";
+            P"libraries/kernel/stage2.o";
+            A"-freestanding";
+            A"-use-runtime"; P"libkernel.a";
+            A"-ccopt"; A"-static";
+            A"-cc"; A"ld";
+            A"-ccopt"; A"-L .";
+            A"-ccopt"; A"-T ../kernel/kernel.ldscript";
+            A"-clibrary"; A"-lgcc";
+            A"-clibrary"; A"-lc";
+            A"-clibrary"; A"-lm";
+            A"-clibrary"; A"-lbigarray";
+            A"-verbose"; A"-linkall";
+        ]);;
+
+    dep ["file:kernel/snowflake.native"] ["libkernel.a"; "libm.a"; "libc.a"; "libgcc.a"; "libbigarray.a"];;
+
 (*** ocamlopt.opt ***)
 
     module C = struct

@@ -1,5 +1,5 @@
 
-BUILDDIR = .build
+BUILDDIR = _build
 
 OCB = ocamlbuild 
 
