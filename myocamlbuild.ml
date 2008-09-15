@@ -27,6 +27,29 @@ List.iter (fun x -> let x = "libraries"/x in Pathname.define_context x [x; "libr
 let snowflake_lib name =
     ocaml_lib ~extern:false ~byte:false ~native:true ~dir:("libraries/"^name) ~tag_name:("snowflake_"^name) ("libraries/"^name^"/"^name);;
 
+let link_C_library stlib a env build =
+	let stlib = env stlib and a = env a in
+	let objs = string_list_of_file stlib in
+	let include_dirs = Pathname.include_dirs_of (Pathname.dirname a) in
+	let results = build (List.map (fun o -> List.map (fun dir -> dir/o) include_dirs) objs) in
+	let objs = List.map begin function
+		| Good o -> o
+		| Bad exn -> raise exn
+	end results in
+	Cmd(S[A"ar";A"-rc"; Px a; T(tags_of_pathname a++"c"++"staticlib"); atomize objs]);;
+
+rule "C static library (short)"
+	~prod:"lib%(libname).a"
+	~dep:"lib%(libname).clib"
+    ~insert:`top
+	(link_C_library "lib%(libname).clib" "lib%(libname).a");;
+
+rule "C static library"
+	~prod:"%(path)/lib%(libname).a"
+	~dep:"%(path)/lib%(libname).clib"
+    ~insert:`top
+	(link_C_library "%(path)/lib%(libname).clib" "%(path)/lib%(libname).a");;
+
 rule "S -> o"
 	~prod:"%.o"
 	~dep:"%.S"
