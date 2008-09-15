@@ -10,6 +10,9 @@ Options.nostdlib := true;;
 flag ["ocaml"; "compile"; "snowflake"] & S[A"-nostdlib"; A"-freestanding"];;
 flag ["ocaml"; "link"; "snowflake"] & S[A"-nostdlib"; A"-freestanding"];;
 
+flag ["c"; "compile"; "snowflake"] & A"-m32";;
+flag ["S"; "compile"; "snowflake"] & A"-m32";;
+
 (*dep ["ocaml"; "link"; "snowflake"] ["ocamlopt.opt"];;*)
 dep ["ocaml"; "compile"; "snowflake"] ["ocamlopt.opt"];;
 dep ["ocaml"; "custom_ocaml"] ["ocamloptcomp.byte"];;
