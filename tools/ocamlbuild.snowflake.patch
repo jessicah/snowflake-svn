@@ -1,5 +1,5 @@
 ? ocamlbuild.snowflake.patch
-Index: ocaml_compiler.ml
+Index: ocamlbuild/ocaml_compiler.ml
 ===================================================================
 RCS file: /caml/ocaml/ocamlbuild/ocaml_compiler.ml,v
 retrieving revision 1.10
@@ -8,7 +8,7 @@ diff -w -r1.10 ocaml_compiler.ml
 >   if Tags.mem "native" (tags_of_pathname mli) then
 >     ocamlopt_c (tags_of_pathname mli++"interf") mli cmi
 >   else
-Index: ocaml_specific.ml
+Index: ocamlbuild/ocaml_specific.ml
 ===================================================================
 RCS file: /caml/ocaml/ocamlbuild/ocaml_specific.ml,v
 retrieving revision 1.23

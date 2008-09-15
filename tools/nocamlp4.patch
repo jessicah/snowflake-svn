@@ -1,0 +1,35 @@
+Index: Makefile
+127c127
+<   otherlibraries ocamlbuild.byte camlp4out $(DEBUGGER) ocamldoc
+---
+>   otherlibraries ocamlbuild.byte $(DEBUGGER) ocamldoc
+232,233c232,233
+< 	 ocamlbuild.byte camlp4out $(DEBUGGER) ocamldoc ocamlopt.opt otherlibrariesopt \
+< 	 ocamllex.opt ocamltoolsopt.opt ocamlbuild.native camlp4opt ocamldoc.opt
+---
+> 	 ocamlbuild.byte $(DEBUGGER) ocamldoc ocamlopt.opt otherlibrariesopt \
+> 	 ocamllex.opt ocamltoolsopt.opt ocamlbuild.native ocamldoc.opt
+Index: build/partial-install.sh
+121,140d121,121
+< cd camlp4
+< CAMLP4DIR=$LIBDIR/camlp4
+< for dir in Camlp4Parsers Camlp4Printers Camlp4Filters Camlp4Top; do
+<   echo "Installing $dir..."
+<   mkdir -p $CAMLP4DIR/$dir
+<   installdir     \
+<     $dir/*.cm*   \
+<     $dir/*.$O    \
+<     $CAMLP4DIR/$dir
+< done
+< installdir \
+<   camlp4lib.cma camlp4lib.cmxa Camlp4.cmi \
+<   camlp4fulllib.cma camlp4fulllib.cmxa \
+<   camlp4o.cma camlp4of.cma camlp4oof.cma \
+<   camlp4orf.cma camlp4r.cma camlp4rf.cma \
+<   Camlp4Bin.cm[iox] Camlp4Bin.$O Camlp4Top.cm[io] \
+<   Camlp4_config.cmi camlp4prof.cm[iox] camlp4prof.$O Camlp4_import.cmi \
+<   $CAMLP4DIR
+< installlibdir camlp4lib.$A camlp4fulllib.$A $CAMLP4DIR
+< cd ..
+---
+> 

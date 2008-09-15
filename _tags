@@ -3,6 +3,8 @@ true: -byte, native, nostdlib
 
 <**/*.*>: snowflake
 
+<tools/{ocaml,ocaml-3.10.2}>: -traverse, not_hygienic
+
 <tools/ocamlopt/**/*.ml*>: -snowflake, custom_ocaml
 <tools/ocamlopt/**/*.*>: -snowflake
 <ocamloptcomp.*>: -snowflake

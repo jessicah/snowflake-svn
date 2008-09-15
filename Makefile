@@ -1,7 +1,7 @@
 
 BUILDDIR = _build
 
-OCB = ocamlbuild 
+OCB = tools/ocaml/bin/ocamlbuild 
 
 OCAMLBUILD = $(OCB) $(OCBFLAGS)
 
@@ -10,6 +10,7 @@ KERNEL = kernel/snowflake.native
 ISO = snowflake.iso
 
 all:
+	$(MAKE) -C tools ocaml
 	$(OCAMLBUILD) $(KERNEL)
 	rm -rf cdrom/iso_prep
 	mkdir -p cdrom/iso_prep/boot/grub/
@@ -24,3 +25,6 @@ clean:
 	$(OCAMLBUILD) -clean
 	rm -f $(ISO)
 	rm -rf cdrom/iso_prep
+
+distclean:
+	$(MAKE) -C tools clean
