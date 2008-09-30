@@ -89,10 +89,10 @@ static volatile int caml_runtime_busy = 1;
 static volatile int caml_runtime_waiters = 0;
 
 /* Mutex that protects the two variables above. */
-static mutex_t caml_runtime_mutex = MUTEX_INIT;
+static mutex_t caml_runtime_mutex;
 
 /* Condition signaled when caml_runtime_busy becomes 0 */
-static cond_t caml_runtime_is_free = COND_INIT;
+static cond_t caml_runtime_is_free;
 
 /* Identifier for next thread creation */
 static intnat thread_next_ident = 0;
@@ -264,6 +264,9 @@ value caml_thread_initialize(value unit)   /* ML */
        enter_blocking_section */
     /* Associate the thread descriptor with the thread */
     thread_setspecific((void *) curr_thread);
+	/* Init mutex & cvar */
+	mutex_init(&caml_runtime_mutex);
+	cond_init(&caml_runtime_is_free);
     /* Set up the hooks */
     prev_scan_roots_hook = caml_scan_roots_hook;
     caml_scan_roots_hook = caml_thread_scan_roots;
