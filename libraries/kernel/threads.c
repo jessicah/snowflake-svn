@@ -178,7 +178,7 @@ void mutex_init(mutex_t *mutex) {
 	mutex->head = NULL;
 	mutex->owner = 0;
 	mutex->id = next_id++;
-	dprintf("m %d:%d init\r\n", mutex->id, current->id);
+	dprintf("m %d:%d %x init\r\n", mutex->id, current->id, (long)mutex);
 }
 
 void mutex_destroy(mutex_t *mutex) {
@@ -190,15 +190,16 @@ void mutex_destroy(mutex_t *mutex) {
 		mutex->queue = mutex->queue->next;
 		free(queue);
 	}
-	dprintf("m %d:%d destroyed\r\n", mutex->id, current->id);
+	dprintf("m %d:%d %x destroyed\r\n", mutex->id, current->id, (long)mutex);
 }
 
 void mutex_lock(mutex_t *mutex) {
 	thread_queue_t *queue;
 	queue = (thread_queue_t *)malloc(sizeof(struct thread_queue));
 	asm volatile("cli; nop");
-	dprintf("m %d:%d locking\r\n", mutex->id, current->id);
+	dprintf("m %d:%d %x locking\r\n", mutex->id, current->id, (long)mutex);
 	if (mutex->queue == NULL) {
+		queue->next = NULL;
 		mutex->queue = queue;
 		mutex->head = queue;
 	} else {
@@ -208,42 +209,43 @@ void mutex_lock(mutex_t *mutex) {
 	queue->thread = current;
 	while (mutex->owner != NULL && mutex->owner != current) {
 		// mutex locked by someone else
-		dprintf("m %d:%d locked by %d\r\n", mutex->id, current->id, mutex->owner->id);
+		dprintf("m %d:%d %x locked by %d\r\n", mutex->id, current->id, mutex->owner->id, (long)mutex);
 		asm volatile("sti; nop");
 		current->status = BLOCKED;
 		thread_yield();
-		dprintf("m %d:%d retrying\r\n", mutex->id, current->id);
+		dprintf("m %d:%d %x retrying\r\n", mutex->id, current->id, (long)mutex);
 		asm volatile("cli; nop");
 	}
 	mutex->owner = current;
-	dprintf("m %d:%d locked\r\n", mutex->id, current->id);
+	dprintf("m %d:%d %x locked\r\n", mutex->id, current->id, (long)mutex);
 	asm volatile("sti; nop");
 }
 
 void mutex_unlock(mutex_t *mutex) {
 	thread_queue_t *queue, *prev;
 	asm volatile("cli; nop");
-	prev = mutex->head;
+	prev = mutex->queue;
 	for (queue = prev; queue != NULL; queue = prev->next)
 	{
 		if (queue == mutex->head) {
 			/* remove from queue */
-			if (queue == prev) {
+			if (queue == mutex->head) {
+				dprintf("removing first item\r\n");
 				mutex->queue = mutex->queue->next;
 			} else {
 				prev->next = queue->next;
 			}
 			break;
-		} else {
-			prev = prev->next;
 		}
+		prev = queue;
 	}
-	dprintf("m %d:%d unlocked\r\n", mutex->id, current->id);
+	dprintf("m %d:%d %x unlocked\r\n", mutex->id, current->id, (long)mutex);
 	dprintf("mx %x\r\n", mutex->head);
 	dprintf("mx %x\r\n", mutex->head->thread);
 	mutex->head->thread->status = RUNNABLE;
 	queue = mutex->head;
 	mutex->head = mutex->head->next;
+	dprintf("mx %x\r\n", mutex->head);
 	free(queue);
 	mutex->owner = NULL;
 	asm volatile("sti; nop");
@@ -253,7 +255,7 @@ int mutex_trylock(mutex_t *mutex) {
 	int retcode;
 	asm volatile("cli; nop");
 	retcode = mutex->owner == NULL ? 0 : -1;
-	dprintf("m %d:%d try lock = %d\r\n", mutex->id, current->id, retcode);
+	dprintf("m %d:%d %x try lock = %d\r\n", mutex->id, current->id, (long)mutex, retcode);
 	asm volatile("sti; nop");
 	return retcode;
 }
@@ -307,20 +309,19 @@ void cond_wait(cond_t *cond, mutex_t *mutex) {
 	}
 	
 	/* we're runnable, remove us from the queue */
-	prev = cond->head;
+	prev = cond->queue;
 	for (queue = prev; queue != NULL; queue = prev->next)
 	{
 		if (queue == cond->head) {
 			/* remove from queue */
-			if (queue == prev) {
+			if (queue == cond->head) {
 				cond->queue = cond->queue->next;
 			} else {
 				prev->next = queue->next;
 			}
 			break;
-		} else {
-			prev = prev->next;
 		}
+		prev = queue;
 	}
 	queue = cond->head;
 	cond->head = cond->head->next;
