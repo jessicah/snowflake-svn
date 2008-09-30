@@ -11,7 +11,7 @@ ISO = snowflake.iso
 
 all:
 	$(MAKE) -C tools ocaml
-	$(OCAMLBUILD) $(KERNEL)
+	$(OCAMLBUILD) libraries/stdlib/stdlib.cmxa libraries/extlib/extlib.cmxa libraries/threads/threads.cmxa $(KERNEL)
 	rm -rf cdrom/iso_prep
 	mkdir -p cdrom/iso_prep/boot/grub/
 	cp cdrom/stage2_eltorito cdrom/iso_prep/boot/grub/

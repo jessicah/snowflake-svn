@@ -16,8 +16,8 @@ true: -byte, native, nostdlib
 <libraries/stdlib/scanf*.cmx>: inline(9)
 <libraries/stdlib/*Labels.ml*>: nolabels
 
-<kernel/**.*>: snowflake_stdlib, snowflake_extlib
-<libraries/{bigarray,extlib}/**.ml*>: snowflake_stdlib
+<kernel/**.*>: snowflake_extlib, snowflake_threads, snowflake_stdlib
+<libraries/{bigarray,extlib,threads}/**.ml*>: snowflake_stdlib
 
 <{libraries,kernel}/**/*.*>: linkall
 
@@ -25,4 +25,5 @@ true: -byte, native, nostdlib
 <libraries/c/*.{c,s,S}>: libc
 <libraries/asmrun/*.{c,s,S}>: libasmrun
 <libraries/bigarray/*.{c,s,S}>: libbigarray
+<libraries/threads/*.{c,s,S}>: libthreads
 <libraries/kernel/*.{c,s,S}>: libkernel

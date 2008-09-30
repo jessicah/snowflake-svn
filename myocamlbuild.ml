@@ -13,19 +13,15 @@ flag ["ocaml"; "link"; "snowflake"] & S[A"-nostdlib"; A"-freestanding"];;
 flag ["c"; "compile"; "snowflake"] & A"-m32";;
 flag ["S"; "compile"; "snowflake"] & A"-m32";;
 
-(*dep ["ocaml"; "link"; "snowflake"] ["ocamlopt.opt"];;*)
 dep ["ocaml"; "compile"; "snowflake"] ["ocamlopt.opt"];;
 dep ["ocaml"; "custom_ocaml"] ["ocamloptcomp.byte"];;
 
 flag ["ocamldep"] (A"-native");;
 
-Pathname.define_context "kernel" ["kernel"; "libraries/stdlib"; "libraries/bigarray"; "libraries/extlib"];;
-
-List.iter (fun x -> let x = "libraries"/x in Pathname.define_context x [x; "libraries/stdlib"])
-    ["bigarray"; "threads"; "extlib"];;
+Pathname.define_context "kernel" ["kernel"; "libraries/bigarray"];;
 
 let snowflake_lib name =
-    ocaml_lib ~extern:false ~byte:false ~native:true ~dir:("libraries/"^name) ~tag_name:("snowflake_"^name) ("libraries/"^name^"/"^name);;
+    ocaml_lib ~extern:true ~byte:false ~native:true ~dir:("libraries/"^name) ~tag_name:("snowflake_"^name) ("libraries/"^name^"/"^name);;
 
 let link_C_library stlib a env build =
 	let stlib = env stlib and a = env a in
@@ -78,6 +74,10 @@ let copy_rule' ?insert src dst =
 
     (* just don't bother; seems to have some strange bugs for this particular library *)
     (* let build system pull in bigarray.cmx instead... *)
+
+(*** threads.cmxa ***)
+
+	snowflake_lib "threads";;
 
 (*** extlib.cmxa ***)
 
@@ -294,6 +294,70 @@ let mk_stlib ?(copy = true) stlib =
             ]
         };;
 
+(*** libthreads.a ***)
+
+    mk_stlib {
+        name = "libthreads";
+        path = "libraries/threads";
+        context = [];
+        c_options = [
+                "-DCAML_NAME_SPACE"; "-DSYS_linux_elf"; "-DTARGET_i386"; "-nostdinc"; "-DNATIVE_CODE"
+            ];
+        s_options = [];
+        includes = ["~"; "libraries/include"; "libraries/include/caml"];
+        headers = [
+                "libraries/include/setjmp.h";
+                "libraries/include/stddef.h";
+                "libraries/include/stdarg.h";
+                "libraries/include/stdlib.h";
+                "libraries/include/string.h";
+                "libraries/include/signal.h";
+                "libraries/include/math.h";
+                "libraries/include/stdio.h";
+                "libraries/include/limits.h";
+                "libraries/include/ctype.h";
+                "libraries/include/asm.h";
+                "libraries/include/threads.h";
+                "libraries/include/caml/bigarray.h";
+                (* and then all the ocaml headers... :P *)
+                "libraries/include/caml/alloc.h";
+                "libraries/include/caml/callback.h";
+                "libraries/include/caml/compact.h";
+                "libraries/include/caml/config.h";
+                "libraries/include/caml/custom.h";
+                "libraries/include/caml/fail.h";
+                "libraries/include/caml/finalise.h";
+                "libraries/include/caml/freelist.h";
+                "libraries/include/caml/gc.h";
+                "libraries/include/caml/gc_ctrl.h";
+                "libraries/include/caml/globroots.h";
+                "libraries/include/caml/int64_native.h";
+                "libraries/include/caml/intext.h";
+                "libraries/include/caml/m.h";
+                "libraries/include/caml/major_gc.h";
+                "libraries/include/caml/md5.h";
+                "libraries/include/caml/memory.h";
+                "libraries/include/caml/minor_gc.h";
+                "libraries/include/caml/misc.h";
+                "libraries/include/caml/mlvalues.h";
+                "libraries/include/caml/natdynlink.h";
+                "libraries/include/caml/osdeps.h";
+                "libraries/include/caml/prims.h";
+                "libraries/include/caml/printexc.h";
+                "libraries/include/caml/reverse.h";
+                "libraries/include/caml/roots.h";
+                "libraries/include/caml/s.h";
+                "libraries/include/caml/signals.h";
+                "libraries/include/caml/signals_machdep.h";
+                "libraries/include/caml/signals_osdep.h";
+                "libraries/include/caml/stack.h";
+                "libraries/include/caml/stacks.h";
+                "libraries/include/caml/startup.h";
+                "libraries/include/caml/sys.h";
+                "libraries/include/caml/weak.h";
+            ]
+        };;
+
 (*** libgcc.a ***)
 
     rule "libgcc (internal library)"
@@ -350,10 +414,11 @@ let mk_stlib ?(copy = true) stlib =
             A"-clibrary"; A"-lc";
             A"-clibrary"; A"-lm";
             A"-clibrary"; A"-lbigarray";
-            A"-verbose"; A"-linkall";
+			A"-clibrary"; A"-lthreads";
+            A"-verbose";
         ]);;
-
-    dep ["file:kernel/snowflake.native"] ["libkernel.a"; "libm.a"; "libc.a"; "libgcc.a"; "libbigarray.a"];;
+	
+	dep ["file:kernel/snowflake.native"] ["libkernel.a"; "libm.a"; "libc.a"; "libgcc.a"; "libbigarray.a"; "libthreads.a"];;
 
 (*** ocamlopt.opt ***)
 
