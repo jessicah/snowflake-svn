@@ -100,8 +100,8 @@ int printf(const char *fmt, ...)
 void *memcpy(void *d, const void *s, size_t n) {
   void *d0 = d;
   if (s != d)
-    for (; 0 != n; --n)
-      *(char*)d++ = *(char*)s++;
+	for (; 0 != n; --n)
+	  *(char*)d++ = *(char*)s++;
   return d0;
 }
 
@@ -111,11 +111,11 @@ void *memmove(void* d, const void* s, size_t n)
   unsigned char *src = (unsigned char *)s;
   
   if (src < dest)
-    for (src += n, dest += n; 0 != n; --n)
-      *--dest = *--src;
+	for (src += n, dest += n; 0 != n; --n)
+	  *--dest = *--src;
   else if (src != dest)
-    for (; 0 != n; --n)
-      *dest++ = *src++;
+	for (; 0 != n; --n)
+	  *dest++ = *src++;
   return d;
 }
 
@@ -123,7 +123,7 @@ void *memset(void *d, int c, size_t n) {
   void *d0 = d;
   unsigned char b = (unsigned char)c;
   for (; n > 0; --n)
-    *(unsigned char*)d++ = b;
+	*(unsigned char*)d++ = b;
   return d0;
 }
 
@@ -134,13 +134,13 @@ int memcmp(const void *s1, const void *s2, size_t n) {
 
   /* Invariant: result == memcmp(s1, s2, i). */
   for (; i < n && result == 0; ++i)
-    result = c1[i] - c2[i];
+	result = c1[i] - c2[i];
   return result;
 }
 
 int strcmp(const unsigned char *s1, const unsigned char *s2) {
   for (; (*s1 != '\0') && (*s2 != '\0') && (*s1 == *s2); ++s1, ++s2)
-    ;
+	;
   return (*s1 - *s2);
 }
 

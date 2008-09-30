@@ -34,7 +34,7 @@ char *sbrk(int incr){
   char *prev_heap_end;
 
   if ( heap_end == 0 ) {
-    heap_end = &end;
+	heap_end = &end;
   }
   prev_heap_end = heap_end;
 
