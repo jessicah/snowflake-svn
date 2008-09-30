@@ -7,11 +7,11 @@ open Outcome;;
 Options.ocamlopt := P"./ocamloptcomp.byte";;
 Options.nostdlib := true;;
 
-flag ["ocaml"; "compile"; "snowflake"] & S[A"-nostdlib"; A"-freestanding"];;
+flag ["ocaml"; "compile"; "snowflake"] & S[A"-nostdlib"; A"-freestanding"; A"-g"];;
 flag ["ocaml"; "link"; "snowflake"] & S[A"-nostdlib"; A"-freestanding"];;
 
-flag ["c"; "compile"; "snowflake"] & A"-m32";;
-flag ["S"; "compile"; "snowflake"] & A"-m32";;
+flag ["c"; "compile"; "snowflake"] & S[A"-m32"; A"-g"];;
+flag ["S"; "compile"; "snowflake"] & S[A"-m32"; A"-g"];;
 
 dep ["ocaml"; "compile"; "snowflake"] ["ocamlopt.opt"];;
 dep ["ocaml"; "custom_ocaml"] ["ocamloptcomp.byte"];;
