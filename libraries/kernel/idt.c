@@ -106,7 +106,7 @@ static void stacktrace(void)
 	__asm__ volatile("movl	%%ebp, %0" : "=rm"(frame));
 	
 	while(frame && depth++ < 50) {
-		dprintf("%08x [%08p]\n", frame->return_addr, frame);
+		dprintf("%08x [%08p]\r\n", frame->return_addr, frame);
 		frame = frame->next;
 		if((unsigned int)frame < 0x1000 || (unsigned int)frame >= 0xFFFFF000) {
 			break;
@@ -253,7 +253,7 @@ void idt_init() {
 	E(11);
 	E(12);
 	set_vector(13, (interrupt_handler)exception13, trap);
-	set_vector(13, (interrupt_handler)exception14, trap);
+	set_vector(14, (interrupt_handler)exception14, trap);
 	E(15);
 	E(16);
 	

@@ -15,6 +15,7 @@
 
 /* Thread interface for POSIX 1003.1c threads */
 
+#include <assert.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>

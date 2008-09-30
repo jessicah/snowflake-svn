@@ -120,7 +120,7 @@ void thread_exit(void *retval) {
 
 void thread_create(thread_t *thread, void *(*closure)(void *), void *arg) {
 	unsigned long *stack;
-	unsigned long *esp, *ebp;
+	unsigned long *esp;
  
 	stack = (unsigned long *)malloc(STACK_SIZE * sizeof(unsigned long));
 	thread = (thread_t *)malloc(sizeof(struct thread));
@@ -141,7 +141,6 @@ void thread_create(thread_t *thread, void *(*closure)(void *), void *arg) {
 	*--thread->esp = 0xED; /* EDX */
 	*--thread->esp = 0xEB; /* EBX */
 	*--thread->esp = 0xCAFEBABE; /* ESP; dummy value */
-	ebp = thread->esp;
 	*--thread->esp = 0x0; /* EBP; 0 for stacktrace() */
 	esp = thread->esp;
 	*--thread->esp = 0xED1; /* EDI */
@@ -149,8 +148,7 @@ void thread_create(thread_t *thread, void *(*closure)(void *), void *arg) {
 	/* we don't ever change segment registers, so removed :) */
 	
 	*esp = (unsigned long)thread->esp;
-	*ebp = (unsigned long)thread->esp;
-
+	
 	++num_threads;
 	
 	thread->next = current->next;
