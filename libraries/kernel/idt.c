@@ -107,10 +107,10 @@ MK_E(10, "Invalid TSS")
 MK_E(11, "Segment not present")
 MK_E(12, "Stack exception")
 void exception13(unsigned int eip, unsigned short cs, unsigned int eflags) {
-	dprintf("General protection fault\n");
-	dprintf("EFLAGS: %08X\n", eflags);
-	dprintf("CS: %02X\n", cs);
-	dprintf("EIP: %08X\n", eip);
+	dprintf("General protection fault\r\n");
+	dprintf("EFLAGS: %08X\r\n", eflags);
+	dprintf("CS: %02X\r\n", cs);
+	dprintf("EIP: %08X\r\n", eip);
 	while (1) {
 		asm volatile("cli");
 		asm volatile("hlt");
@@ -119,11 +119,11 @@ void exception13(unsigned int eip, unsigned short cs, unsigned int eflags) {
 void exception14(unsigned int eip, unsigned short cs, unsigned int eflags) {
 	unsigned int cr2;
 	asm volatile("mov %%cr2, %0" : "=r"(cr2));
-	dprintf("Page fault\n");
-	dprintf("EFLAGS: %08X\n", eflags);
-	dprintf("CS: %02X\n", cs);
-	dprintf("EIP: %08X\n", eip);
-	dprintf("CR2: %08X\n", cr2);
+	dprintf("Page fault\r\n");
+	dprintf("EFLAGS: %08X\r\n", eflags);
+	dprintf("CS: %02X\r\n", cs);
+	dprintf("EIP: %08X\r\n", eip);
+	dprintf("CR2: %08X\r\n", cr2);
 	while (1) {
 		asm volatile("cli");
 		asm volatile("hlt");
@@ -132,9 +132,13 @@ void exception14(unsigned int eip, unsigned short cs, unsigned int eflags) {
 MK_E(15, "Unknown exception")
 MK_E(16, "Coprocessor error")
 
-void default_handler() {
-	asm volatile("leave");
-	asm volatile("iret");
+void default_handler(int n) {
+	if (n < 16) {
+		out8(0x20, 0x20);
+		if (n > 7) {
+			out8(0x20, 0xA0);
+		}
+	}
 }
 
 static void ignore_handler(int n) {

@@ -240,6 +240,8 @@ value caml_thread_initialize(value unit)   /* ML */
   if (curr_thread != NULL) return Val_unit;
   Begin_root (mu);
 		mutex_init(&caml_runtime_mutex);
+		cond_init(&caml_runtime_is_free);
+    
     /* OS-specific initialization */
     caml_thread_sysdeps_initialize();
     /* Create and initialize the termination semaphore */
@@ -264,10 +266,7 @@ value caml_thread_initialize(value unit)   /* ML */
        enter_blocking_section */
     /* Associate the thread descriptor with the thread */
     thread_setspecific((void *) curr_thread);
-	/* Init mutex & cvar */
-	mutex_init(&caml_runtime_mutex);
-	cond_init(&caml_runtime_is_free);
-    /* Set up the hooks */
+	/* Set up the hooks */
     prev_scan_roots_hook = caml_scan_roots_hook;
     caml_scan_roots_hook = caml_thread_scan_roots;
     caml_enter_blocking_section_hook = caml_thread_enter_blocking_section;

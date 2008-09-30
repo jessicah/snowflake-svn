@@ -240,12 +240,14 @@ void mutex_unlock(mutex_t *mutex) {
 			prev = prev->next;
 		}
 	}
+	dprintf("m %d:%d unlocked\r\n", mutex->id, current->id);
+	dprintf("mx %x\r\n", mutex->head);
+	dprintf("mx %x\r\n", mutex->head->thread);
 	mutex->head->thread->status = RUNNABLE;
 	queue = mutex->head;
 	mutex->head = mutex->head->next;
 	free(queue);
 	mutex->owner = NULL;
-	dprintf("m %d:%d unlocked\r\n", mutex->id, current->id);
 	asm volatile("sti; nop");
 }
 
