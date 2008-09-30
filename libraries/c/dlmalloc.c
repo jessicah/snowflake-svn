@@ -1574,7 +1574,8 @@ Void_t* public_mALLOc(size_t bytes) {
 #ifdef INIT_MEM
   int i;
   for(i = 0; i < bytes/sizeof(size_t); i++) {
-       ((size_t *)m)[i] = 0xBAD0C0DE;
+//        ((size_t *)m)[i] = 0xBAD0C0DE;
+       ((size_t *)m)[i] = 0xFFFFFBAD;
   }
 #endif
   if (MALLOC_POSTACTION != 0) {

@@ -116,7 +116,19 @@ void exception13(unsigned int eip, unsigned short cs, unsigned int eflags) {
 		asm volatile("hlt");
 	}
 }
-MK_E(14, "Page fault")
+void exception14(unsigned int eip, unsigned short cs, unsigned int eflags) {
+	unsigned int cr2;
+	asm volatile("mov %%cr2, %0" : "=r"(cr2));
+	dprintf("Page fault\n");
+	dprintf("EFLAGS: %08X\n", eflags);
+	dprintf("CS: %02X\n", cs);
+	dprintf("EIP: %08X\n", eip);
+	dprintf("CR2: %08X\n", cr2);
+	while (1) {
+		asm volatile("cli");
+		asm volatile("hlt");
+	}
+}
 MK_E(15, "Unknown exception")
 MK_E(16, "Coprocessor error")
 

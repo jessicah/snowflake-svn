@@ -28,8 +28,9 @@ SECTIONS
   .rodata         : { *(.rodata .rodata.* .gnu.linkonce.r.*) }
   .data           : { *(.data .data.* .gnu.linkonce.d.*) }
   _edata = .; PROVIDE (edata = .);
+  . = ALIGN(0x1000);
   __bss_start = .;
-  .bss            : { *(.bss .bss.* .gnu.linkonce.b.*) *(COMMON) }
+  .bss            : { *(.bss.pagealigned) *(.bss .bss.* .gnu.linkonce.b.*) *(COMMON) }
   _end = .; PROVIDE (end = .);
   
   /* Stabs debugging sections.  */
