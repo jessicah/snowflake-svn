@@ -89,7 +89,7 @@ static volatile int caml_runtime_busy = 1;
 static volatile int caml_runtime_waiters = 0;
 
 /* Mutex that protects the two variables above. */
-static mutex_t caml_runtime_mutex;// = MUTEX_INIT;
+static mutex_t caml_runtime_mutex = MUTEX_INIT;
 
 /* Condition signaled when caml_runtime_busy becomes 0 */
 static cond_t caml_runtime_is_free = COND_INIT;
@@ -433,21 +433,22 @@ value caml_thread_exit(value unit)   /* ML */
 
 value caml_thread_yield(value unit)        /* ML */
 {
+	dprintf("caml_thread_yield\r\n");
   if (caml_runtime_waiters == 0) {
 		dprintf("*");
 		thread_yield();
 		dprintf("+");
 		return Val_unit;
 	}
-	dprintf(">");
+	dprintf(">\r\n");
   caml_enter_blocking_section();
-	dprintf("--");
+	dprintf("--\r\n");
   caml_young_limit = caml_young_end;
-	dprintf(".");
+	dprintf(".\r\n");
   /*if (! broken_sched_yield)*/ thread_yield();
-	dprintf("--");
+	dprintf("--\r\n");
 	caml_leave_blocking_section();
-	dprintf("<\n");
+	dprintf("<\r\n");
   return Val_unit;
 }
 

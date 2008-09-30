@@ -49,6 +49,8 @@ void schedule_for_deletion(thread_t *thread)
 
 unsigned long *thread_schedule(unsigned long *esp) {
 	thread_t *next;
+	
+	dprintf("thread_schedule:\r\n");
 
 try_again:
 	for (next = current->next; next != current; next = next->next) {
@@ -60,15 +62,19 @@ try_again:
 	if (current == next) {
 		if (current->status == BLOCKED) {
 			// nothing to do!
+			dprintf("%d blocked\r\n", num_threads);
 			asm("hlt");
 			goto try_again;
 		}
 		if (current->status == KILLED || current->status == EXITED) {
 			// killed/exited last thread
-			dprintf("no more threads to run! system halted :)\r\n");
-			asm("cli");
+			//dprintf("no more threads to run! system halted :)\r\n");
+			//asm("cli");
+			dprintf("none runnable\r\n");
 			asm("hlt");
+			goto try_again;
 		}
+		dprintf("t %d:%x resumes\r\n", current->id, current->stack);
 		return esp;
 	}
 	
@@ -81,6 +87,8 @@ try_again:
 	
 	current = next;
 	
+	dprintf("t %d:%x starts (of %d)\r\n", current->id, current->stack, num_threads);
+	
 	return current->esp;
 }
 
@@ -90,6 +98,7 @@ void thread_yield() {
 	while (cleanup_stack != NULL) {
 		thread = cleanup_stack;
 		cleanup_stack = cleanup_stack->next;
+		dprintf("t %d%x deleted\r\n", thread->id, thread->stack);
 		free(thread->stack);
 		free(thread);
 	}
@@ -102,6 +111,7 @@ void thread_exit(void *retval) {
 	num_threads--;
 	// update status so it will get removed later...
 	current->status = EXITED;
+	dprintf("t %d:%x exited\r\n", current->id, current->stack);
 	asm volatile("movl %0, %%eax" : : "c" (retval));	
 	asm volatile("int $0x30");
 }
@@ -147,6 +157,8 @@ void thread_create(thread_t *thread, void *(*closure)(void *), void *arg) {
 	thread->prev = current;
 	current->next->prev = thread;
 	current->next = thread;
+	
+	dprintf("t %d:%x created\r\n", thread->id, thread->stack);
 }
 
 thread_t thread_self() {
@@ -167,6 +179,8 @@ void mutex_init(mutex_t *mutex) {
 	mutex->queue = NULL;
 	mutex->head = NULL;
 	mutex->owner = 0;
+	mutex->id = next_id++;
+	dprintf("m %d:%d init\r\n", mutex->id, current->id);
 }
 
 void mutex_destroy(mutex_t *mutex) {
@@ -178,12 +192,14 @@ void mutex_destroy(mutex_t *mutex) {
 		mutex->queue = mutex->queue->next;
 		free(queue);
 	}
+	dprintf("m %d:%d destroyed\r\n", mutex->id, current->id);
 }
 
 void mutex_lock(mutex_t *mutex) {
 	thread_queue_t *queue;
 	queue = (thread_queue_t *)malloc(sizeof(struct thread_queue));
 	asm volatile("cli; nop");
+	dprintf("m %d:%d locking\r\n", mutex->id, current->id);
 	if (mutex->queue == NULL) {
 		mutex->queue = queue;
 		mutex->head = queue;
@@ -194,12 +210,15 @@ void mutex_lock(mutex_t *mutex) {
 	queue->thread = current;
 	while (mutex->owner != NULL && mutex->owner != current) {
 		// mutex locked by someone else
+		dprintf("m %d:%d locked by %d\r\n", mutex->id, current->id, mutex->owner->id);
 		asm volatile("sti; nop");
 		current->status = BLOCKED;
 		thread_yield();
+		dprintf("m %d:%d retrying\r\n", mutex->id, current->id);
 		asm volatile("cli; nop");
 	}
 	mutex->owner = current;
+	dprintf("m %d:%d locked\r\n", mutex->id, current->id);
 	asm volatile("sti; nop");
 }
 
@@ -226,6 +245,7 @@ void mutex_unlock(mutex_t *mutex) {
 	mutex->head = mutex->head->next;
 	free(queue);
 	mutex->owner = NULL;
+	dprintf("m %d:%d unlocked\r\n", mutex->id, current->id);
 	asm volatile("sti; nop");
 }
 
@@ -233,6 +253,7 @@ int mutex_trylock(mutex_t *mutex) {
 	int retcode;
 	asm volatile("cli; nop");
 	retcode = mutex->owner == NULL ? 0 : -1;
+	dprintf("m %d:%d try lock = %d\r\n", mutex->id, current->id, retcode);
 	asm volatile("sti; nop");
 	return retcode;
 }
@@ -241,6 +262,8 @@ void cond_init(cond_t *cond) {
 	cond->queue = NULL;
 	cond->head = NULL;
 	cond->waiting = 0;
+	cond->id = next_id++;
+	dprintf("c %d:%d init\r\n", cond->id, current->id);
 }
 
 void cond_destroy(cond_t *cond) {
@@ -252,6 +275,7 @@ void cond_destroy(cond_t *cond) {
 		cond->queue = cond->queue->next;
 		free(queue);
 	}
+	dprintf("c %d:%d destroyed\r\n", cond->id, current->id);
 }
 
 void cond_wait(cond_t *cond, mutex_t *mutex) {
@@ -275,6 +299,7 @@ void cond_wait(cond_t *cond, mutex_t *mutex) {
 	/* put this thread to sleep */
 	cond->head->thread->status = BLOCKED;
 	while (cond->waiting > 0) {
+		dprintf("c %d:%d waiting\r\n", cond->id, current->id);
 		/* unlock the mutex */
 		mutex_unlock(mutex);
 		thread_yield();
@@ -300,18 +325,22 @@ void cond_wait(cond_t *cond, mutex_t *mutex) {
 	queue = cond->head;
 	cond->head = cond->head->next;
 	free(queue);
+	dprintf("c %d:%d resumed\r\n", cond->id, current->id);
 }
 
 /* so these don't need the mutex as we don't modify the queue? */
 
 void cond_signal(cond_t *cond) {
+	dprintf("c %d:%d signalled\r\n", cond->id, current->id);
 	if (cond->waiting > 0) {
 		--cond->waiting;
 		cond->head->thread->status = RUNNABLE;
+		dprintf("c %d:%d released thread %d\r\n", cond->id, current->id, cond->head->thread->id);
 	}
 }
 
 void cond_broadcast(cond_t *cond) {
+	dprintf("c %d:%d broadcasted\r\n", cond->id, current->id);
 	while (cond->waiting > 0) {
 		cond_signal(cond);
 	}

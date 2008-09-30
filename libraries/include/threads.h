@@ -23,17 +23,19 @@ typedef struct mutex {
 	thread_queue_t *queue;
 	thread_queue_t *head;
 	thread_t *owner;
+	unsigned long id;
 } mutex_t;
 
-#define MUTEX_INIT { 0, 0 }
+#define MUTEX_INIT { 0, 0, 0, -1 }
 
 typedef struct cond {
 	thread_queue_t *queue;
 	thread_queue_t *head;
 	unsigned long waiting;
+	unsigned long id;
 } cond_t;
 
-#define COND_INIT { 0 }
+#define COND_INIT { 0, 0, 0, -1 }
 
 typedef void *(*thread_func)(void *);
 

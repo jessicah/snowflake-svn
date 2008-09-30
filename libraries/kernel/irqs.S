@@ -21,7 +21,7 @@
 .extern signal_handlers
 .extern thread_schedule
 .extern thread_exit
-.extern caml_young_ptr
+.extern caml_young_limit
 .extern caml_young_end
 
 #define IRQ(a,b) 							\
@@ -43,11 +43,14 @@ thread_start:
 irq0:
 	pusha
 	movl caml_young_end, %eax
-	movl %eax, caml_young_ptr
+	movl %eax, caml_young_limit
 	movl $signal_handlers, %eax
 	push $0
 	call *0(%eax)
 	addl $4, %esp
+	push %esp
+	call thread_schedule
+	mov %eax, %esp
 	popa
 	iret
 

@@ -106,7 +106,6 @@ MK_E(9, "Coprocessor segment overflow")
 MK_E(10, "Invalid TSS")
 MK_E(11, "Segment not present")
 MK_E(12, "Stack exception")
-//MK_E(13, "General protection fault")
 void exception13(unsigned int eip, unsigned short cs, unsigned int eflags) {
 	dprintf("General protection fault\n");
 	dprintf("EFLAGS: %08X\n", eflags);
@@ -121,8 +120,7 @@ MK_E(14, "Page fault")
 MK_E(15, "Unknown exception")
 MK_E(16, "Coprocessor error")
 
-void default_handler(int n) {
-	dprintf("default: %x\r\n", n);
+void default_handler() {
 	asm volatile("leave");
 	asm volatile("iret");
 }
@@ -151,19 +149,19 @@ void set_signal_handler(int signum, struct sigaction *sa, struct sigaction *olds
 	}
 	if (sa) {
 		if (sa->sa_handler == SIG_DFL) {
-			dprintf("setting to default handler\n");
+			dprintf("setting to default handler\r\n");
 			signal_handlers[signum] = default_handler;
 		} else if (sa->sa_handler == SIG_IGN) {
-			dprintf("setting to ignore\n");
+			dprintf("setting to ignore\r\n");
 			signal_handlers[signum] = ignore_handler;
 		} else {
-			dprintf("installing a signal handler for irq %d\n", signum);
+			dprintf("installing a signal handler for irq %d\r\n", signum);
 			signal_handlers[signum] = sa->sa_handler;
 		}
 	} else {
 		signal_handlers[signum] = default_handler;
 	}
-	dprintf("set_signal_handler\n");
+	dprintf("set_signal_handler\r\n");
 }
 
 #define EI(n) extern irq##n();
@@ -215,7 +213,6 @@ void idt_init() {
 	E(10);
 	E(11);
 	E(12);
-	//E(13);
 	set_vector(13, (interrupt_handler)exception13, trap);
 	E(14);
 	E(15);
