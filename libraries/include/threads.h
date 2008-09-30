@@ -2,6 +2,7 @@
 #define RUNNABLE 0
 #define BLOCKED 1
 #define KILLED 2
+#define EXITED 4
 
 typedef struct thread {
 	unsigned long *stack;
@@ -25,6 +26,8 @@ typedef struct cond {
 } cond_t;
 
 #define COND_INIT { 0 }
+
+typedef void *(*thread_func)(void *);
 
 extern void thread_init();
 extern void thread_yield();

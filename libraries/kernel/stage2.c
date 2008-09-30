@@ -11,17 +11,18 @@ extern void idt_init();
 
 void __startup(void *argv, int magic)
 {
-	dprintf("Welcome to Snowflake Serial Debugging!\n");
+	dprintf("Welcome to Snowflake Serial Debugging!\r\n");
 	
-    // set up C thread machinery, exception and irq handlers
+	// set up C thread machinery, exception and irq handlers
 	thread_init();
 	idt_init();
 	asm volatile("int $0x30");
-    
-    caml_startup(argv);
+	
+	caml_startup(argv);
 	caml_enter_blocking_section();
-    
-    // caml_startup has finished initialising the OS
+	
+	// caml_startup has finished initialising the OS
+	dprintf("INFO: Startup completed. Exiting startup thread...\r\n");
 }
 
 // simplistic handing out of memory to malloc()

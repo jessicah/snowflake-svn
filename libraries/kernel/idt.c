@@ -121,7 +121,8 @@ MK_E(14, "Page fault")
 MK_E(15, "Unknown exception")
 MK_E(16, "Coprocessor error")
 
-void default_handler() {
+void default_handler(int n) {
+	dprintf("default: %x\r\n", n);
 	asm volatile("leave");
 	asm volatile("iret");
 }
