@@ -161,35 +161,70 @@ void *thread_getspecific() {
 	return current->slot;
 }
 
-/* could just do a very naive busy waiting scheme :P */
-/* i.e.: check flag, yield & try again, or return */
-#if 0
+/* thread synchronisation primitives */
+
 void mutex_init(mutex_t *mutex) {
-	mutex->locked = 0;
+	mutex->queue = NULL;
+	mutex->head = NULL;
 	mutex->owner = 0;
 }
 
 void mutex_destroy(mutex_t *mutex) {
-	/* don't really need to do anything here */
+	thread_queue_t *queue;
+	while (mutex->queue != NULL) {
+		/* resume threads that were blocked on this mutex */
+		mutex->queue->thread->status = RUNNABLE;
+		queue = mutex->queue;
+		mutex->queue = mutex->queue->next;
+		free(queue);
+	}
 }
 
 void mutex_lock(mutex_t *mutex) {
-try_again:
+	thread_queue_t *queue;
+	queue = (thread_queue_t *)malloc(sizeof(struct thread_queue));
 	asm volatile("cli; nop");
-	while (mutex->locked == 1 && mutex->owner != current) {
-		asm volatile("sti; nop");
-		/* busy wait because I suck... */
-		thread_yield();
-		goto try_again;
+	if (mutex->queue == NULL) {
+		mutex->queue = queue;
+		mutex->head = queue;
+	} else {
+		queue->next = mutex->queue;
+		mutex->queue = queue;
 	}
-	mutex->locked = 1;
+	queue->thread = current;
+	while (mutex->owner != NULL && mutex->owner != current) {
+		// mutex locked by someone else
+		asm volatile("sti; nop");
+		current->status = BLOCKED;
+		thread_yield();
+		asm volatile("cli; nop");
+	}
 	mutex->owner = current;
 	asm volatile("sti; nop");
 }
 
 void mutex_unlock(mutex_t *mutex) {
+	thread_queue_t *queue, *prev;
 	asm volatile("cli; nop");
-	mutex->locked = 0;
+	prev = mutex->head;
+	for (queue = prev; queue != NULL; queue = prev->next)
+	{
+		if (queue == mutex->head) {
+			/* remove from queue */
+			if (queue == prev) {
+				mutex->queue = mutex->queue->next;
+			} else {
+				prev->next = queue->next;
+			}
+			break;
+		} else {
+			prev = prev->next;
+		}
+	}
+	mutex->head->thread->status = RUNNABLE;
+	queue = mutex->head;
+	mutex->head = mutex->head->next;
+	free(queue);
 	mutex->owner = NULL;
 	asm volatile("sti; nop");
 }
@@ -197,46 +232,87 @@ void mutex_unlock(mutex_t *mutex) {
 int mutex_trylock(mutex_t *mutex) {
 	int retcode;
 	asm volatile("cli; nop");
-	retcode = mutex->locked == 0 ? 1 : -1;
+	retcode = mutex->owner == NULL ? 0 : -1;
 	asm volatile("sti; nop");
 	return retcode;
 }
 
-/* so how do we do condition variables again? */
-
 void cond_init(cond_t *cond) {
-	cond->waiting = NULL;
+	cond->queue = NULL;
+	cond->head = NULL;
+	cond->waiting = 0;
 }
 
 void cond_destroy(cond_t *cond) {
-	/* free up waiting list */
-	cond->waiting = NULL;
+	thread_queue_t *queue;
+	while (cond->queue != NULL) {
+		/* resume threads that were blocked on this mutex */
+		cond->queue->thread->status = RUNNABLE;
+		queue = cond->queue;
+		cond->queue = cond->queue->next;
+		free(queue);
+	}
 }
 
 void cond_wait(cond_t *cond, mutex_t *mutex) {
+	thread_queue_t *queue, *prev;
 	/* mutex is already locked */
+	queue = (thread_queue_t *)malloc(sizeof(struct thread_queue));
+	queue->thread = current;
+	
+	/* another thread waiting to be signalled */
+	if (cond->head == NULL) {
+		queue->next = NULL;
+		cond->head = queue;
+		cond->queue = queue;
+	} else {
+		queue->next = cond->queue;
+		cond->queue = queue;
+	}
 	
 	cond->waiting++;
 	
 	/* put this thread to sleep */
+	cond->head->thread->status = BLOCKED;
 	while (cond->waiting > 0) {
 		/* unlock the mutex */
 		mutex_unlock(mutex);
-		//dprintf("waiting\n");
 		thread_yield();
 		mutex_lock(mutex);
 	}
+	
+	/* we're runnable, remove us from the queue */
+	prev = cond->head;
+	for (queue = prev; queue != NULL; queue = prev->next)
+	{
+		if (queue == cond->head) {
+			/* remove from queue */
+			if (queue == prev) {
+				cond->queue = cond->queue->next;
+			} else {
+				prev->next = queue->next;
+			}
+			break;
+		} else {
+			prev = prev->next;
+		}
+	}
+	queue = cond->head;
+	cond->head = cond->head->next;
+	free(queue);
 }
 
-/* so these don't need the mutex as we don't modify the queue */
+/* so these don't need the mutex as we don't modify the queue? */
 
 void cond_signal(cond_t *cond) {
 	if (cond->waiting > 0) {
 		--cond->waiting;
+		cond->head->thread->status = RUNNABLE;
 	}
 }
 
 void cond_broadcast(cond_t *cond) {
-	cond->waiting = 0;
+	while (cond->waiting > 0) {
+		cond_signal(cond);
+	}
 }
-#endif

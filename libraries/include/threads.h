@@ -14,14 +14,22 @@ typedef struct thread {
 	struct thread * prev;
 } thread_t;
 
+typedef struct thread_queue {
+	thread_t *thread;
+	struct thread_queue *next;
+} thread_queue_t;
+
 typedef struct mutex {
-	unsigned char locked;
+	thread_queue_t *queue;
+	thread_queue_t *head;
 	thread_t *owner;
 } mutex_t;
 
 #define MUTEX_INIT { 0, 0 }
 
 typedef struct cond {
+	thread_queue_t *queue;
+	thread_queue_t *head;
 	unsigned long waiting;
 } cond_t;
 
