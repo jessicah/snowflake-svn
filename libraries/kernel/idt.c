@@ -85,6 +85,7 @@ void set_irq(unsigned char irq, interrupt_handler handler) {
 #define MK_E(n, msg)			\
 void exception##n() {			\
 	dprintf(msg);						\
+	stacktrace();			\
 	while (1) {							\
 		asm volatile("cli");	\
 		asm volatile("hlt");	\
@@ -92,6 +93,26 @@ void exception##n() {			\
 }
 
 #define E(n) set_vector(n, exception##n, trap)
+
+static void stacktrace(void)
+{
+	struct frame {
+		struct frame *next;
+		void *return_addr;
+	};
+	struct frame *frame;
+	int depth = 0;
+	
+	__asm__ volatile("movl	%%ebp, %0" : "=rm"(frame));
+	
+	while(frame && depth++ < 50) {
+		dprintf("%08x [%08p]\n", frame->return_addr, frame);
+		frame = frame->next;
+		if((unsigned int)frame < 0x1000 || (unsigned int)frame >= 0xFFFFF000) {
+			break;
+		}
+	}
+}
 
 MK_E(0, "Divide by zero")
 MK_E(1, "Debug exception")
@@ -111,6 +132,7 @@ void exception13(unsigned int eip, unsigned short cs, unsigned int eflags) {
 	dprintf("EFLAGS: %08X\r\n", eflags);
 	dprintf("CS: %02X\r\n", cs);
 	dprintf("EIP: %08X\r\n", eip);
+	stacktrace();
 	while (1) {
 		asm volatile("cli");
 		asm volatile("hlt");
@@ -124,6 +146,7 @@ void exception14(unsigned int eip, unsigned short cs, unsigned int eflags) {
 	dprintf("CS: %02X\r\n", cs);
 	dprintf("EIP: %08X\r\n", eip);
 	dprintf("CR2: %08X\r\n", cr2);
+	stacktrace();
 	while (1) {
 		asm volatile("cli");
 		asm volatile("hlt");
@@ -230,7 +253,7 @@ void idt_init() {
 	E(11);
 	E(12);
 	set_vector(13, (interrupt_handler)exception13, trap);
-	E(14);
+	set_vector(13, (interrupt_handler)exception14, trap);
 	E(15);
 	E(16);
 	

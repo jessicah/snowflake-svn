@@ -36,6 +36,8 @@ new_gdt:
 	mov %eax, %fs
 	mov %eax, %gs
 	
+	xor %ebp, %ebp
+	
 	movl $33, %eax
 	movl %eax, %cr0
 	fninit

@@ -142,7 +142,7 @@ void thread_create(thread_t *thread, void *(*closure)(void *), void *arg) {
 	*--thread->esp = 0xEB; /* EBX */
 	*--thread->esp = 0xCAFEBABE; /* ESP; dummy value */
 	ebp = thread->esp;
-	*--thread->esp = 0xCAFEBABE; /* EBP; dummy value */
+	*--thread->esp = 0x0; /* EBP; 0 for stacktrace() */
 	esp = thread->esp;
 	*--thread->esp = 0xED1; /* EDI */
 	*--thread->esp = 0xE51; /* ESI */
