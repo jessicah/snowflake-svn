@@ -40,11 +40,37 @@ irq0:
 	push $0
 	call *0(%eax)
 	addl $4, %esp
-	push %esp
-	call thread_schedule
-	mov %eax, %esp
+	call thread_yield
 	popa
 	iret
+
+.global _thread_switch_stacks
+_thread_switch_stacks:
+	/* Create stack frame */
+	push	%ebp
+	movl	%esp, %ebp
+	
+	/* Save callee-save registers
+	 * %ebp is saved by creating the stack frame above */
+	push	%ebx
+	push	%esi
+	push	%edi
+	
+	/* Save current esp */
+	movl	12(%ebp), %eax
+	movl	%esp, (%eax)
+	
+	/* Switch to the new stack */
+	movl	8(%ebp), %esp
+	
+	/* Restore callee-save registers */
+	pop	%edi
+	pop	%esi
+	pop	%ebx
+	
+	/* Destroy stack frame & return */
+	pop	%ebp
+	ret
 
 #IRQ(0,0)
 

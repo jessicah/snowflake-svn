@@ -16,11 +16,7 @@ static unsigned long next_id = 0;
 static LIST_INITIALIZE(all_threads);
 static LIST_INITIALIZE(run_queue);
 static LIST_INITIALIZE(zombie_list);
-// static int num_threads = 0;
 static real_thread_t *current;
-
-/* Thread for cleanup post stack switch in schedule */
-static real_thread_t *zombie_thread = NULL;
 
 static real_thread_t kernel_thread;
 static thread_t idle_thread;
@@ -161,9 +157,92 @@ void *thread_getspecific() {
 	return current->slot;
 }
 
+static void *do_idle(void *a)
+{
+	while(1) {
+		thread_yield();
+		asm volatile("hlt");
+	}
+}
+
+static void *do_reaper(void *a)
+{
+	thread_t thread;
+	
+	interrupts_disable();
+	
+	while(1) {
+		while(!list_empty(&zombie_list)) {
+			/* kill each thread off */
+			thread = list_get_instance(zombie_list.next, real_thread_t, run_link);
+			list_remove(&thread->run_link);
+			list_remove(&thread->global_link);
+			free(thread->stack);
+			free(thread);
+		}
+		/* Now sleep */
+		current->status = BLOCKED;
+		schedule();
+	}
+}
+
 /* thread synchronisation primitives */
 
+static void wait_on(link_t *head)
+{
+	waitqueue_node_t node;
+	
+	/* Create new node. Avoid the heap by using the stack */
+	link_initialize(&node.link);
+	node.thread = current;
+	
+	/* Add to waiting threads list */
+	list_append(&node.link, head);
+	
+	/* Sleep */
+	current->status = BLOCKED;
+	schedule();
+}
+
+static void wake_first(link_t *head)
+{
+	waitqueue_node_t *node;
+	
+	if(list_empty(head)) {
+		return;
+	}
+	
+	/* Take the first node off the list */
+	node = list_get_instance(head->next, waitqueue_node_t, link);
+	list_remove(&node->link);
+	
+	/* And wake up that thread */
+	assert(node->thread->status == BLOCKED);
+	node->thread->status = RUNNABLE;
+	list_append(&node->thread->run_link, &run_queue);
+	
+	dprintf("w %x woke thread %d\r\n", (long)head, node->thread->id);
+}
+
+static void wake_all(link_t *head)
+{
+	waitqueue_node_t *node;
+	
+	/* Iterate over and remove every node */
+	while(!list_empty(head)) {
+		/* Take the first node off the list */
+		node = list_get_instance(head->next, waitqueue_node_t, link);
+		list_remove(&node->link);
+		
+		/* And wake up that thread */
+		assert(node->thread->status == BLOCKED);
+		node->thread->status = RUNNABLE;
+		list_append(&node->thread->run_link, &run_queue);
+	}
+}
+
 void mutex_init(mutex_t *mutex) {
+	list_initialize(&mutex->waitqueue_head);
 	mutex->owner = NULL;
 	mutex->id = next_id++;
 	dprintf("m %d:%d %x init\r\n", mutex->id, current->id, (long)mutex);
@@ -171,6 +250,8 @@ void mutex_init(mutex_t *mutex) {
 
 void mutex_destroy(mutex_t *mutex) {
 	dprintf("m %d:%d %x destroyed\r\n", mutex->id, current->id, (long)mutex);
+	/* Should not be anything waiting */
+	assert(list_empty(&mutex->waitqueue_head));
 }
 
 void mutex_lock(mutex_t *mutex) {
@@ -183,7 +264,7 @@ void mutex_lock(mutex_t *mutex) {
 	while(mutex->owner) {
 		/* Locked by something else */
 		dprintf("m %d:%d %x locked by %d\r\n", mutex->id, current->id, mutex->owner->id, (long)mutex);
-		/* Block here ### */
+		wait_on(&mutex->waitqueue_head);
 	}
 	
 	mutex->owner = current;
@@ -198,7 +279,7 @@ void mutex_unlock(mutex_t *mutex) {
 	assert(mutex->owner == current);
 	
 	/* Wake the first thread */
-	/* ### */
+	wake_first(&mutex->waitqueue_head);
 	
 	dprintf("m %d:%d %x unlocked\r\n", mutex->id, current->id, (long)mutex);
 	mutex->owner = NULL;
@@ -218,88 +299,47 @@ int mutex_trylock(mutex_t *mutex) {
 }
 
 void cond_init(cond_t *cond) {
-	cond->queue = NULL;
-	cond->head = NULL;
-	cond->waiting = 0;
+	list_initialize(&cond->waitqueue_head);
 	cond->id = next_id++;
 	dprintf("c %d:%d init\r\n", cond->id, current->id);
 }
 
 void cond_destroy(cond_t *cond) {
-	thread_queue_t *queue;
-	while (cond->queue != NULL) {
-		/* resume threads that were blocked on this mutex */
-		cond->queue->thread->status = RUNNABLE;
-		queue = cond->queue;
-		cond->queue = cond->queue->next;
-		free(queue);
-	}
 	dprintf("c %d:%d destroyed\r\n", cond->id, current->id);
+	/* Should not be anything waiting */
+	assert(list_empty(&cond->waitqueue_head));
 }
 
+/* cvar wait:
+ * atomicly /drop mutex
+ *          \start waiting
+ *   <woken up>
+ *   retake mutex */
 void cond_wait(cond_t *cond, mutex_t *mutex) {
-	thread_queue_t *queue, *prev;
-	/* mutex is already locked */
-	queue = (thread_queue_t *)malloc(sizeof(struct thread_queue));
-	queue->thread = current;
+	/* Go atomic */
+	long istate = interrupts_disable();
 	
-	/* another thread waiting to be signalled */
-	if (cond->head == NULL) {
-		queue->next = NULL;
-		cond->head = queue;
-		cond->queue = queue;
-	} else {
-		queue->next = cond->queue;
-		cond->queue = queue;
-	}
+	dprintf("c %d:%d waiting\r\n", cond->id, current->id);
 	
-	cond->waiting++;
+	mutex_unlock(mutex);
+	wait_on(&cond->waitqueue_head);
+	mutex_lock(mutex);
 	
-	/* put this thread to sleep */
-	cond->head->thread->status = BLOCKED;
-	while (cond->waiting > 0) {
-		dprintf("c %d:%d waiting\r\n", cond->id, current->id);
-		/* unlock the mutex */
-		mutex_unlock(mutex);
-		thread_yield();
-		mutex_lock(mutex);
-	}
-	
-	/* we're runnable, remove us from the queue */
-	prev = cond->queue;
-	for (queue = prev; queue != NULL; queue = prev->next)
-	{
-		if (queue == cond->head) {
-			/* remove from queue */
-			if (queue == cond->head) {
-				cond->queue = cond->queue->next;
-			} else {
-				prev->next = queue->next;
-			}
-			break;
-		}
-		prev = queue;
-	}
-	queue = cond->head;
-	cond->head = cond->head->next;
-	free(queue);
 	dprintf("c %d:%d resumed\r\n", cond->id, current->id);
+	
+	interrupts_restore(istate);
 }
-
-/* so these don't need the mutex as we don't modify the queue? */
 
 void cond_signal(cond_t *cond) {
+	long istate = interrupts_disable();
 	dprintf("c %d:%d signalled\r\n", cond->id, current->id);
-	if (cond->waiting > 0) {
-		--cond->waiting;
-		cond->head->thread->status = RUNNABLE;
-		dprintf("c %d:%d released thread %d\r\n", cond->id, current->id, cond->head->thread->id);
-	}
+	wake_first(&cond->waitqueue_head);
+	interrupts_restore(istate);
 }
 
 void cond_broadcast(cond_t *cond) {
+	long istate = interrupts_disable();
 	dprintf("c %d:%d broadcasted\r\n", cond->id, current->id);
-	while (cond->waiting > 0) {
-		cond_signal(cond);
-	}
+	wake_all(&cond->waitqueue_head);
+	interrupts_restore(istate);
 }

@@ -24,21 +24,19 @@ typedef struct thread {
 /* Pointer to emulate unique thread ID semantics of pthread_t */
 typedef real_thread_t *thread_t;
 
-typedef struct thread_queue {
-	thread_t *thread;
-	struct thread_queue *next;
-} thread_queue_t;
+typedef struct waitqueue_node {
+	thread_t thread;
+	link_t link;
+} waitqueue_node_t;
 
 typedef struct mutex {
-	/* ### stuff for waiting threads needed */
+	link_t waitqueue_head;
 	thread_t owner;
 	unsigned long id;
 } mutex_t;
 
 typedef struct cond {
-	thread_queue_t *queue;
-	thread_queue_t *head;
-	unsigned long waiting;
+	link_t waitqueue_head;
 	unsigned long id;
 } cond_t;
 
