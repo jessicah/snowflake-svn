@@ -393,9 +393,14 @@ let mk_stlib ?(copy = true) stlib =
             ]
         end;;
 
-    flag ["compile"; "c"; "libkernel"] (S[A"-I"; A"libraries/include"; A"-DCAML_NAME_SPACE"; A"-DSYS_linux_elf"; A"-DTARGET_i386"; A"-DNATIVE_CODE"; A"-O2"]);;
-
-    dep ["compile"; "c"; "libkernel"] ["libraries/include/caml/bigarray.h"; "libraries/kernel/idt.h"];;
+    flag ["compile"; "c"; "libkernel"] (S[A"-I"; A"libraries/include"; A"-nostdinc"; A"-DCAML_NAME_SPACE"; A"-DSYS_linux_elf"; A"-DTARGET_i386"; A"-DNATIVE_CODE"; A"-O2"]);;
+	
+	let deps = [
+		"libraries/include/caml/bigarray.h";
+		"libraries/kernel/idt.h";
+		"libraries/include/list.h";
+		"libraries/include/assert.h";
+	] in dep ["compile"; "c"; "libkernel"] deps;;
 
     copy_rule' "libraries/kernel/libkernel.a" "libkernel.a";;
 
