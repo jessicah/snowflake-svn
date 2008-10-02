@@ -15,8 +15,6 @@
 .global irq13
 .global irq14
 .global irq15
-.global irq16
-.global thread_start
 
 .extern signal_handlers
 .extern thread_schedule
@@ -34,12 +32,6 @@ irq##a:												\
 	popa;												\
 	iret
 
-thread_start:
-	push %ecx
-	call *%eax
-	push %eax
-	call thread_exit
-
 irq0:
 	pusha
 	movl caml_young_end, %eax
@@ -48,14 +40,6 @@ irq0:
 	push $0
 	call *0(%eax)
 	addl $4, %esp
-	push %esp
-	call thread_schedule
-	mov %eax, %esp
-	popa
-	iret
-
-irq16:
-	pusha
 	push %esp
 	call thread_schedule
 	mov %eax, %esp

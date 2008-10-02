@@ -3,164 +3,154 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 #include "threads.h"
 
-static thread_t * current;
+extern void _thread_switch_stacks(unsigned long *new_esp, unsigned long **old_esp);
 
-static thread_t * cleanup_stack = NULL;
+static void *do_idle(void *);
+static void *do_reaper(void *);
 
 static unsigned long next_id = 0;
 
-static int num_threads = 0;
+static LIST_INITIALIZE(all_threads);
+static LIST_INITIALIZE(run_queue);
+static LIST_INITIALIZE(zombie_list);
+// static int num_threads = 0;
+static real_thread_t *current;
+
+/* Thread for cleanup post stack switch in schedule */
+static real_thread_t *zombie_thread = NULL;
+
+static real_thread_t kernel_thread;
+static thread_t idle_thread;
+/* Reaper: Slayer of dead threads */
+static thread_t reaper_thread;
 
 void thread_init() {
-	current = (thread_t *)malloc(sizeof(struct thread));
+	/* Kernel thread is special, it already has a stack and is currently running */
+	kernel_thread.id = next_id++;
+	kernel_thread.status = RUNNABLE;
+	link_initialize(&kernel_thread.run_link);
+	link_initialize(&kernel_thread.global_link);
+	list_insert_prev(&kernel_thread.global_link, &all_threads);
+	kernel_thread.slot = NULL;
+	current = &kernel_thread;
 	
-	current->id = next_id++;
-	current->status = RUNNABLE;
-	current->next = current;
-	current->prev = current;
-	current->slot = NULL;
-	
-	num_threads = 1;
+	thread_create(&idle_thread, do_idle, NULL);
+	thread_create(&reaper_thread, do_reaper, NULL);
 }
 
-void schedule_for_deletion(thread_t *thread)
+static void schedule(void)
 {
-	if (num_threads <= 1) {
-		dprintf("System halted: nothing to run!\n");
-		asm volatile("cli");
-		asm volatile("hlt");
-	}
+	/* Save the current state of IF and disable interrupts */
+	long intr_state = interrupts_disable();
+	real_thread_t *previous = current;
 	
-	thread->prev->next = thread->next;
-	thread->next->prev = thread->prev;
-	
-	if (cleanup_stack == NULL) {
-		thread->next = NULL;
-		thread->prev = NULL;
-		cleanup_stack = thread;
-	} else {
-		thread->next = cleanup_stack;
-		thread->prev = NULL;
-		cleanup_stack = thread;
-	}
-}
-
-unsigned long *thread_schedule(unsigned long *esp) {
-	thread_t *next;
-	
-	dprintf("thread_schedule:\r\n");
-
-try_again:
-	for (next = current->next; next != current; next = next->next) {
-		if (next->status == RUNNABLE) {
+	/* Possibly put the thread back on the run queue
+	 * The idle thread is special, it never goes on the run queue */
+	if(current != idle_thread) {
+		switch(current->status) {
+		case RUNNABLE:
+			/* Place on the end of the run queue */
+			list_append(&current->run_link, &run_queue);
 			break;
+		case BLOCKED:
+			/* Nothing */
+			break;
+		case KILLED:
+		case EXITED:
+			/* The thread is dead but cannot be freed here because 
+			 * we're currently running on it's stack
+			 * Prepare it for deletion and wake Reaper */
+			list_append(&current->run_link, &zombie_list);
+			if(reaper_thread->status == BLOCKED) {
+				reaper_thread->status = RUNNABLE;
+				list_append(&reaper_thread->run_link, &run_queue);
+			}
+			break;
+		default:
+			dprintf("schedule: Aiee! invalid thread state %u in %u/%x\r\n", current->status, current->id, (long)current);
+			assert(0);
 		}
 	}
 	
-	if (current == next) {
-		if (current->status == BLOCKED) {
-			// nothing to do!
-			dprintf("%d blocked\r\n", num_threads);
-			asm("hlt");
-			goto try_again;
-		}
-		if (current->status == KILLED || current->status == EXITED) {
-			// killed/exited last thread
-			//dprintf("no more threads to run! system halted :)\r\n");
-			//asm("cli");
-			dprintf("none runnable\r\n");
-			asm("hlt");
-			goto try_again;
-		}
-		dprintf("t %d:%x resumes\r\n", current->id, current->stack);
-		return esp;
+	/* Pick a new thread to run */
+	if(list_empty(&run_queue)) {
+		/* Nothing to run, schedule the idle thread */
+		current = idle_thread;
+	} else {
+		/* Pull it from the fron of the run queue */
+		current = list_get_instance(run_queue.next, real_thread_t, run_link);
+		list_remove(&current->run_link);
 	}
 	
-	current->esp = esp;
-	
-	if (current->status == KILLED) {
-		// prepare thread to be deleted
-		schedule_for_deletion(current);
+	if(previous == current) {
+		/* Nothing to do, early return now to avoid the stack switch code */
+		return;
 	}
 	
-	current = next;
-	
-	dprintf("t %d:%x starts (of %d)\r\n", current->id, current->stack, num_threads);
-	
-	return current->esp;
+	/* MAGIC! */
+	_thread_switch_stacks(current->esp, &previous->esp);
+	/* Now we're running on current's stack, so local variable have changed
+	 * intr_state now holds the IF state for this thread, not the previous thread */
+	interrupts_restore(intr_state);
 }
 
-void thread_yield() {
-	thread_t * thread;
-	// cleanup threads that have terminated
-	while (cleanup_stack != NULL) {
-		thread = cleanup_stack;
-		cleanup_stack = cleanup_stack->next;
-		dprintf("t %d%x deleted\r\n", thread->id, thread->stack);
-		free(thread->stack);
-		free(thread);
-	}
-	asm volatile("int $0x30");
+void thread_yield(void) {
+	schedule();
 }
-
-extern void thread_start();
 
 void thread_exit(void *retval) {
-	num_threads--;
-	// update status so it will get removed later...
-	current->status = EXITED;
 	dprintf("t %d:%x exited\r\n", current->id, current->stack);
-	asm volatile("movl %0, %%eax" : : "c" (retval));	
-	asm volatile("int $0x30");
+	/* Signal schedule that this thread has exited */
+	current->status = EXITED;
+	schedule();
+	/* Can't reach here */
+	assert(0);
 }
 
 #define STACK_SIZE 16384
 
+static void thread_entry_trampoline(void *(*closure)(void *), void *arg)
+{
+	interrupts_enable();
+	thread_exit(closure(arg));
+}
+
 void thread_create(thread_t *thread, void *(*closure)(void *), void *arg) {
-	unsigned long *stack;
-	unsigned long *esp;
- 
-	stack = (unsigned long *)malloc(STACK_SIZE * sizeof(unsigned long));
-	thread = (thread_t *)malloc(sizeof(struct thread));
- 
-	memset(stack, 0, 0x10000);
+	*thread = malloc(sizeof(real_thread_t));
+	(*thread)->id = next_id++;
+	(*thread)->status = RUNNABLE;
+	(*thread)->slot = NULL;
+	(*thread)->stack = (unsigned long *)malloc(STACK_SIZE * sizeof(unsigned long));
+	(*thread)->esp = (*thread)->stack + STACK_SIZE;
 	
-	thread->id = next_id++;
-	thread->status = RUNNABLE;
-	thread->slot = NULL;
-	thread->stack = stack;
-	thread->esp = thread->stack + STACK_SIZE;
- 
-	*--thread->esp = 0x202; /* EFLAGS */
-	*--thread->esp = 0x08; /* CS */
-	*--thread->esp = (unsigned long)thread_start; /* EIP */
-	*--thread->esp = (unsigned long)closure; /* EAX */
-	*--thread->esp = (unsigned long)arg; /* ECX */
-	*--thread->esp = 0xED; /* EDX */
-	*--thread->esp = 0xEB; /* EBX */
-	*--thread->esp = 0xCAFEBABE; /* ESP; dummy value */
-	*--thread->esp = 0x0; /* EBP; 0 for stacktrace() */
-	esp = thread->esp;
-	*--thread->esp = 0xED1; /* EDI */
-	*--thread->esp = 0xE51; /* ESI */
-	/* we don't ever change segment registers, so removed :) */
+	memset((*thread)->stack, 0, STACK_SIZE * sizeof(unsigned long));
 	
-	*esp = (unsigned long)thread->esp;
+	link_initialize(&(*thread)->run_link);
+	link_initialize(&(*thread)->global_link);
 	
-	++num_threads;
+	/* Set up the stack for _thread_switch_stacks */
+	*--(*thread)->esp = (unsigned long)arg;                      /* Argument 2 for the trampoline */
+	*--(*thread)->esp = (unsigned long)closure;                  /* Argument 1 for the trampoline */
+	*--(*thread)->esp = 0;                                       /* Return address */
+	*--(*thread)->esp = (unsigned long)thread_entry_trampoline;  /* EIP/_stack_switch return address */
+	*--(*thread)->esp = 0;                                       /* EBP */
+	*--(*thread)->esp = 0;                                       /* EBX */
+	*--(*thread)->esp = 0;                                       /* ESI */
+	*--(*thread)->esp = 0;                                       /* EDI */
 	
-	thread->next = current->next;
-	thread->prev = current;
-	current->next->prev = thread;
-	current->next = thread;
+	long istate = interrupts_disable();
+	list_append(&(*thread)->global_link, &all_threads);
+	list_append(&(*thread)->run_link, &run_queue);
+	interrupts_restore(istate);
 	
-	dprintf("t %d:%x created\r\n", thread->id, thread->stack);
+	dprintf("t %d:%x:%x created\r\n", (*thread)->id, (*thread)->stack, thread);
 }
 
 thread_t thread_self() {
-	return *current;
+	return current;
 }
 
 void thread_setspecific(void *data) {
@@ -174,89 +164,56 @@ void *thread_getspecific() {
 /* thread synchronisation primitives */
 
 void mutex_init(mutex_t *mutex) {
-	mutex->queue = NULL;
-	mutex->head = NULL;
-	mutex->owner = 0;
+	mutex->owner = NULL;
 	mutex->id = next_id++;
 	dprintf("m %d:%d %x init\r\n", mutex->id, current->id, (long)mutex);
 }
 
 void mutex_destroy(mutex_t *mutex) {
-	thread_queue_t *queue;
-	while (mutex->queue != NULL) {
-		/* resume threads that were blocked on this mutex */
-		mutex->queue->thread->status = RUNNABLE;
-		queue = mutex->queue;
-		mutex->queue = mutex->queue->next;
-		free(queue);
-	}
 	dprintf("m %d:%d %x destroyed\r\n", mutex->id, current->id, (long)mutex);
 }
 
 void mutex_lock(mutex_t *mutex) {
-	thread_queue_t *queue;
-	queue = (thread_queue_t *)malloc(sizeof(struct thread_queue));
-	asm volatile("cli; nop");
+	long istate = interrupts_disable();
 	dprintf("m %d:%d %x locking\r\n", mutex->id, current->id, (long)mutex);
-	if (mutex->queue == NULL) {
-		queue->next = NULL;
-		mutex->queue = queue;
-		mutex->head = queue;
-	} else {
-		queue->next = mutex->queue;
-		mutex->queue = queue;
-	}
-	queue->thread = current;
-	while (mutex->owner != NULL && mutex->owner != current) {
-		// mutex locked by someone else
+	
+	/* Check for recursive locking */
+	assert(mutex->owner != current);
+	
+	while(mutex->owner) {
+		/* Locked by something else */
 		dprintf("m %d:%d %x locked by %d\r\n", mutex->id, current->id, mutex->owner->id, (long)mutex);
-		asm volatile("sti; nop");
-		current->status = BLOCKED;
-		thread_yield();
-		dprintf("m %d:%d %x retrying\r\n", mutex->id, current->id, (long)mutex);
-		asm volatile("cli; nop");
+		/* Block here ### */
 	}
+	
 	mutex->owner = current;
 	dprintf("m %d:%d %x locked\r\n", mutex->id, current->id, (long)mutex);
-	asm volatile("sti; nop");
+	interrupts_restore(istate);
 }
 
 void mutex_unlock(mutex_t *mutex) {
-	thread_queue_t *queue, *prev;
-	asm volatile("cli; nop");
-	prev = mutex->queue;
-	for (queue = prev; queue != NULL; queue = prev->next)
-	{
-		if (queue == mutex->head) {
-			/* remove from queue */
-			if (queue == mutex->head) {
-				dprintf("removing first item\r\n");
-				mutex->queue = mutex->queue->next;
-			} else {
-				prev->next = queue->next;
-			}
-			break;
-		}
-		prev = queue;
-	}
+	long istate = interrupts_disable();
+	
+	/* Ensure the mutex is locked by us */
+	assert(mutex->owner == current);
+	
+	/* Wake the first thread */
+	/* ### */
+	
 	dprintf("m %d:%d %x unlocked\r\n", mutex->id, current->id, (long)mutex);
-	dprintf("mx %x\r\n", mutex->head);
-	dprintf("mx %x\r\n", mutex->head->thread);
-	mutex->head->thread->status = RUNNABLE;
-	queue = mutex->head;
-	mutex->head = mutex->head->next;
-	dprintf("mx %x\r\n", mutex->head);
-	free(queue);
 	mutex->owner = NULL;
-	asm volatile("sti; nop");
+	interrupts_restore(istate);
 }
 
 int mutex_trylock(mutex_t *mutex) {
-	int retcode;
-	asm volatile("cli; nop");
-	retcode = mutex->owner == NULL ? 0 : -1;
+	long istate = interrupts_disable();
+	int retcode = -1;
+	if(mutex->owner == NULL) {
+		mutex->owner = current;
+		retcode = 0;
+	}
 	dprintf("m %d:%d %x try lock = %d\r\n", mutex->id, current->id, (long)mutex, retcode);
-	asm volatile("sti; nop");
+	interrupts_restore(istate);
 	return retcode;
 }
 

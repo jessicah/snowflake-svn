@@ -222,7 +222,6 @@ EI(12);
 EI(13);
 EI(14);
 EI(15);
-EI(16);
 
 void idt_init() {
 	int i;
@@ -287,7 +286,6 @@ void idt_init() {
 	signal_mask = 0xFFFF;
 	
 	//set_irq(0, irq0);
-	set_vector(0x30, (interrupt_handler)irq16, interrupt);
 	
 	struct {
 		unsigned short size  __attribute__ ((packed));

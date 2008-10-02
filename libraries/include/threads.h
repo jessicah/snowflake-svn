@@ -1,3 +1,7 @@
+#ifndef _THREADS_H
+#define _THREADS_H
+
+#include <list.h>
 
 #define RUNNABLE 0
 #define BLOCKED 1
@@ -10,9 +14,15 @@ typedef struct thread {
 	void *slot;
 	unsigned long id;
 	unsigned long status;
-	struct thread * next;
-	struct thread * prev;
-} thread_t;
+	
+	/* Doubly-linked list of threads in the system */
+	link_t global_link;
+	/* Doubly-linked list of ready to run threads */
+	link_t run_link;
+} real_thread_t;
+
+/* Pointer to emulate unique thread ID semantics of pthread_t */
+typedef real_thread_t *thread_t;
 
 typedef struct thread_queue {
 	thread_t *thread;
@@ -20,9 +30,8 @@ typedef struct thread_queue {
 } thread_queue_t;
 
 typedef struct mutex {
-	thread_queue_t *queue;
-	thread_queue_t *head;
-	thread_t *owner;
+	/* ### stuff for waiting threads needed */
+	thread_t owner;
 	unsigned long id;
 } mutex_t;
 
@@ -56,3 +65,25 @@ extern void cond_destroy(cond_t *);
 extern void cond_wait(cond_t *, mutex_t *);
 extern void cond_signal(cond_t *);
 extern void cond_broadcast(cond_t *);
+
+static inline long interrupts_disable(void)
+{
+	long eflags;
+	asm volatile("pushf;cli;pop %0":"=rm"(eflags));
+	return eflags & 0x200;
+}
+
+static inline void interrupts_enable(void)
+{
+	asm volatile("sti;nop");
+}
+
+/* Restore from disabled interrupts to state */
+static inline void interrupts_restore(long state)
+{
+	if(state) {
+		interrupts_enable();
+	}
+}
+
+#endif
