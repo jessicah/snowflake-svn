@@ -6,6 +6,7 @@ let thread_1 () =
 		Mutex.lock m;
 		Vt100.printf "thread 1\n";
 		Mutex.unlock m;
+		Thread.yield();
 	done
 
 let thread_2 () =
@@ -13,6 +14,7 @@ let thread_2 () =
 		Mutex.lock m;
 		Vt100.printf "thread 2\n";
 		Mutex.unlock m;
+		Thread.yield();
 	done
 
 let () =

@@ -190,14 +190,15 @@ static void *do_reaper(void *a)
 
 static void wait_on(link_t *head)
 {
-	waitqueue_node_t node;
+	waitqueue_node_t *node;
 	
-	/* Create new node. Avoid the heap by using the stack */
-	link_initialize(&node.link);
-	node.thread = current;
+	/* Create new node */
+	node = (waitqueue_node_t *)malloc(sizeof(waitqueue_node_t));
+	link_initialize(&node->link);
+	node->thread = current;
 	
 	/* Add to waiting threads list */
-	list_append(&node.link, head);
+	list_append(&node->link, head);
 	
 	/* Sleep */
 	current->status = BLOCKED;
@@ -222,6 +223,9 @@ static void wake_first(link_t *head)
 	list_append(&node->thread->run_link, &run_queue);
 	
 	dprintf("w %x woke thread %d\r\n", (long)head, node->thread->id);
+
+	/* Clean up the node */
+	free(node);
 }
 
 static void wake_all(link_t *head)
@@ -238,6 +242,9 @@ static void wake_all(link_t *head)
 		assert(node->thread->status == BLOCKED);
 		node->thread->status = RUNNABLE;
 		list_append(&node->thread->run_link, &run_queue);
+		
+		/* Clean up the node */
+		free(node);
 	}
 }
 
