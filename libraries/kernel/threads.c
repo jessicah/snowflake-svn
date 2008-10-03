@@ -190,7 +190,7 @@ static void *do_reaper(void *a)
 
 static void wait_on(link_t *head)
 {
-	waitqueue_node_t node;
+	waitqueue_node_t volatile node;
 	
 	/* Create new node */
 	link_initialize(&node.link);
