@@ -72,8 +72,6 @@ _thread_switch_stacks:
 	pop	%ebp
 	ret
 
-#IRQ(0,0)
-
 IRQ(1,4)
 IRQ(2,8)
 IRQ(3,12)

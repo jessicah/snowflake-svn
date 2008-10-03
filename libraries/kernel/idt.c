@@ -285,8 +285,6 @@ void idt_init() {
 	
 	signal_mask = 0xFFFF;
 	
-	//set_irq(0, irq0);
-	
 	struct {
 		unsigned short size  __attribute__ ((packed));
 		unsigned long offset __attribute__ ((packed));

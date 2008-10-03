@@ -212,10 +212,12 @@ static int caml_thread_try_leave_blocking_section(void)
 static void * caml_thread_tick(void * arg)
 {
 	static volatile int x = 0;
+	// once we start this thread, interrupts need to be on :P
+	asm volatile("sti; nop");
   while(1) {
     /* select() seems to be the most efficient way to suspend the
        thread for sub-second intervals */
-		for (x = 0; x < Thread_timeout; ++x) ;
+		for (x = 0; x < Thread_timeout; ++x) thread_yield();
     /* This signal should never cause a callback, so don't go through
        handle_signal(), tweak the global variable directly. */
     caml_pending_signals[20] = 1;
@@ -277,7 +279,7 @@ value caml_thread_initialize(value unit)   /* ML */
     //caml_termination_hook = pthread_exit;
 #endif
     /* Fork the tick thread */
-    //thread_create(&tick_pthread, caml_thread_tick, NULL);
+    thread_create(&tick_pthread, caml_thread_tick, NULL);
 		//dprintf("tick thread: %d\n", tick_pthread.id);
   End_roots();
   return Val_unit;

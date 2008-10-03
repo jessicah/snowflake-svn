@@ -4,17 +4,15 @@ let m = Mutex.create ()
 let thread_1 () =
 	while true do
 		Mutex.lock m;
-		Vt100.printf "thread 1\n";
+		Vt100.printf "@";
 		Mutex.unlock m;
-		Thread.yield();
 	done
 
 let thread_2 () =
 	while true do
 		Mutex.lock m;
-		Vt100.printf "thread 2\n";
+		Vt100.printf "0";
 		Mutex.unlock m;
-		Thread.yield();
 	done
 
 let () =
