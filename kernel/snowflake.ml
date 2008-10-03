@@ -23,4 +23,3 @@ let () =
 	let t2 = Thread.create thread_2 () in
     Vt100.printf "Hello, from ML :)\nUsing ocaml version: %s\n" Sys.ocaml_version;
 	Asm.sti ();
-	while true do Thread.yield() done
