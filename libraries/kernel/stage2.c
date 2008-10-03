@@ -53,7 +53,6 @@ void __startup(void *argv, int magic)
 	thread_init();
 	idt_init();
 	paging_init();
-	asm volatile("int $0x30");
 	
 	caml_startup(argv);
 	caml_enter_blocking_section();
