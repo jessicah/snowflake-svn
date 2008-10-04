@@ -1,23 +1,12 @@
 
-let m = Mutex.create ()
-
-let thread_1 () =
+let echo_shell () =
 	while true do
-		Mutex.lock m;
-		Vt100.printf "@";
-		Mutex.unlock m;
-	done
-
-let thread_2 () =
-	while true do
-		Mutex.lock m;
-		Vt100.printf "0";
-		Mutex.unlock m;
+		Vt100.printf "%c" (Keyboard.get_char ())
 	done
 
 let () =
     Vga.init (); (* set up a pretty console font *)
-	let t1 = Thread.create thread_1 () in
-	let t2 = Thread.create thread_2 () in
-    Vt100.printf "Hello, from ML :)\nUsing ocaml version: %s\n" Sys.ocaml_version;
+	Keyboard.init (); (* set up the keyboard handler *)
+	Vt100.printf "Hello, from ML :)\nUsing ocaml version: %s\n" Sys.ocaml_version;
 	Asm.sti ();
+	ignore (Thread.create echo_shell ()) (* start the echo shell *)

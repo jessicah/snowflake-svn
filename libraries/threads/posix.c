@@ -119,6 +119,7 @@ static void caml_thread_scan_roots(scanning_action action)
 {
   caml_thread_t th;
 
+  if (curr_thread != NULL) {
   th = curr_thread;
   do {
     (*action)(th->descr, &th->descr);
@@ -134,6 +135,7 @@ static void caml_thread_scan_roots(scanning_action action)
     }
     th = th->next;
   } while (th != curr_thread);
+  }
   /* Hook */
   if (prev_scan_roots_hook != NULL) (*prev_scan_roots_hook)(action);
 }
@@ -144,6 +146,7 @@ static void caml_thread_enter_blocking_section(void)
 {
   /* Save the stack-related global variables in the thread descriptor
      of the current thread */
+  if (curr_thread != NULL) {
 #ifdef NATIVE_CODE
   curr_thread->bottom_of_stack = caml_bottom_of_stack;
   curr_thread->last_retaddr = caml_last_return_address;
@@ -159,6 +162,7 @@ static void caml_thread_enter_blocking_section(void)
   curr_thread->local_roots = local_roots;
   curr_thread->external_raise = external_raise;
 #endif
+  }
   /* Tell other threads that the runtime is free */
   mutex_lock(&caml_runtime_mutex);
   caml_runtime_busy = 0;
@@ -181,6 +185,7 @@ static void caml_thread_leave_blocking_section(void)
      to the thread currently executing */
   curr_thread = thread_getspecific();
   /* Restore the stack-related global variables */
+  if (curr_thread != NULL) {
 #ifdef NATIVE_CODE
   caml_bottom_of_stack= curr_thread->bottom_of_stack;
   caml_last_return_address = curr_thread->last_retaddr;
@@ -196,15 +201,34 @@ static void caml_thread_leave_blocking_section(void)
   local_roots = curr_thread->local_roots;
   external_raise = curr_thread->external_raise;
 #endif
+  }
 }
 
 static int caml_thread_try_leave_blocking_section(void)
 {
-  /* Disable immediate processing of signals (PR#3659).
-     try_leave_blocking_section always fails, forcing the signal to be
-     recorded and processed at the next leave_blocking_section or
-     polling. */
-  return 0;
+  if (mutex_trylock(&caml_runtime_mutex) == 0) {
+	  /* acquired lock */
+	  if (caml_runtime_busy) {
+		  mutex_unlock(&caml_runtime_mutex);
+		  return 0;
+	  } else {
+		  caml_runtime_busy = 1;
+		  mutex_unlock(&caml_runtime_mutex);
+		  
+		  curr_thread = thread_getspecific();
+		  if (curr_thread != NULL) {
+			  caml_bottom_of_stack= curr_thread->bottom_of_stack;
+			  caml_last_return_address = curr_thread->last_retaddr;
+			  caml_gc_regs = curr_thread->gc_regs;
+			  caml_exception_pointer = curr_thread->exception_pointer;
+			  caml_local_roots = curr_thread->local_roots;
+		  }
+		  return 1;
+	  }
+  } else {
+	  /* already locked */
+	  return 0;
+  }
 }
 
 /* The "tick" thread fakes a SIGVTALRM signal at regular intervals. */
@@ -279,7 +303,7 @@ value caml_thread_initialize(value unit)   /* ML */
     //caml_termination_hook = pthread_exit;
 #endif
     /* Fork the tick thread */
-    thread_create(&tick_pthread, caml_thread_tick, NULL);
+    //thread_create(&tick_pthread, caml_thread_tick, NULL);
 		//dprintf("tick thread: %d\n", tick_pthread.id);
   End_roots();
   return Val_unit;

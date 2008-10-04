@@ -54,6 +54,9 @@ void __startup(void *argv, int magic)
 	idt_init();
 	paging_init();
 	
+	unmask_irq(0);
+	update_mask();
+	
 	caml_startup(argv);
 	caml_enter_blocking_section();
 	

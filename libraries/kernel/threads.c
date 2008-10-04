@@ -76,13 +76,14 @@ static void schedule(void)
 		/* Nothing to run, schedule the idle thread */
 		current = idle_thread;
 	} else {
-		/* Pull it from the fron of the run queue */
+		/* Pull it from the front of the run queue */
 		current = list_get_instance(run_queue.next, real_thread_t, run_link);
 		list_remove(&current->run_link);
 	}
 	
 	if(previous == current) {
 		/* Nothing to do, early return now to avoid the stack switch code */
+		interrupts_restore(intr_state);
 		return;
 	}
 	
