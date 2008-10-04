@@ -7,7 +7,7 @@ let echo_shell () =
 let (++) x f = f x
 
 let print_ip () = function IPv4.Addr (x1,x2,x3,x4) ->
-	Printf.sprintf "%d:%d:%d:%d" x1 x2 x3 x4
+	Printf.sprintf "%d.%d.%d.%d" x1 x2 x3 x4
 
 let print_dhcp packet =
 	Vt100.printf "Transaction ID: %ld\r\n" packet.DHCP.transaction;
@@ -31,6 +31,7 @@ let rec (<->) a = function
 
 module Foo = struct
 open IO;;
+open IO.BigEndian;;
 open ExtList;;
 open ExtString;;
 
@@ -177,8 +178,7 @@ module DHCPClient = struct
 		Vt100.printf "Sending DHCP Discover...\r\n";
 		let p = make_packet client.addr [0x35;0x01;0x01] in
 		client.send p;
-		let p2 = as_packet p in
-		print_dhcp (Parser.parse_packet parser (as_packet p)).Ethernet.content.IPv4.content.Udp.content;
+		(*print_dhcp (Parser.parse_packet parser (as_packet p)).Ethernet.content.IPv4.content.Udp.content;*)
 		Vt100.printf "Awaiting DHCP Reply...\r\n";
 		let reply = Parser.parse_packet parser (as_packet (client.recv ())) in
 		Vt100.printf "Dumping reply packet...\r\n";
@@ -191,13 +191,8 @@ let () =
 	Keyboard.init (); (* set up the keyboard handler *)
 	Vt100.printf "Hello, from ML :)\nUsing ocaml version: %s\n" Sys.ocaml_version;
 	Asm.sti ();
-	(*let dhcp_parser =
-		DHCP.packet ++ UDP.packet ++ IPv4.packet ++ Ethernet.packet
-	in
-	let packet = Parser.parse_packet dhcp_parser Test.dhcp in
-	print_dhcp packet.Ethernet.content.IPv4.content.UDP.content;*)
 	let pci_devices = PCI.probe_bus () in
-	List.iter print_device pci_devices;
+	(*List.iter print_device pci_devices;*)
 	begin try
 		let dev = List.find (fun d -> d.vendor = 0x10EC && d.device = 0x8139) pci_devices in
 		let x = RealTek8139.create dev in
