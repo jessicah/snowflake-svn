@@ -18,3 +18,11 @@ let of_array a = {
 	}
 
 (* Don't need to worry about outpackets yet *)
+
+type outpacket = {
+		outlen : int;
+		chunks : chunk list;
+	}
+and chunk = int array
+
+type outpacketS = outpacket -> outpacket
