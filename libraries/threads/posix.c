@@ -462,22 +462,14 @@ value caml_thread_exit(value unit)   /* ML */
 
 value caml_thread_yield(value unit)        /* ML */
 {
-	dprintf("caml_thread_yield\r\n");
   if (caml_runtime_waiters == 0) {
-		dprintf("*");
 		thread_yield();
-		dprintf("+");
 		return Val_unit;
 	}
-	dprintf(">\r\n");
   caml_enter_blocking_section();
-	dprintf("--\r\n");
   caml_young_limit = caml_young_end;
-	dprintf(".\r\n");
   /*if (! broken_sched_yield)*/ thread_yield();
-	dprintf("--\r\n");
 	caml_leave_blocking_section();
-	dprintf("<\r\n");
   return Val_unit;
 }
 

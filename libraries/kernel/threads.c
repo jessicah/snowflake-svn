@@ -99,7 +99,9 @@ void thread_yield(void) {
 }
 
 void thread_exit(void *retval) {
+#ifdef DEBUG_THREADS
 	dprintf("t %d:%x exited\r\n", current->id, current->stack);
+#endif
 	/* Signal schedule that this thread has exited */
 	current->status = EXITED;
 	schedule();
@@ -142,8 +144,9 @@ void thread_create(thread_t *thread, void *(*closure)(void *), void *arg) {
 	list_append(&(*thread)->global_link, &all_threads);
 	list_append(&(*thread)->run_link, &run_queue);
 	interrupts_restore(istate);
-	
+#ifdef DEBUG_THREADS
 	dprintf("t %d:%x:%x created\r\n", (*thread)->id, (*thread)->stack, thread);
+#endif
 }
 
 thread_t thread_self() {
@@ -221,8 +224,9 @@ static void wake_first(link_t *head)
 	assert(node->thread->status == BLOCKED);
 	node->thread->status = RUNNABLE;
 	list_append(&node->thread->run_link, &run_queue);
-	
+#ifdef DEBUG_THREADS	
 	dprintf("w %x woke thread %d\r\n", (long)head, node->thread->id);
+#endif
 }
 
 static void wake_all(link_t *head)
@@ -246,30 +250,40 @@ void mutex_init(mutex_t *mutex) {
 	list_initialize(&mutex->waitqueue_head);
 	mutex->owner = NULL;
 	mutex->id = next_id++;
+#ifdef DEBUG_THREADS
 	dprintf("m %d:%d %x init\r\n", mutex->id, current->id, (long)mutex);
+#endif
 }
 
 void mutex_destroy(mutex_t *mutex) {
+#ifdef DEBUG_THREADS
 	dprintf("m %d:%d %x destroyed\r\n", mutex->id, current->id, (long)mutex);
+#endif
 	/* Should not be anything waiting */
 	assert(list_empty(&mutex->waitqueue_head));
 }
 
 void mutex_lock(mutex_t *mutex) {
 	long istate = interrupts_disable();
+#ifdef DEBUG_THREADS
 	dprintf("m %d:%d %x locking\r\n", mutex->id, current->id, (long)mutex);
+#endif
 	
 	/* Check for recursive locking */
 	assert(mutex->owner != current);
 	
 	while(mutex->owner) {
 		/* Locked by something else */
+#ifdef DEBUG_THREADS
 		dprintf("m %d:%d %x locked by %d\r\n", mutex->id, current->id, mutex->owner->id, (long)mutex);
+#endif
 		wait_on(&mutex->waitqueue_head);
 	}
 	
 	mutex->owner = current;
+#ifdef DEBUG_THREADS
 	dprintf("m %d:%d %x locked\r\n", mutex->id, current->id, (long)mutex);
+#endif
 	interrupts_restore(istate);
 }
 
@@ -281,8 +295,9 @@ void mutex_unlock(mutex_t *mutex) {
 	
 	/* Wake the first thread */
 	wake_first(&mutex->waitqueue_head);
-	
+#ifdef DEBUG_THREADS
 	dprintf("m %d:%d %x unlocked\r\n", mutex->id, current->id, (long)mutex);
+#endif
 	mutex->owner = NULL;
 	interrupts_restore(istate);
 }
@@ -294,7 +309,9 @@ int mutex_trylock(mutex_t *mutex) {
 		mutex->owner = current;
 		retcode = 0;
 	}
+#ifdef DEBUG_THREADS
 	dprintf("m %d:%d %x try lock = %d\r\n", mutex->id, current->id, (long)mutex, retcode);
+#endif
 	interrupts_restore(istate);
 	return retcode;
 }
@@ -302,11 +319,15 @@ int mutex_trylock(mutex_t *mutex) {
 void cond_init(cond_t *cond) {
 	list_initialize(&cond->waitqueue_head);
 	cond->id = next_id++;
+#ifdef DEBUG_THREADS
 	dprintf("c %d:%d init\r\n", cond->id, current->id);
+#endif
 }
 
 void cond_destroy(cond_t *cond) {
+#ifdef DEBUG_THREADS
 	dprintf("c %d:%d destroyed\r\n", cond->id, current->id);
+#endif
 	/* Should not be anything waiting */
 	assert(list_empty(&cond->waitqueue_head));
 }
@@ -319,28 +340,32 @@ void cond_destroy(cond_t *cond) {
 void cond_wait(cond_t *cond, mutex_t *mutex) {
 	/* Go atomic */
 	long istate = interrupts_disable();
-	
+#ifdef DEBUG_THREADS
 	dprintf("c %d:%d waiting\r\n", cond->id, current->id);
-	
+#endif
 	mutex_unlock(mutex);
 	wait_on(&cond->waitqueue_head);
 	mutex_lock(mutex);
-	
+#ifdef DEBUG_THREADS
 	dprintf("c %d:%d resumed\r\n", cond->id, current->id);
-	
+#endif
 	interrupts_restore(istate);
 }
 
 void cond_signal(cond_t *cond) {
 	long istate = interrupts_disable();
+#ifdef DEBUG_THREADS
 	dprintf("c %d:%d signalled\r\n", cond->id, current->id);
+#endif
 	wake_first(&cond->waitqueue_head);
 	interrupts_restore(istate);
 }
 
 void cond_broadcast(cond_t *cond) {
 	long istate = interrupts_disable();
+#ifdef DEBUG_THREADS
 	dprintf("c %d:%d broadcasted\r\n", cond->id, current->id);
+#endif
 	wake_all(&cond->waitqueue_head);
 	interrupts_restore(istate);
 }
