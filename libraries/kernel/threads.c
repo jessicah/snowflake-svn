@@ -161,6 +161,20 @@ void *thread_getspecific() {
 	return current->slot;
 }
 
+void thread_sleep()
+{
+	dprintf("thread %d sleeping\r\n", current->id);
+	current->status = BLOCKED;
+	schedule();
+}
+
+void thread_wake(thread_t t)
+{
+	dprintf("thread %d being woken up by %d\r\n", t->id, current->id);
+	t->status = RUNNABLE;
+	list_append(&t->run_link, &run_queue);
+}
+
 static void *do_idle(void *a)
 {
 	while(1) {
@@ -287,6 +301,15 @@ void mutex_lock(mutex_t *mutex) {
 	interrupts_restore(istate);
 }
 
+void mutex_unsafe_lock(mutex_t *mutex) {
+	long istate = interrupts_disable();
+	while (mutex->owner) {
+		wait_on(&mutex->waitqueue_head);
+	}
+	mutex->owner = current;
+	interrupts_restore(istate);
+}
+
 void mutex_unlock(mutex_t *mutex) {
 	long istate = interrupts_disable();
 	
@@ -298,6 +321,13 @@ void mutex_unlock(mutex_t *mutex) {
 #ifdef DEBUG_THREADS
 	dprintf("m %d:%d %x unlocked\r\n", mutex->id, current->id, (long)mutex);
 #endif
+	mutex->owner = NULL;
+	interrupts_restore(istate);
+}
+
+void mutex_unsafe_unlock(mutex_t *mutex) {
+	long istate = interrupts_disable();
+	wake_first(&mutex->waitqueue_head);
 	mutex->owner = NULL;
 	interrupts_restore(istate);
 }

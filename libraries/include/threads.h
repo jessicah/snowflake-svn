@@ -49,6 +49,8 @@ extern void thread_create(thread_t *, void *(*)(void *), void *);
 extern thread_t thread_self();
 extern void thread_setspecific(void *);
 extern void *thread_getspecific();
+extern void thread_sleep();
+extern void thread_wake(thread_t);
 
 //extern mutex_t *mutex_create();
 extern void mutex_init(mutex_t *);
@@ -56,6 +58,8 @@ extern void mutex_destroy(mutex_t *);
 extern void mutex_lock(mutex_t *);
 extern void mutex_unlock(mutex_t *);
 extern int mutex_trylock(mutex_t *);
+extern void mutex_unsafe_lock(mutex_t *);
+extern void mutex_unsafe_unlock(mutex_t *);
 
 //extern cond_t *cond_create();
 extern void cond_init(cond_t *);

@@ -183,9 +183,9 @@ static void caml_thread_leave_blocking_section(void)
   mutex_unlock(&caml_runtime_mutex);
   /* Update curr_thread to point to the thread descriptor corresponding
      to the thread currently executing */
+  if (thread_getspecific() != NULL) {
   curr_thread = thread_getspecific();
   /* Restore the stack-related global variables */
-  if (curr_thread != NULL) {
 #ifdef NATIVE_CODE
   caml_bottom_of_stack= curr_thread->bottom_of_stack;
   caml_last_return_address = curr_thread->last_retaddr;
@@ -215,9 +215,9 @@ static int caml_thread_try_leave_blocking_section(void)
 		  caml_runtime_busy = 1;
 		  mutex_unlock(&caml_runtime_mutex);
 		  
-		  curr_thread = thread_getspecific();
-		  if (curr_thread != NULL) {
-			  caml_bottom_of_stack= curr_thread->bottom_of_stack;
+		  if (thread_getspecific() != NULL) {
+			curr_thread = thread_getspecific();
+		    caml_bottom_of_stack= curr_thread->bottom_of_stack;
 			  caml_last_return_address = curr_thread->last_retaddr;
 			  caml_gc_regs = curr_thread->gc_regs;
 			  caml_exception_pointer = curr_thread->exception_pointer;
@@ -481,6 +481,35 @@ value caml_thread_join(value th)          /* ML */
   return Val_unit;
 }
 
+value caml_thread_sleep(value unit)
+{
+	caml_enter_blocking_section();
+	thread_sleep();
+	caml_leave_blocking_section();
+	return Val_unit;
+}
+
+value caml_thread_wake(value thread)
+{
+	caml_thread_t th;
+	
+	caml_enter_blocking_section();
+	
+	th = curr_thread;
+	do {
+		if (Ident(th->descr) == Ident(thread)) {
+			/* found the thread, stupid caml */
+			thread_wake(th->pthread);
+			break;
+		}
+		th = th->next;
+	} while (th != curr_thread);
+	
+	caml_leave_blocking_section();
+	
+	return Val_unit;
+}
+
 /* Mutex operations */
 
 #define Mutex_val(v) (* ((mutex_t **) Data_custom_val(v)))
@@ -550,6 +579,28 @@ value caml_mutex_try_lock(value wrapper)           /* ML */
   retcode = mutex_trylock(mut);
   if (retcode == 0) return Val_false;
   return Val_true;
+}
+
+value caml_mutex_unsafe_lock(value wrapper)
+{
+	mutex_t * mut = Mutex_val(wrapper);
+	Begin_root(wrapper)
+		caml_enter_blocking_section();
+		mutex_unsafe_lock(mut);
+		caml_leave_blocking_section();
+	End_roots();
+	return Val_unit;
+}
+
+value caml_mutex_unsafe_unlock(value wrapper)
+{
+	mutex_t * mut = Mutex_val(wrapper);
+	Begin_root(wrapper);
+		caml_enter_blocking_section();
+		mutex_unsafe_unlock(mut);
+		caml_leave_blocking_section();
+	End_roots();
+	return Val_unit;
 }
 
 /* Conditions operations */

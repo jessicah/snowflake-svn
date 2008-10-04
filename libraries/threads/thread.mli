@@ -58,3 +58,9 @@ val yield : unit -> unit
    This function can be used to give scheduling hints,
    telling the scheduler that now is a good time to
    switch to other threads. *)
+
+val sleep : unit -> unit
+(** Put the calling thread to sleep. *)
+
+val wake : t -> unit
+(** [wake th] wakes up the thread [th]. *)

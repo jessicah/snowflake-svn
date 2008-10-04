@@ -85,4 +85,4 @@ let rec get_char () =
 let init () =
 	enable ();
 	read ();
-	ignore (Sys.signal 1 (Sys.Signal_handle (fun _ -> read ())))
+	Interrupts.create 1 read

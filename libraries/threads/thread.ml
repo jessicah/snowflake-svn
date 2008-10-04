@@ -27,6 +27,8 @@ external self : unit -> t = "caml_thread_self"
 external id : t -> int = "caml_thread_id"
 external join : t -> unit = "caml_thread_join"
 external exit : unit -> unit = "caml_thread_exit"
+external sleep : unit -> unit = "caml_thread_sleep"
+external wake : t -> unit = "caml_thread_wake"
 
 (* For new, make sure the function passed to thread_new never
    raises an exception. *)
