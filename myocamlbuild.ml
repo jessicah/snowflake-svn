@@ -420,7 +420,6 @@ let mk_stlib ?(copy = true) stlib =
             A"-clibrary"; A"-lm";
             A"-clibrary"; A"-lbigarray";
 			A"-clibrary"; A"-lthreads";
-            A"-verbose";
         ]);;
 	
 	dep ["file:kernel/snowflake.native"] ["libkernel.a"; "libm.a"; "libc.a"; "libgcc.a"; "libbigarray.a"; "libthreads.a"];;

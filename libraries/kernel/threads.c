@@ -74,19 +74,31 @@ static void schedule(void)
 	/* Pick a new thread to run */
 	if(list_empty(&run_queue)) {
 		/* Nothing to run, schedule the idle thread */
+		#ifdef DEBUG_SCHEDULER
+		dprintf("thread = idle\r\n");
+		#endif
 		current = idle_thread;
 	} else {
 		/* Pull it from the front of the run queue */
 		current = list_get_instance(run_queue.next, real_thread_t, run_link);
 		list_remove(&current->run_link);
+		#ifdef DEBUG_SCHEDULER
+		dprintf("thread = other\r\n");
+		#endif
 	}
 	
 	if(previous == current) {
 		/* Nothing to do, early return now to avoid the stack switch code */
+		#ifdef DEBUG_SCHEDULER
+		dprintf("return to self\r\n");
+		#endif
 		interrupts_restore(intr_state);
 		return;
 	}
 	
+	#ifdef DEBUG_SCHEDULER
+	dprintf("return to selected\r\n");
+	#endif
 	/* MAGIC! */
 	_thread_switch_stacks(current->esp, &previous->esp);
 	/* Now we're running on current's stack, so local variable have changed

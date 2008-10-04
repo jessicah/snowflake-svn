@@ -17,6 +17,7 @@
 
 #include <signal.h>
 #include <asm.h>
+#include <stdio.h>
 #include "alloc.h"
 #include "callback.h"
 #include "config.h"
@@ -64,6 +65,7 @@ void caml_process_pending_signals(void)
 
 void caml_record_signal(int signal_number)
 {
+	dprintf("recorded signal %d\r\n", signal_number);
   caml_pending_signals[signal_number] = 1;
   caml_signals_are_pending = 1;
 #ifndef NATIVE_CODE
@@ -128,6 +130,7 @@ static value caml_signal_handlers = 0;
 
 void caml_execute_signal(int signal_number, int in_signal_handler)
 {
+	dprintf("executing signal %d\r\n", signal_number);
   value res;
 #ifndef POSIX_SIGNALS
   sigset_t sigs;
