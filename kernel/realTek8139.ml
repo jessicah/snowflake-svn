@@ -4,8 +4,6 @@
 open NetworkStack
 open PCI
 open Bigarray
-(*open Option
-open Utils*)
 
 module Registers = struct
 	let idr0 = 0x0
@@ -230,7 +228,6 @@ let create pcii =
 			properties
 		
 		let send properties packet =
-			Vt100.printf "rtl.send\r\n";
 			Mutex.lock m;
 			while properties.writes = 4 do
 				Condition.wait cv m;
@@ -250,10 +247,9 @@ let create pcii =
 					properties.transmitbuffer.(transmitid).{i} <- int_of_char packet.[i];
 				done;
 				let transmitdescription = (max (String.length packet) 60) lor 0x80000 in
-				Vt100.printf "rtl.send notifying data to send\r\n";
 				out32 (Registers.tsd0 + (4 * transmitid)) (Int32.logand (Int32.of_int transmitdescription) (Int32.lognot (Int32.of_int TransmitDescription.own)));
 				properties.queued_packets <- properties.queued_packets + 1;
-			with Break -> ()
+			with Break -> Vt100.printf "rtl.send error!\r\n"
 		
 		let rec read properties rx_buffer =
 			try
@@ -283,19 +279,16 @@ let create pcii =
 				out16 Registers.capr (properties.receivebufferoffset - 16);
 				(* send received packet to the rx_buffer *)
 				Event.sync (Event.send rx_buffer packet);
-			with Break -> () | Restart -> read properties rx_buffer
+			with Break -> Vt100.printf "rtl.read error!\r\n" | Restart -> read properties rx_buffer
 		
 		let rec isr properties rx_buffer () =
-			Vt100.printf "rtl.isr\r\n";
 			try
 				let isr_contents = in16 Registers.isr in
 				if isr_contents = 0 then raise Break;
 				if isr_contents land InterruptStatusBits.receiveok <> 0 then begin
-					Vt100.printf "rtl.isr got data!\r\n";
 					read properties rx_buffer;
 				end;
 				if isr_contents land InterruptStatusBits.transmitok <> 0 then begin
-					Vt100.printf "rtl.isr we sent data!\r\n";
 					(*Mutex.lock m;*)
 					let transmitid = properties.finished_packets mod 4 in
 					properties.transmitbusy.(transmitid) <- false;

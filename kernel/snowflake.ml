@@ -10,14 +10,14 @@ let print_ip () = function IPv4.Addr (x1,x2,x3,x4) ->
 	Printf.sprintf "%d.%d.%d.%d" x1 x2 x3 x4
 
 let print_dhcp packet =
-	Vt100.printf "Transaction ID: %ld\r\n" packet.DHCP.transaction;
+	(*Vt100.printf "Transaction ID: %ld\r\n" packet.DHCP.transaction;*)
 	Vt100.printf "Client IP: %a\r\n" print_ip packet.DHCP.client;
 	Vt100.printf "Server IP: %a\r\n" print_ip packet.DHCP.server;
-	Vt100.printf "Options: %d present\r\n" (List.length packet.DHCP.options);
+	(*Vt100.printf "Options: %d present\r\n" (List.length packet.DHCP.options);
 	begin try 
 		let z = List.find (fun o -> (fst o) = 0x35) packet.DHCP.options in
 		Vt100.printf "Message: %d\r\n" (List.hd (snd z))
-	with Not_found -> () end
+	with Not_found -> () end*) ()
 
 let print_device dev =
 	Vt100.printf "PCI: %04X:%04X\r\n" dev.PCI.vendor dev.PCI.device
@@ -29,121 +29,21 @@ let rec (<->) a = function
 	| b when a > b -> List.rev (b <-> a)
 	| b -> [b]
 
-module Foo = struct
-open IO;;
-open IO.BigEndian;;
-open ExtList;;
-open ExtString;;
-
-let read_bytes i n =
-	let rec read = function
-	| 0 -> []
-	| n -> read_byte i :: read (n-1) in
-	List.rev (read n);;
-
-let write_bytes o = List.iter (write_byte o);;
-
-(* General Utilities *)
-
-let rec fix_width list bytes = match list,bytes with
-| _,0 -> []
-| [],n -> 0::fix_width [] (n-1)
-| x::xs,n -> x::fix_width xs (n-1);;
-
-let rec overwrite offset sublist list = match (offset,sublist,list) with
-| (_, [], list) -> list
-| (0, a::ax, _::bx) -> a::overwrite offset ax bx
-| (n, _,b::bx) when n > 0 -> b::overwrite (offset-1) sublist bx
-| (_,_,_) -> failwith "Invalid argument to overwrite"
-
-let checksum data =
-	let data = List.map int_of_char data in
-	let rec do_checksum = function
-	| a::b::rest -> ((a lsl 8) lor b) + do_checksum rest
-	| [a] -> a
-	| [] -> 0
-	in let result = (lnot (do_checksum data mod 0xFFFF)) land 0xFFFF in
-	List.map char_of_int [result asr 8; result land 0xFF]
-
-type token = Byte | Word | DWord | Bytes of int | Rest;;
-
-(* token list -> int list -> char list *)
-let compose_gen format data =
-	let o = IO.output_enum () in
-	let compose = function
-	| Byte,[b] -> IO.write_byte o b
-	| Word,[w]-> IO.BigEndian.write_ui16 o w
-	| DWord,[d] -> IO.BigEndian.write_i32 o d
-	| Bytes n,ls -> write_bytes o (fix_width ls n)
-	| Rest,ls -> write_bytes o ls
-	in List.iter compose (List.combine format data);
-	List.of_enum (IO.close_out o)
-
-(* token list -> char list -> int list *)
-let decompose_gen format data =
-	let i = IO.input_enum (List.enum data) in
-	let rec decompose list = function
-	| Byte    -> [IO.read_byte i]
-	| Word    -> [IO.BigEndian.read_ui16 i]
-	| DWord   -> [IO.BigEndian.read_i32 i]
-	| Bytes 0 -> List.rev list
-	| Bytes n -> decompose (IO.read_byte i :: list) (Bytes (n-1))
-	| Rest    -> try decompose (IO.read_byte i :: list) Rest with IO.No_more_input -> List.rev list
-	in List.map (decompose []) format;;
-
-(* Internet Protocol *)
-
-module IP = struct
-	let format = [ Byte; Byte; Word; DWord; Byte; Byte; Word; Bytes 4; Bytes 4 ]
-	
-	let compose version tos _ ttl proto src_ip dst_ip data =
-		let header = compose_gen format [[(version lsl 4) lor 5]; [tos];[String.length data + 20];[0];[ttl];[proto];[0];src_ip;dst_ip] in
-		let checksum = checksum header in
-		let packet = (overwrite 10 checksum header) @ (String.explode data) in
-		String.implode packet
-	let decompose packet = 
-		let [hlen]::rest = decompose_gen [Byte;Rest] packet in
-		let num_options = (hlen land 0xFF - 5) in
-		let options = List.map (fun _ -> Bytes 4) (1 <-> num_options) in
-		decompose_gen (format @ options @ [Rest]) packet
-end;;
-
-(* UDP *)
-
-module UDP = struct
-	let format = [ Word; Word; Word; Word; Rest ]
-	
-	let compose src_ip src_port dst_ip dst_port data =
-		let packet = compose_gen format ([[src_port];[dst_port];[List.length data + 8];[0]] @ [data]) in
-		let header = compose_gen [Bytes 4; Bytes 4; Word; Word] [src_ip;dst_ip;[List.length packet];[0x11]] in (* WTF length - 4?? *)
-		let checksum = checksum (header@packet) in
-		let packet = overwrite 6 checksum packet in
-		String.implode packet
-end;;
-
-let make_ethernet addr proto dst packet =
-		let o = output_string () in
-		write_bytes o dst;
-		write_bytes o addr;
-		write_ui16 o proto;
-		nwrite o packet;
-		close_out o
-	let make_ip addr dst packet =
-		make_ethernet addr 0x0800 dst packet
-end
+let (>>) f x = f x
 
 module DHCPClient = struct
-	module Udp = UDP
-	open Foo
 	
+	module P = NetworkProtocolStack
+
 	type client = {
 		send : string -> unit;
 		recv : unit -> string;
-		addr : int list
+		addr : int list;
+		mutable ip   : int list;
 	}
 	
 	let parser =
-		DHCP.packet ++ Udp.packet ++ IPv4.packet ++ Ethernet.packet
+		DHCP.packet ++ UDP.packet ++ IPv4.packet ++ Ethernet.packet
 	
 	let as_packet string =
 		let array = Array.create (String.length string) 0 in
@@ -156,34 +56,53 @@ module DHCPClient = struct
 			send = s;
 			recv = r;
 			addr = a;
+			ip   = [0; 0; 0; 0];
 		}
 	
-	let make_packet addr ptype =
+	let make_packet client ptype =
 		let pad n = List.map (fun _ -> 0) (1 <-> n) in
-		let dhcp_packet = 
+		let payload = 
 			[1;1;6;0;0x11;0x22;0x33;0x44;0;0;0x80;0x00]
 			@ pad 16
-			@ addr
+			@ client.addr
 			@ pad 202
 			@ [0x63;0x82;0x53;0x63]
 			@ ptype
 			@ [0x37;0x07;0x01;0x1c;0x02;0x03;0x0f;0x06;0x0c;0xff]
 			@ (pad (300 - (248 + List.length ptype)))
 		in
-		make_ip addr [255;255;255;255;255;255] (IP.compose 0x4 0x00 0x001 0xff 0x11 [0;0;0;0] [255;255;255;255] (
-			UDP.compose [0;0;0;0] 68 [255;255;255;255] 67 dhcp_packet
-		))
+		P.Ethernet.compose client.addr P.Ethernet.broadcast 0x0800 begin
+		P.IP.compose 0x04 0x00 0xFF 0x11 client.ip P.IP.broadcast begin
+		P.UDP.compose (68, client.ip) (67, P.IP.broadcast) payload end end
 	
 	let register client =
 		Vt100.printf "Sending DHCP Discover...\r\n";
-		let p = make_packet client.addr [0x35;0x01;0x01] in
-		client.send p;
-		(*print_dhcp (Parser.parse_packet parser (as_packet p)).Ethernet.content.IPv4.content.Udp.content;*)
+		let p = make_packet client [0x35;0x01;0x01] in
+		client.send (ExtString.String.implode (Obj.magic p : char list));
+		
 		Vt100.printf "Awaiting DHCP Reply...\r\n";
 		let reply = Parser.parse_packet parser (as_packet (client.recv ())) in
-		Vt100.printf "Dumping reply packet...\r\n";
-		print_dhcp reply.Ethernet.content.IPv4.content.Udp.content;
-		Vt100.printf "Done!\r\n"
+		let ip = reply.Ethernet.content.IPv4.content.UDP.content.DHCP.client in
+		
+		(* Assuming we received reply [0x02] :P *)
+		
+		let IPv4.Addr (a,b,c,d) = ip in
+		let ip' = [a;b;c;d] in
+		let IPv4.Addr (a,b,c,d) = reply.Ethernet.content.IPv4.content.UDP.content.DHCP.server in
+		let server' = [a;b;c;d] in
+		
+		Vt100.printf "Requesting DHCP Lease...\r\n";
+		let p = make_packet client ([0x35;0x01;0x03] @ [0x36;4] @ server' @ [0x32;4] @ ip') in
+		client.send (ExtString.String.implode (Obj.magic p : char list));
+		let reply = Parser.parse_packet parser (as_packet (client.recv ())) in
+		
+		(* Assuming we received acknowledge [0x05] :P *)
+		
+		(* Got it! *)
+		Vt100.printf "Received DHCP Lease!\r\n";
+		(* option 3 = route, option 6 = dns, option 1 = subnet *)
+		client.ip <- ip';
+		print_dhcp reply.Ethernet.content.IPv4.content.UDP.content
 end
 
 let () =

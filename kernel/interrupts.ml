@@ -10,6 +10,10 @@ let create irq cb =
 			(* acquire locked mutex *)
 			unsafe_lock m;
 			cb ();
+			(* signal interrupt controller that we're done *)
+			Asm.out8 0x20 0x20;
+			if irq > 7 then
+				Asm.out8 0xA0 0x20;
 		done
 	) () in
 	let u () = unsafe_unlock m in

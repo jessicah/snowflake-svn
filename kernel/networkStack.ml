@@ -1,6 +1,13 @@
 
 (* The Network Stack *)
 
+(* Need to tidy this stuff up a bit *)
+
+(* Should do two things:
+   1. Create a block device (provides the read and write capabilities) with a name/path/something...
+   2. Register itself with the network stack using the identifier above
+*)
+
 type rx_channel = string Event.channel
 
 module type ETHERNET = sig

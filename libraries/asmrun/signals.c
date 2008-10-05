@@ -143,10 +143,6 @@ void caml_execute_signal(int signal_number, int in_signal_handler)
   res = caml_callback_exn(
            Field(caml_signal_handlers, signal_number),
            Val_int((signal_number)));
-	out8(0x20,0x20);
-	if (signal_number > 7) {
-		out8(0x20,0xA0);
-	}
 #ifndef POSIX_SIGNALS
   if (! in_signal_handler) {
     /* Restore the original signal mask */
