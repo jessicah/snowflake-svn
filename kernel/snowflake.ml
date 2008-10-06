@@ -31,7 +31,7 @@ let rec (<->) a = function
 
 let (>>) f x = f x
 
-module DHCPClient = struct
+(*module DHCPClient = struct
 	
 	module P = NetworkProtocolStack
 
@@ -87,7 +87,7 @@ module DHCPClient = struct
 		
 		(* Test the bitstring stuff... *)
 		
-		let foo = P.Ethernet2.parse s in
+		let foo = P.Ethernet2.parse (P.Ethernet2.unparse (P.Ethernet2.parse s)) in
 		Vt100.printf "Bitstring test:\n";
 		Vt100.printf "Destination: %a\nSource: %a\nProtocol: %04X\nContent Length: %d\n"
 			P.Ethernet2.addr_printer foo.P.Ethernet2.dst
@@ -114,7 +114,10 @@ module DHCPClient = struct
 		(* option 3 = route, option 6 = dns, option 1 = subnet *)
 		client.ip <- ip';
 		print_dhcp reply.Ethernet.content.IPv4.content.UDP.content
-end
+end*)
+
+module E = NetworkProtocolStack.Ethernet
+module I = NetworkProtocolStack.IPv4
 
 let () =
     Vga.init (); (* set up a pretty console font *)
@@ -125,10 +128,28 @@ let () =
 	(*List.iter print_device pci_devices;*)
 	begin try
 		let dev = List.find (fun d -> d.vendor = 0x10EC && d.device = 0x8139) pci_devices in
-		let x = RealTek8139.create dev in
+		let r,s,[a;b;c;d;e;f] = RealTek8139.create dev in
 		Vt100.printf "Created realtek 8139 device\r\n";
-		let client = DHCPClient.create x in
-		DHCPClient.register client;
+		(*let client = DHCPClient.create x in
+		DHCPClient.register client;*)
+		let _ = NetworkProtocolStack.Ethernet.addr_printer () in
+		let bs =
+			E.unparse {
+				E.dst = E.broadcast;
+				E.src = E.Addr (a,b,c,d,e,f);
+				E.protocol = 0x0800;
+				E.content = I.unparse {
+					I.tos = 0;
+					I.ttl = 255;
+					I.protocol = 0x11; (* udp *)
+					I.src = I.Addr (0,0,0,0);
+					I.dst = I.broadcast;
+					I.options = Bitstring.empty_bitstring;
+					I.content = Bitstring.bitstring_of_string "Hello, world!";
+				}
+			}
+		in
+		s (Bitstring.string_of_bitstring bs);
 	with Not_found ->
 		Vt100.printf "No realtek 8139 found\r\n";
 	end;

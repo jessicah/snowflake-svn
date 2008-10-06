@@ -1,7 +1,7 @@
 
 (* The network protocol stack... *)
 
-module Ethernet2 : sig
+module Ethernet : sig
 
 	type addr = Addr of int * int * int * int * int * int
 	
@@ -12,10 +12,44 @@ module Ethernet2 : sig
 	val parse_addr : Bitstring.t -> addr
 	
 	val parse : string -> t
+	
+	val unparse_addr : addr -> Bitstring.t
+	
+	val unparse : t -> Bitstring.t
+	
+	val broadcast : addr
 
 end
 
-open IO
+module IPv4 : sig
+
+	type addr = Addr of int * int * int * int
+	
+	type t = {
+		tos : int;
+		ttl : int;
+		protocol : int;
+		src : addr;
+		dst : addr;
+		options : Bitstring.t;
+		content : Bitstring.t;
+	}
+	
+	val addr_printer : unit -> addr -> string
+	
+	val parse_addr : Bitstring.t -> addr
+	
+	val parse : string -> t
+	
+	val unparse_addr : addr -> Bitstring.t
+	
+	val unparse : t -> Bitstring.t
+	
+	val broadcast : addr
+
+end
+
+(*open IO
 open IO.BigEndian
 
 type token = Byte | Word | DWord | Bytes of int | Remainder
@@ -44,3 +78,4 @@ module Ethernet : sig
 	val broadcast : int list
 
 end
+*)

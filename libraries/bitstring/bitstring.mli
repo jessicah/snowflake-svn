@@ -746,6 +746,8 @@ val takebits : int -> bitstring -> bitstring
     Note that this function just changes the offset and length
     fields of the {!bitstring} tuple, so is very efficient. *)
 
+val blit : bitstring -> bitstring -> unit
+
 val concat : bitstring list -> bitstring
 (** Concatenate a list of bitstrings together into a single
     bitstring. *)

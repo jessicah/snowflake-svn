@@ -1,7 +1,22 @@
 
 (* The network protocol stack... *)
 
-module Ethernet2 = struct
+let word bstring n =
+	bitmatch bstring with
+	| { word : n : bigendian } when word <= 0xFFFF_L -> Int64.to_int word
+	| { _ } -> assert(false)
+
+let checksum data =
+	let rec checksum rem sum data =
+		if rem = 0 then
+			(lnot (sum mod 0xFFFF)) land 0xFFFF
+		else if rem < 16 then
+			(lnot ((sum + word data rem) mod 0xFFFF)) land 0xFFFF
+		else
+			checksum (rem-16) (word data 16 + sum) (Bitstring.dropbits 16 data)
+	in checksum (Bitstring.bitstring_length data) 0 data
+
+module Ethernet = struct
 
 	type addr = Addr of int * int * int * int * int * int
 	
@@ -23,118 +38,101 @@ module Ethernet2 = struct
 			protocol : 16;
 			content : -1 : bitstring
 		  } -> { dst = parse_addr dst; src = parse_addr src; protocol = protocol; content = content }
+	
+	let unparse_addr = function Addr (a,b,c,d,e,f) ->
+		BITSTRING {
+			a : 8; b : 8; c : 8; d : 8; e : 8; f : 8
+		}
+	
+	let unparse t =
+		BITSTRING {
+			unparse_addr t.dst : 48 : bitstring;
+			unparse_addr t.src : 48 : bitstring;
+			t.protocol : 16;
+			t.content : -1 : bitstring
+		}
+	
+	let broadcast = Addr (0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF)
 
 end
 
-open IO
-open IO.BigEndian
-
-type token = Byte | Word | DWord | Bytes of int | Remainder
-
-let rec (<->) a = function
-	| b when a < b -> a :: (<->) (a + 1) b
-	| b when a > b -> List.rev (b <-> a)
-	| b -> [b]
-
-let read_bytes i n =
-	let rec read = function
-		| 0 -> []
-		| n -> read_byte i:: read (n-1)
-	in
-	List.rev (read n)
-
-let write_bytes o = List.iter (write_byte o)
-
-let rec pad_truncate list count acc =
-	if count = 0 then List.rev acc
-	else match list with
-		| [] -> pad_truncate [] (count-1) (0 :: acc)
-		| x :: xs -> pad_truncate xs (count-1) (x :: acc)
-
-let pad_truncate list count = pad_truncate list count []	
-
-let compose_gen format data : int list =
-	let o = output_enum () in
-	let compose = function
-		| Byte, [b] -> write_byte o b
-		| Word, [w] -> write_ui16 o w
-		| DWord, [d] -> write_i32 o d
-		| Bytes n, list -> write_bytes o (pad_truncate list n)
-		| Remainder, list -> write_bytes o list
-	in
-	List.iter compose (List.combine format data);
-	Obj.magic (ExtList.List.of_enum (close_out o))
-
-let rec replace offset replacement list =
-	match offset, replacement, list with
-		| _, [], list -> list (* completed *)
-		| 0, a::ax, _::bx -> a :: replace offset ax bx (* start replacing *)
-		| n, _, b::bx when n > 0 -> b :: replace (offset-1) replacement bx
-		| _ -> failwith "replace: invalid argument"
-
-let checksum data =
-	let rec checksum = function
-		| a :: b :: rest -> ((a lsl 8) lor b) + checksum rest
-		| [a] -> a
-		| [] -> 0
-	in
-	let result = (lnot (checksum data mod 0xFFFF)) land 0xFFFF in
-	[result asr 8; result land 0xFF]
-
-let decompose_gen format data =
-	let i = input_enum (Obj.magic (ExtList.List.enum data) : char Enum.t) in
-	let rec decompose list = function
-		| Byte -> [read_byte i]
-		| Word -> [read_ui16 i]
-		| DWord -> [read_i32 i]
-		| Bytes 0 -> List.rev list
-		| Bytes n -> decompose (read_byte i :: list) (Bytes (n-1))
-		| Remainder -> try decompose (read_byte i :: list) Remainder with No_more_input -> List.rev list
-	in
-	List.map (decompose []) format
-
-module IP = struct
-
-	let format = [ Byte; Byte; Word; DWord; Byte; Byte; Word; Bytes 4; Bytes 4 ]
+module IPv4 = struct
+	
+	type addr = Addr of int * int * int * int
 	
 	type t = {
-		version : int;
 		tos : int;
 		ttl : int;
 		protocol : int;
-		src : int list;
-		dst : int list;
-		data : int list;
+		src : addr;
+		dst : addr;
+		options : Bitstring.t;
+		content : Bitstring.t;
 	}
 	
-	let compose version tos ttl protocol src dst data =
-		let header = compose_gen
-			format
-			[
-				[ (version lsl 4) lor 5 ];
-				[ tos ];
-				[ List.length data + 20 ];
-				[ 0 ];
-				[ ttl ];
-				[ protocol ];
-				[ 0 ];
-				src;
-				dst;
-			]
-		in let checksum = checksum header
-		in (replace 10 checksum header) @ data
+	let addr_printer () = function Addr (a,b,c,d) ->
+		Printf.sprintf "%d.%d.%d.%d" a b c d
 	
-	let decompose l =
-		let [header_length] :: rest = decompose_gen [Byte; Remainder] l in
-		let option_count = header_length land 0xFF - 5 in
-		let options = List.map (fun _ -> Bytes 4) (1 <-> option_count)
-		in decompose_gen (format @ options @ [Remainder]) l
-		(* would be nice to make this return [t] *)
+	let parse_addr bs = bitmatch bs with
+		| { a : 8; b : 8; c : 8; d : 8 } ->
+			Addr (a,b,c,d)
 	
-	let broadcast = [0xFF; 0xFF; 0xFF; 0xFF]
+	let parse string =
+		let bstring = Bitstring.bitstring_of_string string in
+		bitmatch bstring with
+		| { version : 4; hdrlen : 4; tos : 8; length : 16;
+			identification : 16; flags : 3; fragoffset : 13;
+			ttl : 8; protocol : 8; checksum : 16;
+			source : 32 : bitstring;
+			dest : 32 : bitstring;
+			options : (hdrlen-5) * 32 : bitstring;
+			payload : (length - hdrlen*4) * 8 : bitstring } as packet
+			when version = 4 -> (* match an IPv4 packet *)
+			{
+				tos = tos;
+				(*length = length;
+				identification = identification;
+				flags = flags;
+				fragoffset = fragoffset;*)
+				ttl = ttl;
+				protocol = protocol;
+				(* should verify checksum... *)
+				src = parse_addr source;
+				dst = parse_addr dest;
+				options = options;
+				content = payload;
+			}
+		| { version : 4 } -> failwith "Expected IPv4 packet"
+		| { _ } -> failwith "Not an IPv4 packet"
+	
+	let unparse_addr = function Addr (a,b,c,d) ->
+		BITSTRING { a : 8; b : 8; c : 8; d : 8 }
+	
+	let unparse t =
+		let hdrlen = (Bitstring.bitstring_length t.options) / 32 + 5 in
+		let length = Bitstring.bitstring_length t.content in
+		let packet = BITSTRING {
+			4 : 4; hdrlen : 4;
+			t.tos : 8; length : 16;
+			0 (* identification *) : 16; 0 (* flags *) : 3;
+			0 (* fragoffset *) : 13;
+			t.ttl : 8; t.protocol : 8; 0 (* checksum *) : 16;
+			unparse_addr t.src : 32 : bitstring;
+			unparse_addr t.dst : 32 : bitstring;
+			t.options : Bitstring.bitstring_length t.options : bitstring;
+			t.content : -1 : bitstring
+		} in
+		let checksum_field = Bitstring.subbitstring packet 80 16 in
+		let n = checksum (Bitstring.subbitstring packet 0 80) in
+		let checksum = BITSTRING { n : 16 } in
+		Bitstring.blit checksum checksum_field;
+		packet
+	
+	let broadcast = Addr (255, 255, 255, 255)
 
 end
 
+(*
 module UDP = struct
 
 	let format = [ Word; Word; Word; Word; Remainder ]
@@ -179,3 +177,4 @@ module Ethernet = struct
 	let broadcast = [0xFF; 0xFF; 0xFF; 0xFF; 0xFF; 0xFF]
 
 end
+*)
