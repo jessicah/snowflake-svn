@@ -3,7 +3,7 @@ true: -byte, native, nostdlib
 
 <**/*.*>: snowflake
 
-<tools/{ocaml,ocaml-3.10.2}>: -traverse, not_hygienic
+<tools/{ocaml,ocaml-3.10.2,ocaml-bitstring-1.9.9}>: -traverse, not_hygienic
 
 <tools/ocamlopt/**/*.ml*>: -snowflake, custom_ocaml
 <tools/ocamlopt/**/*.*>: -snowflake
@@ -16,8 +16,8 @@ true: -byte, native, nostdlib
 <libraries/stdlib/scanf*.cmx>: inline(9)
 <libraries/stdlib/*Labels.ml*>: nolabels
 
-<kernel/**.*>: snowflake_extlib, snowflake_threads, snowflake_stdlib
-<libraries/{bigarray,extlib,threads}/**.ml*>: snowflake_stdlib
+<kernel/**.*>: snowflake_extlib, snowflake_threads, snowflake_stdlib, snowflake_bitstring
+<libraries/{bigarray,extlib,threads,bitstring}/**.ml*>: snowflake_stdlib
 
 <{libraries,kernel}/**/*.*>: linkall
 
@@ -27,3 +27,8 @@ true: -byte, native, nostdlib
 <libraries/bigarray/*.{c,s,S}>: libbigarray
 <libraries/threads/*.{c,s,S}>: libthreads
 <libraries/kernel/*.{c,s,S}>: libkernel
+<libraries/bitstring/*.{c,s,S}>: libbitstring
+
+# test pa_bitstring
+
+<kernel/bitstring_text.ml>: use_bitstring

@@ -86,6 +86,20 @@ let copy_rule' ?insert src dst =
     (* dep on internal stdlib module *)
     dep ["file:libraries/extlib/IO.ml"] ["libraries/stdlib/camlinternalOO.cmx"];;
 
+(*** bitstring.cmxa, bitstring_persistent.cmxa, pa_bitstring.cmo ***)
+
+	snowflake_lib "bitstring";;
+	
+	flag ["ocaml"; "pp"; "use_bitstring"] (S [
+		Sh"LD_LIBRARY_PATH=../tools/ocaml/lib/ocaml/stublibs";
+		A"camlp4o";
+		A"-I";
+		A"../tools/ocaml/lib/ocaml/bitstring";
+		A"bitstring.cma";
+		A"bitstring_persistent.cma";
+		A"pa_bitstring.cmo";
+	]);;
+
 (*** static libraries ***)
 
 type stlib = {
@@ -294,6 +308,72 @@ let mk_stlib ?(copy = true) stlib =
             ]
         };;
 
+(*** libbitstring.a ***)
+
+    mk_stlib {
+        name = "libbitstring";
+        path = "libraries/bitstring";
+        context = [];
+        c_options = [
+                "-DCAML_NAME_SPACE"; "-DSYS_linux_elf"; "-DTARGET_i386"; "-nostdinc"; "-DNATIVE_CODE"
+            ];
+        s_options = [];
+        includes = ["~"; "libraries/include"; "libraries/include/caml"];
+        headers = [
+				"~/byteswap.h";
+				"~/config.h";
+                "libraries/include/setjmp.h";
+                "libraries/include/stddef.h";
+                "libraries/include/stdarg.h";
+                "libraries/include/stdlib.h";
+                "libraries/include/string.h";
+                "libraries/include/signal.h";
+                "libraries/include/math.h";
+                "libraries/include/stdio.h";
+                "libraries/include/limits.h";
+                "libraries/include/ctype.h";
+                "libraries/include/asm.h";
+                "libraries/include/threads.h";
+                "libraries/include/caml/bigarray.h";
+                (* and then all the ocaml headers... :P *)
+                "libraries/include/caml/alloc.h";
+                "libraries/include/caml/callback.h";
+                "libraries/include/caml/compact.h";
+                "libraries/include/caml/config.h";
+                "libraries/include/caml/custom.h";
+                "libraries/include/caml/fail.h";
+                "libraries/include/caml/finalise.h";
+                "libraries/include/caml/freelist.h";
+                "libraries/include/caml/gc.h";
+                "libraries/include/caml/gc_ctrl.h";
+                "libraries/include/caml/globroots.h";
+                "libraries/include/caml/int64_native.h";
+                "libraries/include/caml/intext.h";
+                "libraries/include/caml/m.h";
+                "libraries/include/caml/major_gc.h";
+                "libraries/include/caml/md5.h";
+                "libraries/include/caml/memory.h";
+                "libraries/include/caml/minor_gc.h";
+                "libraries/include/caml/misc.h";
+                "libraries/include/caml/mlvalues.h";
+                "libraries/include/caml/natdynlink.h";
+                "libraries/include/caml/osdeps.h";
+                "libraries/include/caml/prims.h";
+                "libraries/include/caml/printexc.h";
+                "libraries/include/caml/reverse.h";
+                "libraries/include/caml/roots.h";
+                "libraries/include/caml/s.h";
+                "libraries/include/caml/signals.h";
+                "libraries/include/caml/signals_machdep.h";
+                "libraries/include/caml/signals_osdep.h";
+                "libraries/include/caml/stack.h";
+                "libraries/include/caml/stacks.h";
+                "libraries/include/caml/startup.h";
+                "libraries/include/caml/sys.h";
+                "libraries/include/caml/weak.h";
+            ]
+        };;
+
 (*** libthreads.a ***)
 
     mk_stlib {
@@ -420,9 +500,10 @@ let mk_stlib ?(copy = true) stlib =
             A"-clibrary"; A"-lm";
             A"-clibrary"; A"-lbigarray";
 			A"-clibrary"; A"-lthreads";
+			A"-clibrary"; A"-lbitstring";
         ]);;
 	
-	dep ["file:kernel/snowflake.native"] ["libkernel.a"; "libm.a"; "libc.a"; "libgcc.a"; "libbigarray.a"; "libthreads.a"];;
+	dep ["file:kernel/snowflake.native"] ["libkernel.a"; "libm.a"; "libc.a"; "libgcc.a"; "libbigarray.a"; "libthreads.a"; "libbitstring.a"];;
 
 (*** ocamlopt.opt ***)
 
