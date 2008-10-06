@@ -30,3 +30,4 @@ true: -byte, native, nostdlib
 <libraries/bitstring/*.{c,s,S}>: libbitstring
 
 <kernel/networkProtocolStack.ml>: use_bitstring
+<kernel/dhcpClient.ml>: use_bitstring

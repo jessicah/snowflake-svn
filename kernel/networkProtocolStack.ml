@@ -29,8 +29,7 @@ module Ethernet = struct
 		| { a : 8; b : 8; c : 8; d : 8; e : 8; f : 8 } ->
 			Addr (a,b,c,d,e,f)
 	
-	let parse string =
-		let bstring = Bitstring.bitstring_of_string string in
+	let parse bstring =
 		bitmatch bstring with
 		| {
 			dst : 48 : bitstring;
@@ -77,8 +76,7 @@ module IPv4 = struct
 		| { a : 8; b : 8; c : 8; d : 8 } ->
 			Addr (a,b,c,d)
 	
-	let parse string =
-		let bstring = Bitstring.bitstring_of_string string in
+	let parse bstring =
 		bitmatch bstring with
 		| { version : 4; hdrlen : 4; tos : 8; length : 16;
 			identification : 16; flags : 3; fragoffset : 13;
@@ -132,49 +130,42 @@ module IPv4 = struct
 
 end
 
-(*
 module UDP = struct
 
-	let format = [ Word; Word; Word; Word; Remainder ]
+	type t = {
+		src: int;
+		dst: int;
+		content : Bitstring.t;
+	}
 	
-	let compose src dst data =
-		let packet = compose_gen
-			format
-			[
-				[fst src];
-				[fst dst];
-				[List.length data + 8];
-				[0];
-				data
-			]
-		in let header = compose_gen
-			[ Bytes 4; Bytes 4; Word; Word ]
-			[
-				snd src;
-				snd dst;
-				[List.length packet];
-				[0x11];
-			]
-		in let checksum = checksum (header @ packet)
-		in replace 6 checksum packet
+	let parse bstring =
+		bitmatch bstring with
+		| { src : 16; dst : 16;
+			length : 16; checksum : 16;
+			content : (length-8) * 8 : bitstring
+		  } -> {
+			src = src;
+			dst = dst;
+			content = content;
+		} (* validate checksum later *)
 	
-	(* we don't have a decompose for UDP? interesting... *)
+	let unparse t src_addr dst_addr =
+		let packet = BITSTRING {
+			t.src : 16; t.dst : 16;
+			((Bitstring.bitstring_length t.content)/8) + 8 : 16;
+			0 (* checksum *) : 16;
+			t.content : -1 : bitstring }
+		in
+		let header = BITSTRING {
+			IPv4.unparse_addr src_addr : 32 : bitstring;
+			IPv4.unparse_addr dst_addr : 32 : bitstring;
+			Bitstring.bitstring_length packet / 8 : 16;
+			0x11 : 16 }
+		in
+		let checksum_field = Bitstring.subbitstring packet 48 16 in
+		let n = checksum (Bitstring.concat [header; packet]) in
+		let checksum = BITSTRING { n : 16 } in
+		Bitstring.blit checksum checksum_field;
+		packet
 
 end
-
-module Ethernet = struct
-
-	let compose src dst protocol data =
-		compose_gen
-			[ Bytes 6; Bytes 6; Word; Remainder ]
-			[
-				dst;
-				src;
-				[protocol];
-				data
-			]
-	
-	let broadcast = [0xFF; 0xFF; 0xFF; 0xFF; 0xFF; 0xFF]
-
-end
-*)
