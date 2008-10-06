@@ -1,6 +1,31 @@
 
 (* The network protocol stack... *)
 
+module Ethernet2 = struct
+
+	type addr = Addr of int * int * int * int * int * int
+	
+	type t = { dst : addr; src : addr; protocol : int; content : Bitstring.t }
+	
+	let addr_printer () = function Addr (a,b,c,d,e,f) ->
+		Printf.sprintf "%02X:%02X:%02X:%02X:%02X:%02X" a b c d e f
+	
+	let parse_addr bs = bitmatch bs with
+		| { a : 8; b : 8; c : 8; d : 8; e : 8; f : 8 } ->
+			Addr (a,b,c,d,e,f)
+	
+	let parse string =
+		let bstring = Bitstring.bitstring_of_string string in
+		bitmatch bstring with
+		| {
+			dst : 48 : bitstring;
+			src : 48 : bitstring;
+			protocol : 16;
+			content : -1 : bitstring
+		  } -> { dst = parse_addr dst; src = parse_addr src; protocol = protocol; content = content }
+
+end
+
 open IO
 open IO.BigEndian
 

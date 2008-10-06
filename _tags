@@ -29,6 +29,4 @@ true: -byte, native, nostdlib
 <libraries/kernel/*.{c,s,S}>: libkernel
 <libraries/bitstring/*.{c,s,S}>: libbitstring
 
-# test pa_bitstring
-
-<kernel/bitstring_text.ml>: use_bitstring
+<kernel/networkProtocolStack.ml>: use_bitstring

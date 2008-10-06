@@ -81,8 +81,19 @@ module DHCPClient = struct
 		client.send (ExtString.String.implode (Obj.magic p : char list));
 		
 		Vt100.printf "Awaiting DHCP Reply...\r\n";
-		let reply = Parser.parse_packet parser (as_packet (client.recv ())) in
+		let s = client.recv () in
+		let reply = Parser.parse_packet parser (as_packet (s)) in
 		let ip = reply.Ethernet.content.IPv4.content.UDP.content.DHCP.client in
+		
+		(* Test the bitstring stuff... *)
+		
+		let foo = P.Ethernet2.parse s in
+		Vt100.printf "Bitstring test:\n";
+		Vt100.printf "Destination: %a\nSource: %a\nProtocol: %04X\nContent Length: %d\n"
+			P.Ethernet2.addr_printer foo.P.Ethernet2.dst
+			P.Ethernet2.addr_printer foo.P.Ethernet2.src
+			foo.P.Ethernet2.protocol
+			(Bitstring.bitstring_length foo.P.Ethernet2.content / 8);
 		
 		(* Assuming we received reply [0x02] :P *)
 		
