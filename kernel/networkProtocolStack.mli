@@ -4,6 +4,17 @@
 val checksum : Bitstring.t -> int
 (** [checksum bitstring] calculates a word-sized checksum (16bits) *)
 
+(* some generic parse/unparse functions *)
+
+val parse_string : Bitstring.t -> string
+val unparse_string : string -> Bitstring.t
+
+val parse_array : Bitstring.t -> int array
+val unparse_array : int array -> Bitstring.t
+
+val parse_list : Bitstring.t -> int list
+val unparse_list : int list -> Bitstring.t
+
 module Ethernet : sig
 
 	type addr = Addr of int * int * int * int * int * int

@@ -16,6 +16,46 @@ let checksum data =
 			checksum (rem-16) (word data 16 + sum) (Bitstring.dropbits 16 data)
 	in checksum (Bitstring.bitstring_length data) 0 data
 
+(* some generic parse/unparse functions *)
+
+let parse_string = Bitstring.string_of_bitstring
+let unparse_string = Bitstring.bitstring_of_string
+
+let parse_array bits =
+	let len = Bitstring.bitstring_length bits in
+	if len mod 8 <> 0 then failwith "bitstring must be byte-aligned";
+	let array = Array.make (len / 8) 0 in
+	let rec parse_bytes i bits = bitmatch bits with
+		| { byte : 8; rest : -1 : bitstring } ->
+			array.(i) <- byte;
+			parse_bytes (i+1) rest
+		| { rest : -1 : bitstring }
+			when Bitstring.bitstring_length rest = 0 ->
+			array
+		| { _ } -> assert false (* the test at start avoids this case *)
+	in parse_bytes 0 bits
+
+let unparse_array array =
+	let bits = Array.fold_right (fun x y -> Bitstring.make_bitstring 8 (Char.chr x) :: y) array [] in
+	Bitstring.concat bits
+
+let rec parse_list bits acc = bitmatch bits with
+	| { byte : 8; rest : -1 : bitstring } ->
+		parse_list rest (byte :: acc)
+	| { rest : -1 : bitstring }
+		when Bitstring.bitstring_length rest = 0 ->
+		acc
+	| { _ } -> assert false
+
+let parse_list bits =
+	if Bitstring.bitstring_length bits mod 8 <> 0 then
+		failwith "bitstring must be byte aligned";
+	parse_list bits []
+
+let unparse_list list =
+	let bits = List.map (fun i -> Bitstring.make_bitstring 8 (Char.chr i)) list in
+	Bitstring.concat bits
+	
 module Ethernet = struct
 
 	type addr = Addr of int * int * int * int * int * int
