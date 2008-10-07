@@ -108,10 +108,10 @@ module IPv4 = struct
 	
 	let unparse t =
 		let hdrlen = (Bitstring.bitstring_length t.options) / 32 + 5 in
-		let length = Bitstring.bitstring_length t.content in
+		let length = Bitstring.bitstring_length t.content / 8 in
 		let packet = BITSTRING {
 			4 : 4; hdrlen : 4;
-			t.tos : 8; length : 16;
+			t.tos : 8; length + hdrlen*4 : 16;
 			0 (* identification *) : 16; 0 (* flags *) : 3;
 			0 (* fragoffset *) : 13;
 			t.ttl : 8; t.protocol : 8; 0 (* checksum *) : 16;

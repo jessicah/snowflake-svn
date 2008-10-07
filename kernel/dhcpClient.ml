@@ -100,7 +100,7 @@ let unparse t addr =
 		magic_cookie : 32;
 		options : -1 : bitstring;
 		0xFF : 8; (* end of options *)
-		pad (300 - (249 + (Bitstring.bitstring_length options / 8))) : -1 : string
+		pad (300 - (239 + (Bitstring.bitstring_length options / 8))) : -1 : string
 	}
 
 let register client =
