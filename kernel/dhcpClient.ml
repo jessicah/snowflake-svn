@@ -159,7 +159,9 @@ let register client =
 			begin match (find_option 0x35 reply).data with
 			| [0x05] ->
 				(* Apply the new IP settings *)
-				Vt100.printf "Applied IP settings from DHCP server\r\n"
+				client.ip <- reply.my_addr;
+				Vt100.printf "Applied IP settings from DHCP server\r\n";
+				Vt100.printf "Client IP: %a\n" I.addr_printer client.ip
 			| _ ->
 				(* A response we don't know what to do with *)
 				Vt100.printf "Error: expected DHCP acknowledge\n"
