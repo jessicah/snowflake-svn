@@ -38,4 +38,6 @@ let () =
 	with Not_found ->
 		Vt100.printf "No realtek 8139 found\r\n";
 	end;
+	(* test ELF header parsing... *)
+	ELF.print_header (ELF.parse_elf_header (NetworkProtocolStack.unparse_array ObjectFile.data));
 	ignore (Thread.create echo_shell ()) (* start the echo shell *)

@@ -7,6 +7,7 @@ true: -byte, native, nostdlib
 
 <tools/ocamlopt/**/*.ml*>: -snowflake, custom_ocaml
 <tools/ocamlopt/**/*.*>: -snowflake
+<tools/bin2ml.*>: -snowflake
 <ocamloptcomp.*>: -snowflake
 
 ### libraries/stdlib
@@ -31,3 +32,4 @@ true: -byte, native, nostdlib
 
 <kernel/networkProtocolStack.ml>: use_bitstring
 <kernel/dhcpClient.ml>: use_bitstring
+<kernel/ELF.ml>: use_bitstring

@@ -484,6 +484,15 @@ let mk_stlib ?(copy = true) stlib =
 
     copy_rule' "libraries/kernel/libkernel.a" "libkernel.a";;
 
+(* objectFile.ml *)
+
+	rule "objectFile"
+		~prod:"kernel/objectFile.ml"
+		~deps:["libraries/c/libc.o"; "tools/bin2ml.byte"]
+		begin fun env _ ->
+			Cmd (S[A"tools/bin2ml.byte"; P"libraries/c/libc.o"; Px"kernel/objectFile.ml"])
+		end;;
+
 (*** snowflake.native ***)
 
     flag ["ocaml"; "native"; "program"; "snowflake"] (S[
