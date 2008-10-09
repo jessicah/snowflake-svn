@@ -4,3 +4,4 @@ asm_stubs.o
 idt.o
 irqs.o
 threads.o
+multiboot_stubs.o

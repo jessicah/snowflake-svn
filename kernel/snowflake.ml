@@ -39,5 +39,20 @@ let () =
 		Vt100.printf "No realtek 8139 found\r\n";
 	end;
 	(* test ELF header parsing... *)
-	ELF.print_header (ELF.parse_elf_header (NetworkProtocolStack.unparse_array ObjectFile.data));
+	let data = Multiboot.open_module () in
+	let str = String.create (Bigarray.Array1.dim data) in
+	for i = 0 to String.length str - 1 do
+		str.[i] <- data.{i}
+	done;
+	let tarfile = TarFile.open_tar_file str in
+	let filelist = TarFile.dir_list tarfile "_build/kernel" in
+	List.iter (Vt100.printf "Path: %s\n") filelist;
+	List.iter begin fun filename ->
+		let filename = "_build/kernel/" ^ filename in
+		try
+		ELF.print_header
+			(ELF.parse_elf_header (Bitstring.bitstring_of_string
+				(TarFile.read_file tarfile filename)))
+		with exc -> Vt100.printf "Error: %s (%s)\n" (Printexc.to_string exc) filename
+	end filelist;
 	ignore (Thread.create echo_shell ()) (* start the echo shell *)

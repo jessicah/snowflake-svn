@@ -157,7 +157,10 @@ and vt_cmd_num_num_num num1 num2 num3 console = function
 let vt_state = ref vt_init
 
 let rec put_char console ch =
-	Asm.out8 0x3F8 (Char.code ch);
+	if ch = '\n' then
+		Asm.out8 0x3F8 (Char.code '\r');
+	if ch <> '\r' then
+		Asm.out8 0x3F8 (Char.code ch);
 	match ch with
 	| '\n' ->
 			(* move down a line *)

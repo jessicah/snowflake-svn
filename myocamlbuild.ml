@@ -476,6 +476,7 @@ let mk_stlib ?(copy = true) stlib =
     flag ["compile"; "c"; "libkernel"] (S[A"-I"; A"libraries/include"; A"-nostdinc"; A"-DCAML_NAME_SPACE"; A"-DSYS_linux_elf"; A"-DTARGET_i386"; A"-DNATIVE_CODE"; A"-O2"]);;
 	
 	let deps = [
+		"libraries/include/multiboot.h";
 		"libraries/include/caml/bigarray.h";
 		"libraries/kernel/idt.h";
 		"libraries/include/list.h";
@@ -483,15 +484,6 @@ let mk_stlib ?(copy = true) stlib =
 	] in dep ["compile"; "c"; "libkernel"] deps;;
 
     copy_rule' "libraries/kernel/libkernel.a" "libkernel.a";;
-
-(* objectFile.ml *)
-
-	rule "objectFile"
-		~prod:"kernel/objectFile.ml"
-		~deps:["libraries/c/libc.o"; "tools/bin2ml.byte"]
-		begin fun env _ ->
-			Cmd (S[A"tools/bin2ml.byte"; P"libraries/c/libc.o"; Px"kernel/objectFile.ml"])
-		end;;
 
 (*** snowflake.native ***)
 

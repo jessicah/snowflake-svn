@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <asm.h>
 #include <threads.h>
+#include <multiboot.h>
 
 extern void caml_startup(char **args);
 
@@ -45,9 +46,29 @@ static void paging_init(void)
 		"mov	%%eax, %%cr0\n\t" ::: "eax");
 }
 
-void __startup(void *argv, int magic)
+static unsigned long mem_start;
+
+char *my_module = NULL;
+long my_module_length;
+
+void __startup(multiboot_info_t *multiboot, int magic)
 {
+	struct module *module;
+	extern char end;
+	char * argv[1] = { 0 };
+	
 	dprintf("Welcome to Snowflake Serial Debugging!\r\n");
+	
+	mem_start = (unsigned long)&end;
+	
+	module = (struct module *)multiboot->mods_addr;
+		
+	if (module != NULL) {
+		if (mem_start < module[0].mod_end)
+			mem_start = module[0].mod_end;
+		my_module_length = module[0].mod_end - module[0].mod_start;
+		my_module = (char *)module[0].mod_start;
+	}
 	
 	// set up C thread machinery, exception and irq handlers
 	thread_init();
@@ -68,12 +89,11 @@ void __startup(void *argv, int magic)
 extern char *sbrk(int);
 
 char *sbrk(int incr){
-  extern char end;
   static char *heap_end;
   char *prev_heap_end;
 
   if ( heap_end == 0 ) {
-	heap_end = &end;
+	heap_end = (char *)mem_start;
   }
   prev_heap_end = heap_end;
 
