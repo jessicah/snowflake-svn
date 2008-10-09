@@ -45,8 +45,8 @@ and section_header = {
 	section_type : section_type;
 	section_flags : int32; (* 16 *)
 	section_addr : int32;
-	section_offset : int32;
-	section_size: int32; (* 16 *)
+	section_offset : int;
+	section_size: int; (* 16 *)
 	section_link: int32; (* 16 *)
 	section_info: int32; (* 16 *)
 	section_addralign: int32; (* 16 *)
@@ -131,8 +131,8 @@ let parse_section_header bits =
 			end;
 		section_flags = copy s_flags;
 		section_addr = copy s_addr;
-		section_offset = copy s_offset;
-		section_size = copy s_size;
+		section_offset = Int32.to_int s_offset;
+		section_size = Int32.to_int s_size;
 		section_link = copy s_link;
 		section_info = copy s_info;
 		section_addralign = copy s_addralign;
@@ -174,8 +174,8 @@ let parse_elf_header bits =
 			(Bitstring.subbitstring bits (Int32.to_int shoff * 8) (shentsize * shnum * 8)) in
 		let string_table = Bitstring.string_of_bitstring
 			(Bitstring.subbitstring bits
-				((Int32.to_int (section_headers.(shstrndx).section_offset)) * 8)
-				((Int32.to_int (section_headers.(shstrndx).section_size)) * 8))
+				(section_headers.(shstrndx).section_offset * 8)
+				(section_headers.(shstrndx).section_size * 8))
 		in {
 			version = Int32.to_int version;
 			file_type = begin match elf_type with
@@ -221,7 +221,7 @@ let truncate len s =
 	else String.sub s 0 len
 
 let print_section_header strtab i h =
-	Vt100.printf " [%2d] %-16s  %a   %08lx %06lx %06lx                 \n"
+	Vt100.printf " [%2d] %-16s  %a   %08lx %06x %06x                 \n"
 		i (truncate 16 (get_string strtab (Int32.to_int h.section_name)))
 		print_section_type h.section_type h.section_addr
 		h.section_offset h.section_size

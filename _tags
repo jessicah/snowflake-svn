@@ -33,3 +33,5 @@ true: -byte, native, nostdlib
 <kernel/networkProtocolStack.ml>: use_bitstring
 <kernel/dhcpClient.ml>: use_bitstring
 <kernel/ELF.ml>: use_bitstring
+
+<{test1.o,test2.o,test.out}>: precious
