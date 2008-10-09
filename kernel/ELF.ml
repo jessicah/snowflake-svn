@@ -32,24 +32,25 @@ type header = {
 	phnum : int; (* 16 *)
 	shentsize : int;
 	shnum : int;
-	(*section_headers : section_header list;*)
+	section_headers : section_header array;
 	shstrndx : int; (* 16 *)
+	string_table : string;
 }
 and file_type
 	= Relative (* 1 *)
 	| Executable (* 2 *)
 	| Shared (* 3 *)
 and section_header = {
-	section_name : int (* offset into string table *);
+	section_name : int32 (* offset into string table *);
 	section_type : section_type;
-	section_flags : int; (* 16 *)
+	section_flags : int32; (* 16 *)
 	section_addr : int32;
 	section_offset : int32;
-	section_size: int; (* 16 *)
-	section_link: int; (* 16 *)
-	section_info: int; (* 16 *)
-	section_addralign: int; (* 16 *)
-	section_entsize: int; (* 16 *)
+	section_size: int32; (* 16 *)
+	section_link: int32; (* 16 *)
+	section_info: int32; (* 16 *)
+	section_addralign: int32; (* 16 *)
+	section_entsize: int32; (* 16 *)
 }
 and section_type
 	= Null (* 0 *)
@@ -64,6 +65,7 @@ and section_type
 	| Rel (* 9 *)
 	| ShLib (* 10 *)
 	| Dynsym (* 11 *)
+	| Other of int
 
 (*
 	section header table entry 0:
@@ -95,6 +97,55 @@ type rela = {
 	ra_info: int32;
 	ra_addend: int32; (* signed *)
 }
+
+let copy i = Int32.add Int32.zero i
+
+let parse_section_header bits =
+	bitmatch bits with
+	| { s_name : 32 : littleendian;
+		s_type : 32 : littleendian;
+		s_flags : 32 : littleendian;
+		s_addr : 32 : littleendian;
+		s_offset : 32 : littleendian;
+		s_size : 32 : littleendian;
+		s_link : 32 : littleendian;
+		s_info : 32 : littleendian;
+		s_addralign : 32 : littleendian;
+		s_entsize : 32 : littleendian
+	} -> {
+		section_name = copy s_name;
+		section_type = begin match Int32.to_int (copy s_type) with
+			| 0 -> Null
+			| 1 -> ProgBits
+			| 2 -> SymTab
+			| 3 -> StrTab
+			| 4 -> RelA
+			| 5 -> Hash
+			| 6 -> Dynamic
+			| 7 -> Note
+			| 8 -> NoBits
+			| 9 -> Rel
+			| 10 -> ShLib
+			| 11 -> Dynsym
+			| n -> Other n
+			end;
+		section_flags = copy s_flags;
+		section_addr = copy s_addr;
+		section_offset = copy s_offset;
+		section_size = copy s_size;
+		section_link = copy s_link;
+		section_info = copy s_info;
+		section_addralign = copy s_addralign;
+		section_entsize = copy s_entsize;
+	}
+
+let rec parse_section_headers acc num size bits =
+	if num = 0 then Array.of_list (List.rev acc)
+	else
+	bitmatch bits with
+	| { data : size*8 : bitstring; rest : -1 : bitstring }
+		-> parse_section_headers (parse_section_header data :: acc) (num-1) size rest
+	| { _ } -> Array.of_list (List.rev acc)
 	
 let parse_elf_header bits =
 	bitmatch bits with
@@ -118,26 +169,62 @@ let parse_elf_header bits =
 		shentsize : 16 : littleendian;
 		shnum : 16 : littleendian;
 		shstrndx : 16 : littleendian
-	} -> {
-		version = Int32.to_int version;
-		file_type = begin match elf_type with
-			| 1 -> Relative
-			| 2 -> Executable
-			| 3 -> Shared
-			| _ -> failwith "Unsupported ELF file type"
-			end;
-		entry = entry;
-		phoff = phoff;
-		shoff = shoff;
-		header_flags = flags;
-		ehsize = ehsize;
-		phentsize = phentsize;
-		phnum = phnum;
-		shentsize = shentsize;
-		shnum = shnum;
-		(*section_headers : section_header list;*)
-		shstrndx = shstrndx;
-	}
+	} ->
+		let section_headers = parse_section_headers [] shnum shentsize
+			(Bitstring.subbitstring bits (Int32.to_int shoff * 8) (shentsize * shnum * 8)) in
+		let string_table = Bitstring.string_of_bitstring
+			(Bitstring.subbitstring bits
+				((Int32.to_int (section_headers.(shstrndx).section_offset)) * 8)
+				((Int32.to_int (section_headers.(shstrndx).section_size)) * 8))
+		in {
+			version = Int32.to_int version;
+			file_type = begin match elf_type with
+				| 1 -> Relative
+				| 2 -> Executable
+				| 3 -> Shared
+				| _ -> failwith "Unsupported ELF file type"
+				end;
+			entry = entry;
+			phoff = phoff;
+			shoff = shoff;
+			header_flags = flags;
+			ehsize = ehsize;
+			phentsize = phentsize;
+			phnum = phnum;
+			shentsize = shentsize;
+			shnum = shnum;
+			section_headers = section_headers;
+			shstrndx = shstrndx;
+			string_table = string_table;
+		}
+
+let print_section_type () = function
+	| Null -> Printf.sprintf "%-12s" "NULL"
+	| ProgBits -> Printf.sprintf "%-12s" "PROGBITS"
+	| SymTab -> Printf.sprintf "%-12s" "SYMTAB"
+	| StrTab -> Printf.sprintf "%-12s" "STRTAB"
+	| RelA -> Printf.sprintf "%-12s" "RELA"
+	| Hash -> Printf.sprintf "%-12s" "HASH"
+	| Dynamic -> Printf.sprintf "%-12s" "DYNAMIC"
+	| Note -> Printf.sprintf "%-12s" "NOTE"
+	| NoBits -> Printf.sprintf "%-12s" "NOBITS"
+	| Rel -> Printf.sprintf "%-12s" "REL"
+	| ShLib -> Printf.sprintf "%-12s" "SHLIB"
+	| Dynsym -> Printf.sprintf "%-12s" "DYNSYM"
+	| Other x -> Printf.sprintf "unknown <%d>" x
+
+let get_string strtab off =
+	String.sub strtab off (String.index_from strtab off '\000' - off)
+
+let truncate len s =
+	if String.length s <= len then s
+	else String.sub s 0 len
+
+let print_section_header strtab i h =
+	Vt100.printf " [%2d] %-16s  %a   %08lx %06lx %06lx                 \n"
+		i (truncate 16 (get_string strtab (Int32.to_int h.section_name)))
+		print_section_type h.section_type h.section_addr
+		h.section_offset h.section_size
 
 let print_type () = function
 	| Relative -> "relocatable"
@@ -149,4 +236,7 @@ let print_header h =
 	Vt100.printf " Type: %a\n Entry point address: 0x%lx\n Start of program headers: %ld (bytes into file)\n Start of section headers: %ld (bytes into file)\n"
 		print_type h.file_type h.entry h.phoff h.shoff;
 	Vt100.printf " Flags: 0x%lx\n Size of this header: %d (bytes)\n Size of program headers: %d (bytes)\n Number of program headers: %d\n Size of section headers: %d (bytes)\n Number of sections headers: %d\n Section header string table index: %d\n"
-		h.header_flags h.ehsize h.phentsize h.phnum h.shentsize h.shnum h.shstrndx
+		h.header_flags h.ehsize h.phentsize h.phnum h.shentsize h.shnum h.shstrndx;
+	Vt100.printf "Section Headers:\n";
+	Vt100.printf " [Nr] Name              Type           Addr     Off    Size   ES Flg Lk Inf Al\n";
+	Array.iteri (print_section_header h.string_table) h.section_headers
