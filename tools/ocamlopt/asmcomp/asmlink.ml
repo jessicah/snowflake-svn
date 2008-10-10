@@ -401,13 +401,15 @@ let link ppf objfiles output_name =
     if !Clflags.keep_startup_file then output_name ^ ".startup" ^ ext_asm
     else Filename.temp_file "camlstartup" ext_asm in
   make_startup_file ppf startup units_tolink;
-  let startup_obj = Filename.temp_file "camlstartup" ext_obj in
+  let startup_obj =
+	if !Clflags.keep_startup_file then output_name ^ ".startup" ^ ext_obj
+	else Filename.temp_file "camlstartup" ext_obj in
   if Proc.assemble_file startup startup_obj <> 0 then
     raise(Error(Assembler_error startup));
   try
     call_linker (List.map object_file_name objfiles) startup_obj output_name;
     if not !Clflags.keep_startup_file then remove_file startup;
-    remove_file startup_obj
+    if not !Clflags.keep_startup_file then remove_file startup_obj
   with x ->
     remove_file startup_obj;
     raise x
