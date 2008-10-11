@@ -41,7 +41,7 @@ and file_type
 	| Executable (* 2 *)
 	| Shared (* 3 *)
 and section_header = {
-	section_name : int32 (* offset into string table *);
+	section_name : int (* offset into string table *);
 	section_type : section_type;
 	section_flags : int32; (* 16 *)
 	section_addr : int32;
@@ -49,7 +49,7 @@ and section_header = {
 	section_size: int; (* 16 *)
 	section_link: int32; (* 16 *)
 	section_info: int32; (* 16 *)
-	section_addralign: int32; (* 16 *)
+	section_addralign: int; (* 16 *)
 	section_entsize: int32; (* 16 *)
 }
 and section_type
@@ -122,7 +122,7 @@ let parse_section_header bits =
 		s_addralign : 32 : littleendian;
 		s_entsize : 32 : littleendian
 	} -> {
-		section_name = copy s_name;
+		section_name = Int32.to_int s_name;
 		section_type = begin match Int32.to_int (copy s_type) with
 			| 0 -> Null
 			| 1 -> ProgBits
@@ -144,7 +144,7 @@ let parse_section_header bits =
 		section_size = Int32.to_int s_size;
 		section_link = copy s_link;
 		section_info = copy s_info;
-		section_addralign = copy s_addralign;
+		section_addralign = Int32.to_int s_addralign;
 		section_entsize = copy s_entsize;
 	}
 
@@ -243,7 +243,7 @@ let rec parse_archive_members acc ht bits =
 		_ : 6 * 8 : bitstring; (* gid *)
 		_ : 8 * 8 : bitstring; (* mode *)
 		size : 10 * 8 : string;
-		"`\n" : 2 * 8 : string;
+		0x600A : 2 * 8;
 		filedata : (Scanf.sscanf size "%d" (fun x -> x)) * 8 : bitstring;
 		rest : -1 : bitstring } ->
 		begin match name with
@@ -275,7 +275,7 @@ let rec parse_archive_members acc ht bits =
 				parse_archive_members acc ht rest
 			end
 		end
-	| { "\n" : 8 : string;
+	| { 0x0a : 8;
 		rest : -1 : bitstring } -> parse_archive_members acc ht rest
 
 let parse_archive bits =
@@ -322,7 +322,7 @@ let truncate len s =
 
 let print_section_header strtab i h =
 	Vt100.printf " [%2d] %-16s  %a   %08lx %06x %06x                 \n"
-		i (truncate 16 (get_string strtab (Int32.to_int h.section_name)))
+		i (truncate 16 (get_string strtab h.section_name))
 		print_section_type h.section_type h.section_addr
 		h.section_offset h.section_size
 
@@ -369,8 +369,45 @@ module LinkKernel = struct
 			end LinkerTest.input_files
 		end
 	
+	let update_section_sizes tbl header =
+		Array.iter begin fun s_header ->
+			let name = get_string header.string_table s_header.section_name in
+			try
+				let size = Hashtbl.find tbl name in
+				let new_size =
+					if s_header.section_addralign = 0
+						then s_header.section_size
+					else begin
+						(s_header.section_size / s_header.section_addralign + 1)
+						* s_header.section_addralign
+					end in
+				Hashtbl.replace tbl name (size + new_size)
+			with Not_found ->
+				let new_size =
+					if s_header.section_addralign = 0
+						then s_header.section_size
+					else begin
+						(s_header.section_size / s_header.section_addralign + 1)
+						* s_header.section_addralign
+					end in
+				Hashtbl.add tbl name new_size
+		end header.section_headers
+		
 	let link () =
 		let objs = Lazy.force objs in
+		Vt100.printf "Calculating section sizes...\n";
+		let sections = Hashtbl.create 10 in
+		Array.iter begin function
+			| Object elf ->
+				update_section_sizes sections elf.header
+			| Archive list ->
+				List.iter begin fun (_, elf) ->
+					update_section_sizes sections elf.header
+				end list
+		end objs;
+		Hashtbl.iter begin fun name size ->
+			Vt100.printf "Section %-32s: %06x bytes\n" name size
+		end sections;
 		Vt100.printf "This is where we'd start doing linking...\n"
 
 end
