@@ -255,19 +255,20 @@ let rec parse_archive_members acc ht bits =
 			parse_archive_members acc ht rest
 		| name when name.[0] = '/' ->
 			(* need to do a lookup *)
-			let name = Hashtbl.find ht (Scanf.sscanf name "/%d" (fun x -> x)) in
+			let name = fix_name (Hashtbl.find ht (Scanf.sscanf name "/%d" (fun x -> x))) in
 			Vt100.printf "Parsing member: %s\n" name;
 			begin try
-				let member = (fix_name name, parse_elf_header filedata) in
+				let member = (name, parse_elf_header filedata) in
 				parse_archive_members (member :: acc) ht rest
 			with Not_elf_file ->
 				Vt100.printf "Warning: not an ELF file\n";
 				parse_archive_members acc ht rest
 			end
 		| name ->
+			let name = fix_name name in
 			Vt100.printf "Parsing member: %s\n" name;
 			begin try
-				let member = (fix_name name, parse_elf_header filedata) in
+				let member = (name, parse_elf_header filedata) in
 				parse_archive_members (member :: acc) ht rest
 			with Not_elf_file ->
 				Vt100.printf "Warning: not an ELF file\n";
@@ -350,13 +351,26 @@ let print = function
 			Vt100.printf "Member: %s\n" n;
 			print_header e) list
 
-module Linker = struct
+module LinkKernel = struct
 
-	(*
-		Linker to test linking the kernel, and become one step
-		closer to being a self-hosting OS.
-	*)
+	let tar_file = lazy begin
+			let data = Multiboot.open_module () in
+			let str = String.create (Bigarray.Array1.dim data) in
+			for i = 0 to String.length str - 1 do
+				str.[i] <- data.{i}
+			done;
+			TarFile.open_tar_file str
+		end
+
+	let objs = lazy begin
+			Array.map begin fun filename ->
+				parse filename (Bitstring.bitstring_of_string
+					(TarFile.read_file (Lazy.force tar_file) filename))
+			end LinkerTest.input_files
+		end
 	
-	let objs = ref []
+	let link () =
+		let objs = Lazy.force objs in
+		Vt100.printf "This is where we'd start doing linking...\n"
 
 end

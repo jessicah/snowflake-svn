@@ -13,3 +13,7 @@ val print_header : elf -> unit
 val parse : string -> Bitstring.t -> t
 
 val print : t -> unit
+
+module LinkKernel : sig
+	val link : unit -> unit
+end
