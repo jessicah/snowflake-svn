@@ -47,7 +47,7 @@ and section_header = {
 	section_addr : int32;
 	section_offset : int;
 	section_size: int; (* 16 *)
-	section_link: int32; (* 16 *)
+	section_link: int; (* 16 *)
 	section_info: int32; (* 16 *)
 	section_addralign: int; (* 16 *)
 	section_entsize: int32; (* 16 *)
@@ -86,11 +86,11 @@ type t
 *)
 
 type symbol_table_entry = {
-	st_name : int32;
+	st_name : int;
 	st_value : int32;
-	st_size: int32;
-	st_info: char;
-	st_other: char;
+	st_size: int;
+	st_info: int;
+	st_other: int;
 	st_shndx: int;
 }
 
@@ -103,6 +103,26 @@ type rela = {
 	ra_info: int32;
 	ra_addend: int32; (* signed *)
 }
+
+let rec parse_symbol_table acc bits =
+	if Bitstring.bitstring_length bits = 0 then
+		Array.of_list (List.rev acc)
+	else begin
+		bitmatch bits with
+		| { name : 32 : littleendian;
+			value : 32 : littleendian;
+			size : 32 : littleendian;
+			info : 8 : littleendian;
+			other : 8 : littleendian;
+			shndx : 16 : littleendian;
+			rest : -1 : bitstring } ->
+				parse_symbol_table ({
+					st_name = Int32.to_int name;
+					st_value = value;
+					st_size = Int32.to_int size;
+					st_info = info;
+					st_other = other;
+					st_shndx = shndx } :: acc) rest
 
 let copy i = Int32.add Int32.zero i
 
@@ -142,7 +162,7 @@ let parse_section_header bits =
 		section_addr = copy s_addr;
 		section_offset = Int32.to_int s_offset;
 		section_size = Int32.to_int s_size;
-		section_link = copy s_link;
+		section_link = Int32.to_int s_link;
 		section_info = copy s_info;
 		section_addralign = Int32.to_int s_addralign;
 		section_entsize = copy s_entsize;
@@ -353,6 +373,10 @@ let print = function
 
 module LinkKernel = struct
 
+	let st_bind x = x asr 4
+	let st_type x = x land 0xF
+	let st_info b t = (b lsl 4) + (t land 0xF)
+
 	let tar_file = lazy begin
 			let data = Multiboot.open_module () in
 			let str = String.create (Bigarray.Array1.dim data) in
@@ -368,6 +392,62 @@ module LinkKernel = struct
 					(TarFile.read_file (Lazy.force tar_file) filename))
 			end LinkerTest.input_files
 		end
+	
+	let defined_symbols = Hashtbl.create 10240
+	let undefined_symbols = Hashtbl.create 1024
+	let collected_objects = ref []
+	let available_libs = ref []
+	let found_symbols = ref 0
+	let already_undefined_symbols = ref 0
+	let collided_symbols = ref 0
+	
+	let collect_object elf =
+		let symtbl_h = List.find begin fun h ->
+			String.compare (get_string elf.header.string_table h.section_name) ".symtab" = 0
+		end (Array.to_list elf.header.section_headers) in
+		let symtbl = parse_symbol_table [] begin
+			Bitstring.subbitstring elf.data (symtbl_h.section_offset * 8) (symtbl_h.section_size * 8)
+		end in
+		(* got the symbol table *)
+		Vt100.printf "Symbol table entries count: %d\n" (Array.length symtbl);
+		let string_table = Bitstring.string_of_bitstring
+			(Bitstring.subbitstring elf.data
+				(elf.header.section_headers.(symtbl_h.section_link).section_offset * 8)
+				(elf.header.section_headers.(symtbl_h.section_link).section_size * 8))
+		in
+		Array.iter begin fun entry ->
+			let name = get_string string_table entry.st_name in
+			if entry.st_shndx = 0 then begin
+				(* this is an undefined symbol *)
+				try
+					ignore (Hashtbl.find defined_symbols name);
+					incr found_symbols
+				with Not_found ->
+					try
+						ignore (Hashtbl.find undefined_symbols name);
+						incr already_undefined_symbols;
+					with Not_found ->
+						Hashtbl.add undefined_symbols name entry
+			end else begin
+				(* this is a defined symbol *)
+				try
+					ignore (Hashtbl.find defined_symbols name);
+					incr collided_symbols;
+				with Not_found ->
+					Hashtbl.add defined_symbols name entry;
+					Hashtbl.remove undefined_symbols name
+			end
+		end symtbl
+	
+	let collect () =
+		let objs = Lazy.force objs in
+		Array.iter begin function
+			| Object elf ->
+				collected_objects := elf :: !collected_objects;
+				collect_object elf
+			| Archive list ->
+				available_libs := list :: !available_libs
+		end objs
 	
 	let update_section_sizes tbl header =
 		Array.iter begin fun s_header ->
@@ -395,6 +475,12 @@ module LinkKernel = struct
 		
 	let link () =
 		let objs = Lazy.force objs in
+		Vt100.printf "Collecting objects...\n";
+		collect ();
+		Vt100.printf "Undefined symbols:\n";
+		Hashtbl.iter begin fun n _ ->
+			Vt100.printf "  %s\n" n
+		end undefined_symbols;
 		Vt100.printf "Calculating section sizes...\n";
 		let sections = Hashtbl.create 10 in
 		Array.iter begin function
