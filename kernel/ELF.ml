@@ -276,22 +276,17 @@ let rec parse_archive_members acc ht bits =
 		| name when name.[0] = '/' ->
 			(* need to do a lookup *)
 			let name = fix_name (Hashtbl.find ht (Scanf.sscanf name "/%d" (fun x -> x))) in
-			Vt100.printf "Parsing member: %s\n" name;
 			begin try
 				let member = (name, parse_elf_header filedata) in
 				parse_archive_members (member :: acc) ht rest
 			with Not_elf_file ->
-				Vt100.printf "Warning: not an ELF file\n";
 				parse_archive_members acc ht rest
 			end
 		| name ->
-			let name = fix_name name in
-			Vt100.printf "Parsing member: %s\n" name;
 			begin try
-				let member = (name, parse_elf_header filedata) in
+				let member = (fix_name name, parse_elf_header filedata) in
 				parse_archive_members (member :: acc) ht rest
 			with Not_elf_file ->
-				Vt100.printf "Warning: not an ELF file\n";
 				parse_archive_members acc ht rest
 			end
 		end
@@ -306,7 +301,6 @@ let parse_archive bits =
 	| { _ } -> raise Not_archive
 
 let parse filename bits =
-	Vt100.printf "Parsing: %s\n" filename;
 	begin
 		try
 			Object (parse_elf_header bits)
@@ -401,6 +395,31 @@ module LinkKernel = struct
 	let already_undefined_symbols = ref 0
 	let collided_symbols = ref 0
 	
+	let find_symbols strtab symtab =
+		let u = Hashtbl.create 7 in
+		let d = Hashtbl.create 7 in
+		Array.iter begin fun entry ->
+			let name = get_string strtab entry.st_name in
+			if entry.st_shndx = 0 then
+				Hashtbl.add u name entry
+			else
+				Hashtbl.add d name entry
+		end symtab;
+		(u, d)
+	
+	let add_symbols u d =
+		Hashtbl.iter begin fun n e ->
+			if Hashtbl.mem defined_symbols n = false then begin
+				Hashtbl.add defined_symbols n e;
+				Hashtbl.remove undefined_symbols n
+			end
+		end d;
+		Hashtbl.iter begin fun n e ->
+			if Hashtbl.mem defined_symbols n = false
+				&& Hashtbl.mem undefined_symbols n = false
+			then Hashtbl.add undefined_symbols n e
+		end u
+	
 	let collect_object elf =
 		let symtbl_h = List.find begin fun h ->
 			String.compare (get_string elf.header.string_table h.section_name) ".symtab" = 0
@@ -409,45 +428,45 @@ module LinkKernel = struct
 			Bitstring.subbitstring elf.data (symtbl_h.section_offset * 8) (symtbl_h.section_size * 8)
 		end in
 		(* got the symbol table *)
-		Vt100.printf "Symbol table entries count: %d\n" (Array.length symtbl);
 		let string_table = Bitstring.string_of_bitstring
 			(Bitstring.subbitstring elf.data
 				(elf.header.section_headers.(symtbl_h.section_link).section_offset * 8)
 				(elf.header.section_headers.(symtbl_h.section_link).section_size * 8))
 		in
-		Array.iter begin fun entry ->
-			let name = get_string string_table entry.st_name in
-			if entry.st_shndx = 0 then begin
-				(* this is an undefined symbol *)
-				try
-					ignore (Hashtbl.find defined_symbols name);
-					incr found_symbols
-				with Not_found ->
-					try
-						ignore (Hashtbl.find undefined_symbols name);
-						incr already_undefined_symbols;
-					with Not_found ->
-						Hashtbl.add undefined_symbols name entry
-			end else begin
-				(* this is a defined symbol *)
-				try
-					ignore (Hashtbl.find defined_symbols name);
-					incr collided_symbols;
-				with Not_found ->
-					Hashtbl.add defined_symbols name entry;
-					Hashtbl.remove undefined_symbols name
-			end
-		end symtbl
+		find_symbols string_table symtbl
 	
 	let collect () =
 		let objs = Lazy.force objs in
 		Array.iter begin function
 			| Object elf ->
 				collected_objects := elf :: !collected_objects;
-				collect_object elf
+				let u, d = collect_object elf in
+				add_symbols u d
 			| Archive list ->
 				available_libs := list :: !available_libs
 		end objs
+	
+	let collect_lib list =
+		List.iter begin fun (name,elf) ->
+			try
+				let u, d = collect_object elf in
+				if Hashtbl.fold begin fun n _ b ->
+					if (b = true) || (Hashtbl.mem undefined_symbols n) = true then
+						true
+					else b
+				end d false = true then begin
+					add_symbols u d;
+					collected_objects := elf :: !collected_objects
+				end
+			with Not_found -> ()
+		end list
+	
+	let rec collect_from_libs () =
+		let count = Hashtbl.length undefined_symbols in
+		List.iter collect_lib !available_libs;
+		if Hashtbl.length undefined_symbols <> count then
+			collect_from_libs ()
+		else () (* fix point reached *)
 	
 	let update_section_sizes tbl header =
 		Array.iter begin fun s_header ->
@@ -477,6 +496,7 @@ module LinkKernel = struct
 		let objs = Lazy.force objs in
 		Vt100.printf "Collecting objects...\n";
 		collect ();
+		collect_from_libs ();
 		Vt100.printf "Undefined symbols:\n";
 		Hashtbl.iter begin fun n _ ->
 			Vt100.printf "  %s\n" n
@@ -491,9 +511,9 @@ module LinkKernel = struct
 					update_section_sizes sections elf.header
 				end list
 		end objs;
-		Hashtbl.iter begin fun name size ->
+		(*Hashtbl.iter begin fun name size ->
 			Vt100.printf "Section %-32s: %06x bytes\n" name size
-		end sections;
+		end sections;*)
 		Vt100.printf "This is where we'd start doing linking...\n"
 
 end

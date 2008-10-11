@@ -18,6 +18,7 @@ let input_files = [|
 		"kernel/PCI.o";
 		"kernel/ELF.o";
 		"kernel/vt100.o";
+		"kernel/linkerTest.o";
 		"libraries/bigarray/bigarray.o";
 		"libraries/bitstring/bitstring.a";
 		"libraries/extlib/extlib.a";
