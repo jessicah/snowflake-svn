@@ -41,16 +41,16 @@ and file_type
 	| Executable (* 2 *)
 	| Shared (* 3 *)
 and section_header = {
-	section_name : int (* offset into string table *);
-	section_type : section_type;
-	section_flags : int32; (* 16 *)
-	section_addr : int32;
-	section_offset : int;
-	section_size: int; (* 16 *)
-	section_link: int; (* 16 *)
-	section_info: int32; (* 16 *)
-	section_addralign: int; (* 16 *)
-	section_entsize: int32; (* 16 *)
+	st_name : int (* offset into string table *);
+	st_type : section_type;
+	st_flags : int; (* 16 *)
+	st_addr : int32;
+	st_offset : int;
+	st_size: int; (* 16 *)
+	st_link: int; (* 16 *)
+	st_info: int32; (* 16 *)
+	st_addralign: int; (* 16 *)
+	st_entsize: int32; (* 16 *)
 }
 and section_type
 	= Null (* 0 *)
@@ -86,12 +86,12 @@ type t
 *)
 
 type symbol_table_entry = {
-	st_name : int;
-	st_value : int32;
-	st_size: int;
-	st_info: int;
-	st_other: int;
-	st_shndx: int;
+	sm_name : int;
+	sm_value : int32;
+	sm_size: int;
+	sm_info: int;
+	sm_other: int;
+	sm_shndx: int;
 }
 
 type rel = {
@@ -117,12 +117,12 @@ let rec parse_symbol_table acc bits =
 			shndx : 16 : littleendian;
 			rest : -1 : bitstring } ->
 				parse_symbol_table ({
-					st_name = Int32.to_int name;
-					st_value = value;
-					st_size = Int32.to_int size;
-					st_info = info;
-					st_other = other;
-					st_shndx = shndx } :: acc) rest
+					sm_name = Int32.to_int name;
+					sm_value = value;
+					sm_size = Int32.to_int size;
+					sm_info = info;
+					sm_other = other;
+					sm_shndx = shndx } :: acc) rest
 
 let copy i = Int32.add Int32.zero i
 
@@ -142,8 +142,8 @@ let parse_section_header bits =
 		s_addralign : 32 : littleendian;
 		s_entsize : 32 : littleendian
 	} -> {
-		section_name = Int32.to_int s_name;
-		section_type = begin match Int32.to_int (copy s_type) with
+		st_name = Int32.to_int s_name;
+		st_type = begin match Int32.to_int (copy s_type) with
 			| 0 -> Null
 			| 1 -> ProgBits
 			| 2 -> SymTab
@@ -158,14 +158,14 @@ let parse_section_header bits =
 			| 11 -> Dynsym
 			| n -> Other n
 			end;
-		section_flags = copy s_flags;
-		section_addr = copy s_addr;
-		section_offset = Int32.to_int s_offset;
-		section_size = Int32.to_int s_size;
-		section_link = Int32.to_int s_link;
-		section_info = copy s_info;
-		section_addralign = Int32.to_int s_addralign;
-		section_entsize = copy s_entsize;
+		st_flags = Int32.to_int s_flags;
+		st_addr = copy s_addr;
+		st_offset = Int32.to_int s_offset;
+		st_size = Int32.to_int s_size;
+		st_link = Int32.to_int s_link;
+		st_info = copy s_info;
+		st_addralign = Int32.to_int s_addralign;
+		st_entsize = copy s_entsize;
 	}
 
 let rec parse_section_headers acc num size bits =
@@ -203,8 +203,8 @@ let parse_elf_header bits =
 			(Bitstring.subbitstring bits (Int32.to_int shoff * 8) (shentsize * shnum * 8)) in
 		let string_table = Bitstring.string_of_bitstring
 			(Bitstring.subbitstring bits
-				(section_headers.(shstrndx).section_offset * 8)
-				(section_headers.(shstrndx).section_size * 8))
+				(section_headers.(shstrndx).st_offset * 8)
+				(section_headers.(shstrndx).st_size * 8))
 		in
 		{
 			data = bits;
@@ -336,9 +336,9 @@ let truncate len s =
 
 let print_section_header strtab i h =
 	Vt100.printf " [%2d] %-16s  %a   %08lx %06x %06x                 \n"
-		i (truncate 16 (get_string strtab h.section_name))
-		print_section_type h.section_type h.section_addr
-		h.section_offset h.section_size
+		i (truncate 16 (get_string strtab h.st_name))
+		print_section_type h.st_type h.st_addr
+		h.st_offset h.st_size
 
 let print_type () = function
 	| Relative -> "relocatable"
@@ -382,7 +382,7 @@ module LinkKernel = struct
 
 	let objs = lazy begin
 			Array.map begin fun filename ->
-				parse filename (Bitstring.bitstring_of_string
+				filename, parse filename (Bitstring.bitstring_of_string
 					(TarFile.read_file (Lazy.force tar_file) filename))
 			end LinkerTest.input_files
 		end
@@ -399,8 +399,8 @@ module LinkKernel = struct
 		let u = Hashtbl.create 7 in
 		let d = Hashtbl.create 7 in
 		Array.iter begin fun entry ->
-			let name = get_string strtab entry.st_name in
-			if entry.st_shndx = 0 then
+			let name = get_string strtab entry.sm_name in
+			if entry.sm_shndx = 0 then
 				Hashtbl.add u name entry
 			else
 				Hashtbl.add d name entry
@@ -422,24 +422,24 @@ module LinkKernel = struct
 	
 	let collect_object elf =
 		let symtbl_h = List.find begin fun h ->
-			String.compare (get_string elf.header.string_table h.section_name) ".symtab" = 0
+			String.compare (get_string elf.header.string_table h.st_name) ".symtab" = 0
 		end (Array.to_list elf.header.section_headers) in
 		let symtbl = parse_symbol_table [] begin
-			Bitstring.subbitstring elf.data (symtbl_h.section_offset * 8) (symtbl_h.section_size * 8)
+			Bitstring.subbitstring elf.data (symtbl_h.st_offset * 8) (symtbl_h.st_size * 8)
 		end in
 		(* got the symbol table *)
 		let string_table = Bitstring.string_of_bitstring
 			(Bitstring.subbitstring elf.data
-				(elf.header.section_headers.(symtbl_h.section_link).section_offset * 8)
-				(elf.header.section_headers.(symtbl_h.section_link).section_size * 8))
+				(elf.header.section_headers.(symtbl_h.st_link).st_offset * 8)
+				(elf.header.section_headers.(symtbl_h.st_link).st_size * 8))
 		in
 		find_symbols string_table symtbl
 	
 	let collect () =
 		let objs = Lazy.force objs in
-		Array.iter begin function
+		Array.iter begin fun (n,obj) -> match obj with
 			| Object elf ->
-				collected_objects := elf :: !collected_objects;
+				collected_objects := (n,elf) :: !collected_objects;
 				let u, d = collect_object elf in
 				add_symbols u d
 			| Archive list ->
@@ -456,7 +456,7 @@ module LinkKernel = struct
 					else b
 				end d false = true then begin
 					add_symbols u d;
-					collected_objects := elf :: !collected_objects
+					collected_objects := (name,elf) :: !collected_objects
 				end
 			with Not_found -> ()
 		end list
@@ -470,7 +470,7 @@ module LinkKernel = struct
 	
 	let combine_sections tbl header =
 		Array.iter begin fun s_header ->
-			let name = get_string header.string_table s_header.section_name in
+			let name = get_string header.string_table s_header.st_name in
 			try
 				let entries = Hashtbl.find tbl name in
 				Hashtbl.replace tbl name (s_header :: entries)
@@ -526,36 +526,113 @@ module LinkKernel = struct
 	
 	(*
 		Sections that are in snowflake.native: (when stripped)
-		.mb_header, LONG(0)
-		.eh_frame
-		.text
-		PROVIDE (_etext)
-		.rodata
-		.data
-		_edata, PROVIDE(edata)
-		ALIGN(0x1000)
-		__bss_start
-		.bss
-		_end, PROVIDE(end)
-		.comment
-		.shstrtab
+		ENTRY __entrypoint
+		SECTIONS
+			0x00400000 + SIZEOF_HEADERS
+			.mb_header, LONG(0)
+			.eh_frame
+			.text
+			PROVIDE (_etext)
+			.rodata
+			.data
+			_edata, PROVIDE(edata)
+			ALIGN(0x1000)
+			__bss_start
+			.bss
+			_end, PROVIDE(end)
+			.comment
+			.shstrtab
 	*)
 	
 	let get_size list =
 		List.fold_right begin fun entry size ->
-			let newsize = entry.section_size in
+			let newsize = entry.st_size in
 			if size = 0 then
 				newsize
-			else if entry.section_addralign = 0 then
+			else if entry.st_addralign = 0 then
 				size + newsize
 			else begin
-				if size mod entry.section_addralign = 0 then
+				if size mod entry.st_addralign = 0 then
 					size + newsize
 				else
-					((size / entry.section_addralign + 1) * entry.section_addralign) + newsize
+					((size / entry.st_addralign + 1) * entry.st_addralign) + newsize
 			end
 		end list 0
-		
+	
+	let section_header_table = "\000.mb_header\000.eh_frame\000.text\000.rodata\000.data\000.bss\000.comment\000.shstrtab\000"
+	
+	let section_headers = [|
+		(* null *)
+		{ st_name = 0; st_type = Null; st_flags = 0;
+			st_addr = Int32.zero; st_offset = 0; st_size = 0;
+			st_link = 0; st_info = Int32.zero;
+			st_addralign = 0; st_entsize = Int32.zero };
+		(* mb_header *)
+		{ st_name = 1; st_type = ProgBits; st_flags = 0x2 (* A *);
+			st_addr = Int32.zero; st_offset = 0; st_size = 0;
+			st_link = 0; st_info = Int32.zero;
+			st_addralign = 4; st_entsize = Int32.zero };
+		(* eh_frame *)
+		{ st_name = 12; st_type = ProgBits; st_flags = 0x2 (* A *);
+			st_addr = Int32.zero; st_offset = 0; st_size = 0;
+			st_link = 0; st_info = Int32.zero;
+			st_addralign = 4; st_entsize = Int32.zero };
+		(* text *)
+		{ st_name = 22; st_type = ProgBits; st_flags = 0x6 (* AX *);
+			st_addr = Int32.zero; st_offset = 0; st_size = 0;
+			st_link = 0; st_info = Int32.zero;
+			st_addralign = 16; st_entsize = Int32.zero };
+		(* rodata *)
+		{ st_name = 28; st_type = ProgBits; st_flags = 0x2 (* A *);
+			st_addr = Int32.zero; st_offset = 0; st_size = 0;
+			st_link = 0; st_info = Int32.zero;
+			st_addralign = 8; st_entsize = Int32.zero };
+		(* data *)
+		{ st_name = 36; st_type = ProgBits; st_flags = 0x3 (* WA *);
+			st_addr = Int32.zero; st_offset = 0; st_size = 0;
+			st_link = 0; st_info = Int32.zero;
+			st_addralign = 32; st_entsize = Int32.zero };
+		(* bss *)
+		{ st_name = 42; st_type = NoBits; st_flags = 0x3 (* WA *);
+			st_addr = Int32.zero; st_offset = 0; st_size = 0;
+			st_link = 0; st_info = Int32.zero;
+			st_addralign = 32; st_entsize = Int32.zero };
+		(* comment *)
+		{ st_name = 47; st_type = ProgBits; st_flags = 0;
+			st_addr = Int32.zero; st_offset = 0; st_size = 0;
+			st_link = 0; st_info = Int32.zero;
+			st_addralign = 1; st_entsize = Int32.zero };
+		(* shstrtab *)
+		{ st_name = 56; st_type = StrTab; st_flags = 0;
+			st_addr = Int32.zero; st_offset = 0; st_size = 0;
+			st_link = 0; st_info = Int32.zero;
+			st_addralign = 1; st_entsize = Int32.zero };
+		|]
+	
+	let get_entry_point () =
+		let sym = Hashtbl.find defined_symbols "__entrypoint" in
+		let elf = List.assoc "libraries/kernel/stage1.o" !collected_objects in
+		Vt100.printf "Entry point: %lx %x %x %x %x\n"
+			sym.sm_value sym.sm_size sym.sm_info sym.sm_other sym.sm_shndx;
+		(* value holds a section offset for a defined symbol.
+		   value is an offset from beginning of section.(shndx) *)
+		let s = elf.header.section_headers.(sym.sm_shndx) in
+		let s2 = Bitstring.string_of_bitstring
+			(Bitstring.subbitstring elf.data
+				(s.st_offset * 8) (s.st_size * 32))
+		in
+		Vt100.printf "%d: %s\n" (String.length s2) s2;
+		let s3 = (String.sub s2 (Int32.to_int sym.sm_value) 4) in
+		Vt100.printf "%02x%02x%02x%20x\n"
+			(Char.code s3.[0]) (Char.code s3.[1])
+			(Char.code s3.[2]) (Char.code s3.[3]);
+		0x0
+	
+	open IO
+	
+	let write_bytes os bytes =
+		List.iter (write_byte os) bytes
+	
 	let link () =
 		let objs = Lazy.force objs in
 		Vt100.printf "Collecting objects...\n";
@@ -567,12 +644,54 @@ module LinkKernel = struct
 		end undefined_symbols;
 		Vt100.printf "Calculating section sizes...\n";
 		let sections = Hashtbl.create 10 in
-		List.iter begin fun elf ->
+		List.iter begin fun (n,elf) ->
 			combine_sections sections elf.header
 		end !collected_objects;
 		Hashtbl.iter begin fun name list ->
 			Vt100.printf "Section %-32s: %06x bytes\n" name (get_size list)
 		end sections;
-		Vt100.printf "This is where we'd start doing linking...\n"
+		(* let's just start hard-coding stuff, and see what we come up with *)
+		let os = output_string () in
+		(* ELF Header *)
+		let foo = 0xbabe in
+		write_bytes os [0x7f; Char.code 'E'; Char.code 'L'; Char.code 'F'];
+		write_bytes os [0x01; 0x01; 0x01; 0x00; 0x00; 0x00; 0x00; 0x00; 0x00; 0x00; 0x00; 0x00; 0x00];
+		write_ui16 os 2; (* executable *)
+		write_ui16 os 3; (* i386 *)
+		write_i32  os 1; (* version = 1 *)
+		write_i32  os (get_entry_point ()); (* entry point would be address of __entrypoint *)
+		write_i32  os 52; (* program header offset *)
+		write_i32  os foo; (* section headers offset *)
+		write_i32  os 0; (* no flags *)
+		write_ui16 os 52; (* elf header size *)
+		write_ui16 os 32; (* program header size *)
+		write_ui16 os 2; (* number of program headers *)
+		write_ui16 os 40; (* section header size *)
+		write_ui16 os (Array.length section_headers);
+		write_ui16 os (Array.length section_headers - 1);
+		(* Program Headers *)
+		write_i32  os 0x1; (* load *)
+		write_i32  os 0x0; (* offset *)
+		write_i32  os 0x00400000; (* virtual address *)
+		write_i32  os 0x00400000; (* physical address *)
+		write_i32  os foo; (* file size *)
+		write_i32  os foo; (* memory size *)
+		write_i32  os 0x7; (* read/write/execute *)
+		write_i32  os 0x1000; (* alignment *)
+		(* next header *)
+		write_real_i32 os 0x6474E551l; (* GNU_STACK *)
+		write_i32  os 0; (* rest is zero until end *)
+		write_i32  os 0;
+		write_i32  os 0;
+		write_i32  os 0;
+		write_i32  os 0;
+		write_i32  os 0x7; (* read/write/execute *)
+		write_i32  os 0x4; (* alignment, does it even matter? :P *)
+		(*(* The actual program follows *)
+		...;
+		(* Then we have the section headers *)
+		...;
+		(* and our string table *)
+		...;*)()
 
 end
