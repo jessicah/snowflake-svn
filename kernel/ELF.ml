@@ -468,29 +468,93 @@ module LinkKernel = struct
 			collect_from_libs ()
 		else () (* fix point reached *)
 	
-	let update_section_sizes tbl header =
+	let combine_sections tbl header =
 		Array.iter begin fun s_header ->
 			let name = get_string header.string_table s_header.section_name in
 			try
-				let size = Hashtbl.find tbl name in
-				let new_size =
-					if s_header.section_addralign = 0
-						then s_header.section_size
-					else begin
-						(s_header.section_size / s_header.section_addralign + 1)
-						* s_header.section_addralign
-					end in
-				Hashtbl.replace tbl name (size + new_size)
+				let entries = Hashtbl.find tbl name in
+				Hashtbl.replace tbl name (s_header :: entries)
 			with Not_found ->
-				let new_size =
-					if s_header.section_addralign = 0
-						then s_header.section_size
-					else begin
-						(s_header.section_size / s_header.section_addralign + 1)
-						* s_header.section_addralign
-					end in
-				Hashtbl.add tbl name new_size
+				Hashtbl.add tbl name [s_header]
 		end header.section_headers
+	
+	(*
+		Sections to be in the output file:
+		.mb_header
+		.hash
+		.dynsym
+		.dynstr
+		.dynamic
+		.gnu.version
+		.gnu.version_d
+		.gnu.version_r
+		.got.plt
+		.eh_frame
+		.text ( .text .text.* .gnu.linkonce.t.* )
+		PROVIDE etext
+		.rodata ( .rodata .rodata.* .gnu.linkonce.d.* )
+		PROVIDE edata
+		ALIGN(0x1000)
+		.bss ( .bss.pagealigned, .bss .bss.* .gnu.linkonce.b.*, COMMON )
+		PROVIDE end
+		.stab
+		.stabstr
+		.stab.excl
+		.stab.exclstr
+		.stab.index
+		.stab.indexstr
+		.comment
+		.debug
+		.line
+		.debug_srcinfo
+		.debug_sfnames
+		.debug_aranges
+		.debug_pubnames
+		.debug_info ( .debug_info .gnu.linkonce.wi.* )
+		.debug_abbrev
+		.debug_line
+		.debug_frame
+		.debug_str
+		.debug_loc
+		.debug_macinfo
+		.debug_weaknames
+		.debug_funcnames
+		.debug_typenames
+		.debug_varnames
+		DISCARD .note.GNU-stack
+	*)
+	
+	(*
+		Sections that are in snowflake.native: (when stripped)
+		.mb_header, LONG(0)
+		.eh_frame
+		.text
+		PROVIDE (_etext)
+		.rodata
+		.data
+		_edata, PROVIDE(edata)
+		ALIGN(0x1000)
+		__bss_start
+		.bss
+		_end, PROVIDE(end)
+		.comment
+		.shstrtab
+	*)
+	
+	let get_size list =
+		List.fold_right begin fun entry size ->
+			let newsize = entry.section_size in
+			if size = 0 then
+				newsize
+			else if entry.section_addralign = 0 then
+				size + newsize
+			else begin
+				if size mod entry.section_addralign = 0 then
+					size + newsize
+				else
+					((size / entry.section_addralign + 1) * entry.section_addralign) + newsize
+			end
+		end list 0
 		
 	let link () =
 		let objs = Lazy.force objs in
@@ -503,17 +567,12 @@ module LinkKernel = struct
 		end undefined_symbols;
 		Vt100.printf "Calculating section sizes...\n";
 		let sections = Hashtbl.create 10 in
-		Array.iter begin function
-			| Object elf ->
-				update_section_sizes sections elf.header
-			| Archive list ->
-				List.iter begin fun (_, elf) ->
-					update_section_sizes sections elf.header
-				end list
-		end objs;
-		(*Hashtbl.iter begin fun name size ->
-			Vt100.printf "Section %-32s: %06x bytes\n" name size
-		end sections;*)
+		List.iter begin fun elf ->
+			combine_sections sections elf.header
+		end !collected_objects;
+		Hashtbl.iter begin fun name list ->
+			Vt100.printf "Section %-32s: %06x bytes\n" name (get_size list)
+		end sections;
 		Vt100.printf "This is where we'd start doing linking...\n"
 
 end

@@ -16,6 +16,7 @@ all:
 	cd _build && find -name '*.o' -or -name '*.a' | sed -e 's/\.\///' > ../file.lst
 	echo kernel/snowflake.native >> file.lst
 	cd _build && tar cf ../files.tar -T ../file.lst
+	strip -s $(BUILDDIR)/$(KERNEL)
 	mkdir -p cdrom/iso_prep/boot/grub/
 	cp cdrom/stage2_eltorito cdrom/iso_prep/boot/grub/
 	cp $(BUILDDIR)/$(KERNEL) cdrom/iso_prep/boot/snowflake.elf
