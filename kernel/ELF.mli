@@ -2,8 +2,14 @@
 
 (* ELF -- The Executable and Linking Format *)
 
-type header
+type elf
 
-val parse_elf_header : Bitstring.t -> header
+type t = Object of elf | Archive of (string * elf) list
 
-val print_header : header -> unit
+val parse_elf_header : Bitstring.t -> elf
+
+val print_header : elf -> unit
+
+val parse : string -> Bitstring.t -> t
+
+val print : t -> unit

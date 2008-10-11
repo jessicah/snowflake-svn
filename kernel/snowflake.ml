@@ -45,7 +45,7 @@ let () =
 		str.[i] <- data.{i}
 	done;
 	let tarfile = TarFile.open_tar_file str in
-	let filelist = TarFile.dir_list tarfile "_build/kernel" in
+	(*let filelist = TarFile.dir_list tarfile "_build/kernel" in
 	List.iter (Vt100.printf "Path: %s\n") filelist;
 	List.iter begin fun filename ->
 		let filename = "_build/kernel/" ^ filename in
@@ -54,5 +54,11 @@ let () =
 			(ELF.parse_elf_header (Bitstring.bitstring_of_string
 				(TarFile.read_file tarfile filename)))
 		with exc -> Vt100.printf "Error: %s (%s)\n" (Printexc.to_string exc) filename
-	end filelist;
+	end filelist;*)
+	Array.iter begin fun filename ->
+		try
+			ELF.print (ELF.parse filename (Bitstring.bitstring_of_string (TarFile.read_file tarfile filename)))
+		with exc ->
+			Vt100.printf "Error: %s (%s)\n" (Printexc.to_string exc) filename
+	end LinkerTest.input_files;
 	ignore (Thread.create echo_shell ()) (* start the echo shell *)

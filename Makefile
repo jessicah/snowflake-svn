@@ -13,8 +13,9 @@ all:
 	$(MAKE) -C tools ocaml bitstring
 	$(OCAMLBUILD) libraries/stdlib/stdlib.cmxa libraries/extlib/extlib.cmxa libraries/threads/threads.cmxa libraries/bitstring/bitstring.cmxa $(KERNEL)
 	rm -rf cdrom/iso_prep
-	find _build -name '*.o' -or -name '*.a' > file.lst
-	tar cf files.tar -T file.lst
+	cd _build && find -name '*.o' -or -name '*.a' | sed -e 's/\.\///' > ../file.lst
+	echo kernel/snowflake.native >> file.lst
+	cd _build && tar cf ../files.tar -T ../file.lst
 	mkdir -p cdrom/iso_prep/boot/grub/
 	cp cdrom/stage2_eltorito cdrom/iso_prep/boot/grub/
 	cp $(BUILDDIR)/$(KERNEL) cdrom/iso_prep/boot/snowflake.elf
@@ -29,7 +30,6 @@ clean:
 	$(OCAMLBUILD) -clean || true
 	rm -f $(ISO)
 	rm -rf cdrom/iso_prep
-	rm -f test1.o test2.o test.out
 
 distclean:
 	$(MAKE) -C tools clean

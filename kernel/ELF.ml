@@ -67,6 +67,12 @@ and section_type
 	| Dynsym (* 11 *)
 	| Other of int
 
+type elf = { header : header; data : Bitstring.t }
+
+type t
+	= Object of elf
+	| Archive of (string * elf) list
+
 (*
 	section header table entry 0:
 	name = 0, type = null, flags = 0, addr = 0, offset = 0,
@@ -99,6 +105,9 @@ type rela = {
 }
 
 let copy i = Int32.add Int32.zero i
+
+exception Not_elf_file
+exception Not_archive
 
 let parse_section_header bits =
 	bitmatch bits with
@@ -176,27 +185,117 @@ let parse_elf_header bits =
 			(Bitstring.subbitstring bits
 				(section_headers.(shstrndx).section_offset * 8)
 				(section_headers.(shstrndx).section_size * 8))
-		in {
-			version = Int32.to_int version;
-			file_type = begin match elf_type with
-				| 1 -> Relative
-				| 2 -> Executable
-				| 3 -> Shared
-				| _ -> failwith "Unsupported ELF file type"
-				end;
-			entry = entry;
-			phoff = phoff;
-			shoff = shoff;
-			header_flags = flags;
-			ehsize = ehsize;
-			phentsize = phentsize;
-			phnum = phnum;
-			shentsize = shentsize;
-			shnum = shnum;
-			section_headers = section_headers;
-			shstrndx = shstrndx;
-			string_table = string_table;
+		in
+		{
+			data = bits;
+				header =  {
+				version = Int32.to_int version;
+				file_type = begin match elf_type with
+					| 1 -> Relative
+					| 2 -> Executable
+					| 3 -> Shared
+					| _ -> failwith "Unsupported ELF file type"
+					end;
+				entry = entry;
+				phoff = phoff;
+				shoff = shoff;
+				header_flags = flags;
+				ehsize = ehsize;
+				phentsize = phentsize;
+				phnum = phnum;
+				shentsize = shentsize;
+				shnum = shnum;
+				section_headers = section_headers;
+				shstrndx = shstrndx;
+				string_table = string_table;
+			}
 		}
+	| { _ } -> raise Not_elf_file
+
+let index_from s o c =
+	try Some (String.index_from s o c)
+	with Not_found -> None
+
+let rec build_lookup_table ht s off len =
+	if off >= len then ()
+	else match index_from s off '\n' with
+		| Some i ->
+			if i = off then ()
+			else begin
+				let sub = String.sub s off (i-1-off) in
+				Hashtbl.add ht off (sub ^ "/");
+				build_lookup_table ht s (i + 1) len
+			end
+		| None -> ()
+
+let build_lookup_table ht s off =
+	build_lookup_table ht s off (String.length s)
+
+let fix_name name =
+	String.sub name 0 (String.index name '/')
+
+let rec parse_archive_members acc ht bits =
+	if Bitstring.bitstring_length bits = 0 then acc
+	else bitmatch bits with
+	| { name : 16 * 8 : string;
+		_ : 12 * 8 : bitstring; (* date *)
+		_ : 6 * 8 : bitstring; (* uid *)
+		_ : 6 * 8 : bitstring; (* gid *)
+		_ : 8 * 8 : bitstring; (* mode *)
+		size : 10 * 8 : string;
+		"`\n" : 2 * 8 : string;
+		filedata : (Scanf.sscanf size "%d" (fun x -> x)) * 8 : bitstring;
+		rest : -1 : bitstring } ->
+		begin match name with
+		| "/               " ->
+			parse_archive_members acc ht rest
+		| "//              " ->
+			(* build the lookup table *)
+			build_lookup_table ht (Bitstring.string_of_bitstring filedata) 0;
+			parse_archive_members acc ht rest
+		| name when name.[0] = '/' ->
+			(* need to do a lookup *)
+			let name = Hashtbl.find ht (Scanf.sscanf name "/%d" (fun x -> x)) in
+			Vt100.printf "Parsing member: %s\n" name;
+			begin try
+				let member = (fix_name name, parse_elf_header filedata) in
+				parse_archive_members (member :: acc) ht rest
+			with Not_elf_file ->
+				Vt100.printf "Warning: not an ELF file\n";
+				parse_archive_members acc ht rest
+			end
+		| name ->
+			Vt100.printf "Parsing member: %s\n" name;
+			begin try
+				let member = (fix_name name, parse_elf_header filedata) in
+				parse_archive_members (member :: acc) ht rest
+			with Not_elf_file ->
+				Vt100.printf "Warning: not an ELF file\n";
+				parse_archive_members acc ht rest
+			end
+		end
+	| { "\n" : 8 : string;
+		rest : -1 : bitstring } -> parse_archive_members acc ht rest
+
+let parse_archive bits =
+	bitmatch bits with
+	| { "!<arch>\n" : 8*8 : string;
+		rest : -1 : bitstring } ->
+		Archive (parse_archive_members [] (Hashtbl.create 7) rest)
+	| { _ } -> raise Not_archive
+
+let parse filename bits =
+	Vt100.printf "Parsing: %s\n" filename;
+	begin
+		try
+			Object (parse_elf_header bits)
+		with Not_elf_file -> begin
+		try
+			parse_archive bits
+		with Not_archive ->
+			failwith "Not an ELF or archive file"
+		end
+	end
 
 let print_section_type () = function
 	| Null -> Printf.sprintf "%-12s" "NULL"
@@ -232,6 +331,7 @@ let print_type () = function
 	| Shared -> "shared"
 
 let print_header h =
+	let h = h.header in
 	Vt100.printf "ELF Header:\n";
 	Vt100.printf " Type: %a\n Entry point address: 0x%lx\n Start of program headers: %ld (bytes into file)\n Start of section headers: %ld (bytes into file)\n"
 		print_type h.file_type h.entry h.phoff h.shoff;
@@ -240,3 +340,23 @@ let print_header h =
 	Vt100.printf "Section Headers:\n";
 	Vt100.printf " [Nr] Name              Type           Addr     Off    Size   ES Flg Lk Inf Al\n";
 	Array.iteri (print_section_header h.string_table) h.section_headers
+
+
+let print = function
+	| Object elf -> print_header elf
+	| Archive list ->
+		Vt100.printf "Archive:\n";
+		List.iter (fun (n,e) ->
+			Vt100.printf "Member: %s\n" n;
+			print_header e) list
+
+module Linker = struct
+
+	(*
+		Linker to test linking the kernel, and become one step
+		closer to being a self-hosting OS.
+	*)
+	
+	let objs = ref []
+
+end
