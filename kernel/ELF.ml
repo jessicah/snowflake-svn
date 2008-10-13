@@ -104,6 +104,8 @@ type rela = {
 	ra_addend: int32; (* signed *)
 }
 
+let copy i = Int32.add Int32.zero i
+
 let rec parse_symbol_table acc bits =
 	if Bitstring.bitstring_length bits = 0 then
 		Array.of_list (List.rev acc)
@@ -118,13 +120,11 @@ let rec parse_symbol_table acc bits =
 			rest : -1 : bitstring } ->
 				parse_symbol_table ({
 					sm_name = Int32.to_int name;
-					sm_value = value;
+					sm_value = copy value;
 					sm_size = Int32.to_int size;
 					sm_info = info;
 					sm_other = other;
 					sm_shndx = shndx } :: acc) rest
-
-let copy i = Int32.add Int32.zero i
 
 exception Not_elf_file
 exception Not_archive
@@ -367,6 +367,24 @@ let print = function
 
 module LinkKernel = struct
 
+	(*
+		According to what I read by Ian Lance Taylor
+		(http://www.airs.com/blog/archives/39), there are four steps
+		that need to be done:
+		
+		1.	Read the input object files. Determine the length and type
+			of the contents. Read the symbols.
+		2.	Build a symbol table containing all the symbols, linking
+			undefined symbols to their definitions.
+		3.	Decide where all the contents should go in the output
+			executable file, which means deciding where they should go
+			in memory when the program runs.
+		4.	Read the contents data and the relocations. Apply the
+			relocations to the contents. Write the result to the
+			output file.
+	*)
+	
+
 	let st_bind x = x asr 4
 	let st_type x = x land 0xF
 	let st_info b t = (b lsl 4) + (t land 0xF)
@@ -395,6 +413,10 @@ module LinkKernel = struct
 	let already_undefined_symbols = ref 0
 	let collided_symbols = ref 0
 	
+	let print_symbol () sym =
+		Printf.sprintf "value = %lx, size = %x, binding =  %x, type = %x, other = %x, section = %x"
+			sym.sm_value sym.sm_size (st_bind sym.sm_info) (st_type sym.sm_info) sym.sm_other sym.sm_shndx
+	
 	let find_symbols strtab symtab =
 		let u = Hashtbl.create 7 in
 		let d = Hashtbl.create 7 in
@@ -409,12 +431,14 @@ module LinkKernel = struct
 	
 	let add_symbols u d =
 		Hashtbl.iter begin fun n e ->
+			Vt100.printf "Symbol (d) %s: %a\n" n print_symbol e;
 			if Hashtbl.mem defined_symbols n = false then begin
 				Hashtbl.add defined_symbols n e;
 				Hashtbl.remove undefined_symbols n
 			end
 		end d;
 		Hashtbl.iter begin fun n e ->
+			Vt100.printf "Symbol (u) %s: %a\n" n print_symbol e;
 			if Hashtbl.mem defined_symbols n = false
 				&& Hashtbl.mem undefined_symbols n = false
 			then Hashtbl.add undefined_symbols n e
@@ -612,8 +636,8 @@ module LinkKernel = struct
 	let get_entry_point () =
 		let sym = Hashtbl.find defined_symbols "__entrypoint" in
 		let elf = List.assoc "libraries/kernel/stage1.o" !collected_objects in
-		Vt100.printf "Entry point: %lx %x %x %x %x\n"
-			sym.sm_value sym.sm_size sym.sm_info sym.sm_other sym.sm_shndx;
+		Vt100.printf "Entry point: value = %lx, size = %x, binding =  %x, type = %x, other = %x, section = %x\n"
+			sym.sm_value sym.sm_size (st_bind sym.sm_info) (st_type sym.sm_info) sym.sm_other sym.sm_shndx;
 		(* value holds a section offset for a defined symbol.
 		   value is an offset from beginning of section.(shndx) *)
 		let s = elf.header.section_headers.(sym.sm_shndx) in
@@ -623,7 +647,7 @@ module LinkKernel = struct
 		in
 		Vt100.printf "%d: %s\n" (String.length s2) s2;
 		let s3 = (String.sub s2 (Int32.to_int sym.sm_value) 4) in
-		Vt100.printf "%02x%02x%02x%20x\n"
+		Vt100.printf "Address: %02x%02x%02x%02x\n"
 			(Char.code s3.[0]) (Char.code s3.[1])
 			(Char.code s3.[2]) (Char.code s3.[3]);
 		0x0

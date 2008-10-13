@@ -38,5 +38,9 @@ let () =
 	with Not_found ->
 		Vt100.printf "No realtek 8139 found\r\n";
 	end;
-	ELF.LinkKernel.link ();
+	let sample = [| 0;255;0;255;0;255;0;128;255;127;0;63;127;190;255;190;127;63;0 |] in
+	begin try
+		Sb16.output (Array.concat (Array.to_list (Array.make 256 sample)));
+	with Sb16.Timeout -> Vt100.printf "sb error\n" end;
+	(*ELF.LinkKernel.link ();*)
 	ignore (Thread.create echo_shell ()) (* start the echo shell *)

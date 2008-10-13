@@ -104,3 +104,9 @@ CAMLprim value snowflake_matrix32(value address, value dim1, value dim2) {
 	value ba = caml_ba_alloc(CAML_BA_INT32 | CAML_BA_C_LAYOUT, 2, (void *)Int32_val(address), dims);
 	return ba;
 }
+
+CAMLprim value get_dma_region(value unit) {
+	long dims[] = { 0x10000 };
+	value r = caml_ba_alloc(CAML_BA_UINT8 | CAML_BA_C_LAYOUT, 2, (unsigned char *)(0x100000), dims);
+	return r;
+}
