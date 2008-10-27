@@ -8,6 +8,6 @@ type client = {
 	mutable ip : IPv4.addr;
 }
 
-val create : (unit -> string) * (string -> unit) * int list -> client
+val create : NetworkStack.net_device -> client
 
 val register : client -> unit

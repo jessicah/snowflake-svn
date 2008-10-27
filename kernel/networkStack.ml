@@ -10,19 +10,25 @@
 
 type rx_channel = string Event.channel
 
+type net_device = {
+	send : string -> unit;
+	recv : unit -> string;
+	hw_addr : NetworkProtocolStack.Ethernet.addr
+}
+
 module type ETHERNET = sig
 		type t
 		val init : unit -> t
 		val isr : t -> rx_channel -> unit -> unit
 		val send : t -> string -> unit
-		val address : t -> int list
+		val address : t -> NetworkProtocolStack.Ethernet.addr
 	end
 
 module EthernetDriver : functor (Driver : ETHERNET) -> sig
 		val init : int -> Driver.t
 		val read : unit -> string
 		val write: Driver.t -> string -> unit
-		val address: Driver.t -> int list
+		val address: Driver.t -> NetworkProtocolStack.Ethernet.addr
 	end = functor (Driver : ETHERNET) -> struct
 		let rx_buffer = Event.new_channel ()
 		
@@ -37,6 +43,9 @@ module EthernetDriver : functor (Driver : ETHERNET) -> sig
 
 module EthernetStack = struct
 	let create init read write irq addr =
-		let t = init irq in
-		read, (write t), (addr t)
+		let t = init irq in {
+			send = write t;
+			recv = read;
+			hw_addr = addr t
+		}
 end

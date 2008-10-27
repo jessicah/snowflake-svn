@@ -38,10 +38,10 @@ let standard_options = {
 		data = [ 0x01; 0x02; 0x03; 0x06; 0x0C; 0x0F; 0x1C ]
 	} :: []
 	
-let create (r,s,[x1;x2;x3;x4;x5;x6]) = {
-		send = s;
-		recv = r;
-		addr = E.Addr(x1, x2, x3, x4, x5, x6);
+let create d = {
+		send = d.NetworkStack.send;
+		recv = d.NetworkStack.recv;
+		addr = d.NetworkStack.hw_addr;
 		ip   = I.Addr(0, 0, 0, 0)
 	}
 

@@ -301,7 +301,9 @@ let create pcii =
 				isr properties rx_buffer ();
 			with Break -> ()
 		
-		let address properties = properties.address
+		let address properties = match properties.address with
+			| [a;b;c;d;e;f] -> NetworkProtocolStack.Ethernet.Addr (a,b,c,d,e,f)
+			| _ -> failwith "Invalid MAC address"
 	end in
 	let module Driver = EthernetDriver(RTL8139) in
 	EthernetStack.create Driver.init Driver.read Driver.write pcii.request_line Driver.address
