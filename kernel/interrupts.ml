@@ -5,7 +5,7 @@ external unsafe_unlock : Mutex.t -> unit = "caml_mutex_unsafe_unlock"
 let create irq cb =
 	let m = Mutex.create () in
 	Mutex.lock m; (* lock it so handler is blocked *)
-	let t = Thread.create (fun () ->
+	let _ = Thread.create (fun () ->
 		while true do
 			(* acquire locked mutex *)
 			unsafe_lock m;

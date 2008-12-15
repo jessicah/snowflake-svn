@@ -223,11 +223,11 @@ static void wait_on(link_t *head)
 	waitqueue_node_t volatile node;
 	
 	/* Create new node */
-	link_initialize(&node.link);
+	link_initialize((link_t *)&node.link);
 	node.thread = current;
 	
 	/* Add to waiting threads list */
-	list_append(&node.link, head);
+	list_append((link_t *)&node.link, head);
 	
 	/* Sleep */
 	current->status = BLOCKED;
