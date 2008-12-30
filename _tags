@@ -17,7 +17,7 @@ true: -byte, native, nostdlib
 <libraries/stdlib/scanf*.cmx>: inline(9)
 <libraries/stdlib/*Labels.ml*>: nolabels
 
-<kernel/**.*>: snowflake_extlib, snowflake_threads, snowflake_stdlib, snowflake_bitstring
+<kernel/**/*.*>: snowflake_extlib, snowflake_threads, snowflake_stdlib, snowflake_bitstring
 <libraries/{bigarray,extlib,threads,bitstring}/**.ml*>: snowflake_stdlib
 
 <{libraries,kernel}/**/*.*>: linkall
@@ -35,3 +35,5 @@ true: -byte, native, nostdlib
 <kernel/ELF.ml>: use_bitstring
 
 <{test1.o,test2.o,test.out}>: precious
+
+<kernel/elfParsing.ml>: use_bitstring

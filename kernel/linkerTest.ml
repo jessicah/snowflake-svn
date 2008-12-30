@@ -9,13 +9,11 @@ let input_files = [|
 		"kernel/vga.o";
 		"kernel/tarFile.o";
 		"kernel/trie.o";
-		"kernel/realTek8139.o";
-		"kernel/networkStack.o";
 		"kernel/keyboard.o";
 		"kernel/interrupts.o";
-		"kernel/dhcpClient.o";
-		"kernel/networkProtocolStack.o";
 		"kernel/PCI.o";
+		"kernel/deviceManager.o";
+		"kernel/tulip.o";
 		"kernel/ELF.o";
 		"kernel/vt100.o";
 		"kernel/linkerTest.o";

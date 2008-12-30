@@ -384,6 +384,97 @@ module LinkKernel = struct
 			output file.
 	*)
 	
+(* Section is struct {
+	string name;
+	address vaddr;
+	address size;
+	uint align;
+	
+	blob data
+} *)
+type section_t = {
+	section_name : string;
+	mutable section_vaddr : int;
+	mutable section_size : int;
+	mutable section_align : int;
+	section_data : Bitstring.t;
+}
+
+(* Symbol is struct {
+	string name
+	address value
+	address size
+	Section sect
+	
+	bool is_defined
+	Symbol linked_symbol # if this symbol is undefined, this is the defined symbol it's linked to
+} *)
+type symbol_t = {
+	symbol_name : string;
+	symbol_value : int;
+	symbol_size : int;
+	symbol_sect : section_t option;
+	(* if is_defined is same as if symbol_linked_to <> None *)
+	symbol_linked_to : symbol_t option;
+}
+
+(* # sections in the final output file
+sections = new Hashtable of Sections; *)
+let the_sections = Hashtbl.create 7 (* key is string, value is section_t *)
+
+(* foreach(section_in_input_files) {
+	# Where sect is the current section
+	
+	# minimum section alignment
+	if sections[sect.name].align < sect.align
+		sections[sect.name].align = sect.align
+	
+	# Update the input section's address to the offset within the final object file
+	# sect.base must be aligned to the section's minimum alignment (or better)
+	# I've got no idea how non-zero address work out, so i'm ignoring them here
+	section.vaddr = align(sections[section.name].size, sect.align)
+	
+	# Update the size of the output section
+	sections[section.name].size = section.vaddr + section.size
+} *)
+
+let () = Hashtbl.iter begin fun name sect ->
+		let the_sect = Hashtbl.find the_sections sect.section_name in
+		(* fix alignment if needed *)
+		if the_sect.section_align < sect.section_align then
+			the_sect.section_align <- sect.section_align;
+		(* what the heckle is 'section' *)
+		()
+	end the_sections
+(*
+# do "linking undefined symbols to their definitions." here
+
+# Fix the address of every symbol
+foreach(defined_symbol_in_input_files) {
+	# sym is the symbol
+	# sect is the symbol's section in the object file (same as sect above)
+	
+	sym.value += sect.vaddr + section.real_base_link_address
+}
+
+# do step 3 here, pretty much a case of just sorting sections by vaddr and ensuring no overlaps
+
+# step 4!
+
+foreach(section in sections) {
+	section.blob = allocate(section.size)
+	
+	# Input sections that are the same as, or will be merged in to this section
+	foreach(input_sections) {
+		# input_section.vaddr is actually the offset within the final output section
+		copy(input_section.data to (section.data + offset input_section.vaddr))
+	}
+}
+
+# do relocations here
+
+*)
+	
 
 	let st_bind x = x asr 4
 	let st_type x = x land 0xF

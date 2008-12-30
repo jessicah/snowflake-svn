@@ -161,5 +161,6 @@ struct
 
     "-", Arg.String F.anonymous,
            "<file>  Treat <file> as a file name (even if it starts with `-')";
+		"-freestanding", Arg.Unit ignore " (ignored for compatability with ocamlopt)";
   ]
 end;;

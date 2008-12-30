@@ -536,7 +536,7 @@ let mk_stlib ?(copy = true) stlib =
         ];;
 
     copy_rule' "tools/ocamlopt/driver/optmain.native" "ocamlopt.opt";;
-
+		
     (* Choose the right machine-dependent files *)
 
     let mk_arch_rule ~src ~dst =

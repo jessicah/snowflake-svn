@@ -32,3 +32,6 @@ let () =
 		Sb16.output (Array.concat (Array.to_list (Array.make 256 sample)));
 	with Sb16.Timeout -> Vt100.printf "sb error\n" end;*)
 	ignore (Thread.create echo_shell ()) (* start the echo shell *)
+	; Vt100.printf "Starting kernel link\r\n"
+	(*; ELF.LinkKernel.link ()*)
+	; ignore (ElfParsing.parse "foo" Bitstring.empty_bitstring)
