@@ -72,13 +72,16 @@ end
 	HAS_MII | HAS_MEDIA_TABLE | CSR12_IN_SROM
 *)
 
+let print_mac () arr =
+	String.concat ":" (List.map (Printf.sprintf "%02x") (Array.to_list arr))
+
 let create device =
 	let IO ioaddr = device.resources.(0) in
 	let out32 offset value = out32 (ioaddr + offset) value in
 	let in32 offset = in32 (ioaddr + offset) in
 	let eeprom_delay () = ignore (in32 Regs.csr9) in
 	let read_eeprom location addr_len =
-		let retval = ref zero in
+		let retval = ref 0 in
 		let read_cmd = location lor EE.read_cmd in
 		out32 Regs.csr9 (EE.enb &! ~!EE.cs);
 		out32 Regs.csr9 EE.enb;
@@ -95,7 +98,7 @@ let create device =
 		for i = 16 downto 1 do
 			out32 Regs.csr9 (EE.enb |! EE.shift_clk);
 			eeprom_delay ();
-			retval := (!retval <<! 1) |! (if (in32 Regs.csr9) &! EE.data_read > zero then one else zero);
+			retval := (!retval lsl 1) lor (if (in32 Regs.csr9) &! EE.data_read > zero then 1 else 0);
 			out32 Regs.csr9 EE.enb;
 			eeprom_delay ();
 		done;
@@ -121,6 +124,27 @@ let create device =
 	Debug.printf "%s: Vendor=%X  Device=%X\n" "DEC Tulip 21140 Fast" device.vendor device.device;
 	(* A serial EEPROM interface; we read now and sort it out later *)
 	(* ugh, what a mess! but need this stuff to get mac addy :( *)
+	let ee_data = Array.make EE.size 0 in
+	let sa_offset = ref 0 in
+	let ee_addr_size = if (read_eeprom 0xff 8) land 0x40000 > 0 then 8 else 6 in
+	
+	for i = 0 to EE.size / 2 - 1 do
+		let x = read_eeprom i ee_addr_size in
+		ee_data.(i * 2) <- x land 0xFF;
+		ee_data.(i * 2 + 1) <- x asr 8;
+	done;
+	
+	for i = 0 to 7 do
+		if ee_data.(i) <> ee_data.(16+i) then sa_offset := 20;
+	done;
+	(* ignore if statement for Matrox boards *)
+	let mac_addr = Array.sub ee_data !sa_offset 6 (* eth_alen *) in
+	let sum = Array.fold_right (+) mac_addr 0 in
+	if sum = 0 or sum = 6*0xFF then begin
+		Debug.printf "%s: EEPROM not present!\n" "DEC 21140 Tulip Fast";
+		raise Not_found;
+	end;
+	Vt100.printf "%s: %a at ioaddr %04x\n" "DEC 21140 Tulip Fast" print_mac mac_addr ioaddr;
 	(*
         int sa_offset = 0;
         int ee_addr_size = read_eeprom(ioaddr, 0xff, 8) & 0x40000 ? 8 : 6;
