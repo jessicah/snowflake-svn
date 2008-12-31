@@ -75,39 +75,41 @@ end
 let print_mac () arr =
 	String.concat ":" (List.map (Printf.sprintf "%02x") (Array.to_list arr))
 
+(* a slightly more functional eeprom_read function *)
+let rec accum count f acc = if count = 0 then acc else accum (count - 1) f (f acc)
+
+let eeprom_delay ioaddr = ignore (in32 (ioaddr + Regs.csr9))
+
+let read_eeprom ioaddr location addr_len =
+	let read_cmd = location lor EE.read_cmd in
+	let ee_addr = ioaddr + Regs.csr9 in
+	out32 ee_addr (EE.enb &! ~!EE.cs);
+	out32 ee_addr EE.enb;
+	(* shift the read command bits out *)
+	for i = 4 + addr_len downto 0 do
+		let dataval = if read_cmd land (1 lsl i) > 0 then EE.data_write else zero in
+		out32 ee_addr (EE.enb |! dataval);
+		eeprom_delay ioaddr;
+		out32 ee_addr (EE.enb |! dataval |! EE.shift_clk);
+		eeprom_delay ioaddr;
+	done;
+	out32 ee_addr EE.enb;
+	(* read the data *)
+	let retval = accum 16 begin fun r ->
+			out32 ee_addr (EE.enb |! EE.shift_clk);
+			eeprom_delay ioaddr;
+			let r = (r lsl 1) lor (if (in32 ee_addr) &! EE.data_read > zero then 1 else 0) in
+			out32 ee_addr EE.enb;
+			eeprom_delay ioaddr;
+			r end 0
+		in (* terminate the eeprom access *)
+	out32 ee_addr (EE.enb &! ~!EE.cs);
+	retval
+
 let create device =
-	let IO ioaddr = device.resources.(0) in
+	let ioaddr = match device.resources.(0) with IO x -> x | _ -> raise Not_found in
 	let out32 offset value = out32 (ioaddr + offset) value in
-	let in32 offset = in32 (ioaddr + offset) in
-	let eeprom_delay () = ignore (in32 Regs.csr9) in
-	let read_eeprom location addr_len =
-		let retval = ref 0 in
-		let read_cmd = location lor EE.read_cmd in
-		out32 Regs.csr9 (EE.enb &! ~!EE.cs);
-		out32 Regs.csr9 EE.enb;
-		(* shift the read command bits out *)
-		for i = 4 + addr_len downto 0 do
-			let dataval = if read_cmd land (1 lsl i) > 0 then EE.data_write else zero in
-			out32 Regs.csr9 (EE.enb |! dataval);
-			eeprom_delay ();
-			out32 Regs.csr9 (EE.enb |! dataval |! EE.shift_clk);
-			eeprom_delay ();
-		done;
-		out32 Regs.csr9 EE.enb;
-		
-		for i = 16 downto 1 do
-			out32 Regs.csr9 (EE.enb |! EE.shift_clk);
-			eeprom_delay ();
-			retval := (!retval lsl 1) lor (if (in32 Regs.csr9) &! EE.data_read > zero then 1 else 0);
-			out32 Regs.csr9 EE.enb;
-			eeprom_delay ();
-		done;
-		
-		(* terminate the eeprom access *)
-		out32 Regs.csr9 (EE.enb &! ~!EE.cs);
-		!retval
-	in
-	
+	let in32 offset = in32 (ioaddr + offset) in	
 	(* adjust_pci_device(pci) *)
 	(* disable interrupts *)
 	out32 Regs.csr7 zero;
@@ -123,21 +125,19 @@ let create device =
 	(* pcibios_read_config_byte(pci->bus, pci_devfn, PCI_REVISION, &chip_rev) *)
 	Debug.printf "%s: Vendor=%X  Device=%X\n" "DEC Tulip 21140 Fast" device.vendor device.device;
 	(* A serial EEPROM interface; we read now and sort it out later *)
-	(* ugh, what a mess! but need this stuff to get mac addy :( *)
 	let ee_data = Array.make EE.size 0 in
 	let sa_offset = ref 0 in
-	let ee_addr_size = if (read_eeprom 0xff 8) land 0x40000 > 0 then 8 else 6 in
-	
+	let ee_addr_size = if (read_eeprom ioaddr 0xff 8) land 0x40000 > 0 then 8 else 6 in
+	(* read the eeprom data *)
 	for i = 0 to EE.size / 2 - 1 do
-		let x = read_eeprom i ee_addr_size in
+		let x = read_eeprom ioaddr i ee_addr_size in
 		ee_data.(i * 2) <- x land 0xFF;
 		ee_data.(i * 2 + 1) <- x asr 8;
 	done;
-	
+	(* find the mac address *)
 	for i = 0 to 7 do
 		if ee_data.(i) <> ee_data.(16+i) then sa_offset := 20;
 	done;
-	(* ignore if statement for Matrox boards *)
 	let mac_addr = Array.sub ee_data !sa_offset 6 (* eth_alen *) in
 	let sum = Array.fold_right (+) mac_addr 0 in
 	if sum = 0 or sum = 6*0xFF then begin
@@ -145,40 +145,7 @@ let create device =
 		raise Not_found;
 	end;
 	Vt100.printf "%s: %a at ioaddr %04x\n" "DEC 21140 Tulip Fast" print_mac mac_addr ioaddr;
-	(*
-        int sa_offset = 0;
-        int ee_addr_size = read_eeprom(ioaddr, 0xff, 8) & 0x40000 ? 8 : 6;
-
-        for (i = 0; i < sizeof(ee_data)/2; i++)
-            ((u16 * )ee_data)[i] =
-                le16_to_cpu(read_eeprom(ioaddr, i, ee_addr_size));
-
-        /* DEC now has a specification (see Notes) but early board makers
-           just put the address in the first EEPROM locations. */
-        /* This does  memcmp(eedata, eedata+16, 8) */
-        for (i = 0; i < 8; i ++)
-            if (ee_data[i] != ee_data[16+i])
-                sa_offset = 20;
-        if (ee_data[0] == 0xff  &&  ee_data[1] == 0xff &&  ee_data[2] == 0) {
-            sa_offset = 2;              /* Grrr, damn Matrox boards. */
-        }
-        for (i = 0; i < ETH_ALEN; i ++) {
-            nic->node_addr[i] = ee_data[i + sa_offset];
-            sum += ee_data[i + sa_offset];
-        }
-				
-    if (sum == 0  || sum == ETH_ALEN*0xff) {
-        printf("%s: EEPROM not present!\n", tp->nic_name);
-        for (i = 0; i < ETH_ALEN-1; i++)
-            nic->node_addr[i] = last_phys_addr[i];
-        nic->node_addr[i] = last_phys_addr[i] + 1;
-    }
-
-    for (i = 0; i < ETH_ALEN; i++)
-        last_phys_addr[i] = nic->node_addr[i];
-
-    printf("%s: %! at ioaddr %hX\n", tp->nic_name, nic->node_addr, ioaddr);
-	*)
+	(* remainder of init code to come... :P *)
 	Vt100.printf "This is where driver init would go...\n"
 
 let init () =
