@@ -18,6 +18,8 @@ type entry = File | Directory | Link | Unknown
 let octal s = Scanf.sscanf s "%o" (fun x -> x)
 let round n = if n mod 512 = 0 then n else n + 512 - n mod 512
 
+(* if we has the Str module, the below becomes Str.split (Str.regexp "/") path *)
+
 let split_on_slash path =
 	let len = String.length path in
 	let rec split ix =
