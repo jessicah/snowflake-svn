@@ -274,7 +274,7 @@ value caml_ba_get_N(value vb, value * vind, int nind)
   case CAML_BA_UINT16:
     return Val_int(((caml_ba_uint16 *) b->data)[offset]);
   case CAML_BA_INT32:
-    return caml_copy_int32(((int32 *) b->data)[offset]);
+    return caml_copy_int32(((volatile int32 *) b->data)[offset]);
   case CAML_BA_INT64:
     return caml_copy_int64(((int64 *) b->data)[offset]);
   case CAML_BA_NATIVE_INT:
