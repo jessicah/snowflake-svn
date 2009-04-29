@@ -127,26 +127,18 @@ let shift_in_ee_bits eeprom count =
 
 let standby_eeprom eeprom =
     let eecd = read_reg eeprom E1000.eecd in
-    (* microwire *)
-    let eecd = eecd &! ~!(E1000.EECD.cs |! E1000.EECD.sk) in
-    write_reg eeprom E1000.eecd eecd;
-    write_flush eeprom;
-    usec_delay ();
-    (* clock high *)
-    let eecd = eecd |! E1000.EECD.sk in
-    write_reg eeprom E1000.eecd eecd;
-    write_flush eeprom;
-    usec_delay ();
-    (* select eeprom *)
-    let eecd = eecd |! E1000.EECD.cs in
-    write_reg eeprom E1000.eecd eecd;
-    write_flush eeprom;
-    usec_delay ();
-    (* clock low *)
-    let eecd = eecd &! ~!E1000.EECD.sk in
-    write_reg eeprom E1000.eecd eecd;
-    write_flush eeprom;
-    usec_delay ()
+    let x = [
+        (fun eecd -> eecd &! ~!(E1000.EECD.cs |! E1000.EECD.sk));
+        (fun eecd -> eecd |! E1000.EECD.sk);  (* clock high *)
+        (fun eecd -> eecd |! E1000.EECD.cs);  (* select eeprom *)
+        (fun eecd -> eecd &! ~!E1000.EECD.sk) (* clock low *)
+    ] in
+    ignore (List.fold_left (fun eecd f ->
+        let eecd = f eecd in
+        write_reg eeprom E1000.eecd eecd;
+        write_flush eeprom;
+        usec_delay ();
+        eecd) eecd x)
         
 let acquire_eeprom eeprom =
     let eecd = read_reg eeprom E1000.eecd in
