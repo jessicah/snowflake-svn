@@ -72,31 +72,22 @@ let create device =
     let read () = Asm.peek32_offset eeprom E1000.eecd in
     let write value = Asm.poke32_offset eeprom E1000.eecd value in
     let flush () = ignore (Asm.peek32_offset eeprom E1000.status) in
+    let write_delay value = value >>= wrap write >>= lift flush >>= lift usec_delay in
     (* nic stuff, done here to use the helper methods *)
     let module E = struct
         let raise_clock eecd =
-            eecd |! E1000.EECD.sk >>=
-            wrap write >>=
-            lift flush >>=
-            lift usec_delay
+            eecd |! E1000.EECD.sk >>= write_delay
         
         let lower_clock eecd =
-            eecd &! ~!E1000.EECD.sk >>=
-            wrap write >>=
-            lift flush >>=
-            lift usec_delay
+            eecd &! ~!E1000.EECD.sk >>= write_delay
         
         let standby () =
             let k1 = fun x -> x &! ~!(E1000.EECD.cs |! E1000.EECD.sk)
             and k2 = fun x -> x |! E1000.EECD.sk
             and k3 = fun x -> x |! E1000.EECD.cs
             and k4 = fun x -> x &! ~!E1000.EECD.sk in
-            read () >>=
-            k1 >>= wrap write >>= lift flush >>= lift usec_delay >>=
-            k2 >>= wrap write >>= lift flush >>= lift usec_delay >>=
-            k3 >>= wrap write >>= lift flush >>= lift usec_delay >>=
-            k4 >>= wrap write >>= lift flush >>= lift usec_delay >>=
-            ignore
+            read () >>= k1 >>= write_delay >>= k2 >>= write_delay >>=
+            k3 >>= write_delay >>= k4 >>= write_delay >>= ignore
         
         let output data count =
             let bits = Array.init count begin fun n -> data land (1 lsl n) <> 0 end in
@@ -104,8 +95,7 @@ let create device =
             accum_n count begin fun n x ->
                 (* need to start at right-most array entry, so bits.(n-1) will work *)
                 (if bits.(n-1) then x |! E1000.EECD.di else x &! ~!E1000.EECD.di) >>=
-                wrap write >>= lift flush >>= lift usec_delay >>=
-                raise_clock >>= lower_clock
+                write_delay >>= raise_clock >>= lower_clock
             end >>=
             (fun x -> x &! ~!E1000.EECD.di) >>=
             write
