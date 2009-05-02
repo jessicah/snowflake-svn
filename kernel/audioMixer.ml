@@ -92,21 +92,26 @@ type output = {
 let resample wave new_rate =
 	let ratio = float new_rate /. float wave.samples_per_sec in
 	let scale v = int_of_float (float v /. ratio) in
-	let last_sample = ref 0 in
+	let last_samples = Array.make wave.channels 0 in
 	let last_t = ref 0 in
 	let last_c = ref 0 in
 	let length = int_of_float (float wave.samples *. ratio) in
 	let read () =
+		let chan = !last_c in
 		incr last_c;
 		if !last_c = 1 then
 			incr last_t;
 		if !last_c = wave.channels then
 			last_c := 0;
 		if scale !last_t = scale (!last_t - 1) && !last_t <> 1 then
-			!last_sample
+			last_samples.(chan)
 		else begin
-			last_sample := IO.read_i16 wave.input;
-			!last_sample;
+			if chan = 0 then begin
+				for i = 0 to wave.channels - 1 do
+					last_samples.(i) <- IO.read_i16 wave.input;
+				done;
+			end;
+			last_samples.(chan);
 		end
 	in read, length
 
