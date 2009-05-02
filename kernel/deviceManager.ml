@@ -11,6 +11,8 @@ let load_driver device =
 		Vt100.printf "Loading %s...\r\n" name;
 		driver device
 	with Not_found -> ()
+    | ex -> Vt100.printf "Failure loading driver: %s\r\n"
+        (Printexc.to_string ex)
 
 let scan_pci_bus () =
 	let devices = PCI.probe_bus () in

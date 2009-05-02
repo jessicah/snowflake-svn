@@ -16,3 +16,5 @@ and resource =
 
 val probe : int -> int -> int -> device
 val probe_bus : unit -> device list
+
+val read32 : int32 -> int -> int32

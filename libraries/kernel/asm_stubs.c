@@ -112,23 +112,19 @@ CAMLprim value get_dma_region(value unit) {
 }
 
 CAMLprim value snowflake_peek32(value address) {
-    volatile int32 *addr = (volatile int32 *)Int32_val(address);
-    return caml_copy_int32(*addr);
+    return caml_copy_int32(*(volatile uint32 *)((char *)(Int32_val(address))));
 }
 
 CAMLprim value snowflake_poke32(value address, value data) {
-    volatile int32 *addr = (volatile int32 *)Int32_val(address);
-    *addr = Int32_val(data);
+    *(volatile uint32 *)((char *)(Int32_val(address))) = Int32_val(data);
     return Val_unit;
 }
 
 CAMLprim value snowflake_peek32_offset(value address, value offset) {
-    return caml_copy_int32(
-        (*(volatile uint32 *)((char * )(Int32_val(address)) + Int_val(offset)))
-    );
+    return caml_copy_int32(*(volatile uint32 *)((char *)(Int32_val(address)) + Int_val(offset)));
 }
 
 CAMLprim value snowflake_poke32_offset(value address, value offset, value data) {
-    (*(volatile uint32 * )((char * )(Int32_val(address)) + Int_val(offset)) = Int32_val(data));
+    *(volatile uint32 *)((char *)(Int32_val(address)) + Int_val(offset)) = Int32_val(data);
     return Val_unit;
 }
