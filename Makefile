@@ -26,12 +26,13 @@ all: myocamlbuild_config.ml
 	rm -f file.lst files.tar
 
 myocamlbuild_config.ml: myocamlbuild_config.ml.in
-	sed -e s/@TOOLSPREFIX@/$(TOOLSPREFIX)/ $< > $@
+	sed -e 's/@TOOLSPREFIX@/$(subst /,\/,$(TOOLSPREFIX))/' $< > $@
 
 clean:
 	$(OCAMLBUILD) -clean || true
 	rm -f $(ISO)
 	rm -rf cdrom/iso_prep
+	rm -f myocamlbuild_config.ml
 
 distclean:
 	$(MAKE) -C tools clean
