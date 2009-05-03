@@ -12,6 +12,8 @@
 
 (* $Id: ccomp.ml,v 1.20.4.8 2007-06-11 13:44:56 frisch Exp $ *)
 
+module M = Myocamlbuild_config
+
 (* Compiling C files and building C libraries *)
 
 let command cmdline =
@@ -70,7 +72,8 @@ let create_archive archive file_list =
                              quoted_archive (quote_files file_list))
   | _ ->
       let r1 =
-        command(Printf.sprintf "ar rc %s %s"
+        command(Printf.sprintf "%s rc %s %s"
+                M._ar
                 quoted_archive (quote_files file_list)) in
       if r1 <> 0 || String.length Config.ranlib = 0
       then r1

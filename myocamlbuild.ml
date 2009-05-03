@@ -4,6 +4,8 @@ open Command;;
 open Format;;
 open Outcome;;
 
+module M = Myocamlbuild_config;;
+
 Options.ocamlopt := P"./ocamloptcomp.byte";;
 Options.nostdlib := true;;
 
@@ -32,7 +34,7 @@ let link_C_library stlib a env build =
 		| Good o -> o
 		| Bad exn -> raise exn
 	end results in
-	Cmd(S[A"ar";A"-rc"; Px a; T(tags_of_pathname a++"c"++"staticlib"); atomize objs]);;
+	Cmd(S[A(M._ar);A"-rc"; Px a; T(tags_of_pathname a++"c"++"staticlib"); atomize objs]);;
 
 rule "C static library (short)"
 	~prod:"lib%(libname).a"
@@ -52,7 +54,7 @@ rule "S -> o"
 	begin fun env _ ->
 		let s = env "%.S" and o = env "%.o" in
 		let tags = tags_of_pathname s ++ "S" ++ "compile" in
-		Cmd(S[A"gcc"; T(tags); A"-c"; P s; A"-o"; Px o])
+		Cmd(S[A(M._gcc); T(tags); A"-c"; P s; A"-o"; Px o])
 	end;;
 
 rule "c -> o"
@@ -60,7 +62,7 @@ rule "c -> o"
 	begin fun env _ ->
 		let c = env "%.c" and o = env "%.o" in
 		let tags = tags_of_pathname c ++ "c" ++ "compile" in
-        Cmd(S [A"gcc"; T(tags); A"-c"; P c; A"-o"; Px o])
+        Cmd(S [A(M._gcc); T(tags); A"-c"; P c; A"-o"; Px o])
 	end;;
 
 let copy_rule' ?insert src dst =
@@ -444,7 +446,8 @@ let mk_stlib ?(copy = true) stlib =
         ~prod:"libgcc.a"
         ~deps:[]
         begin fun _ _ ->
-            Cmd (Sh "cp `gcc -m32 -print-file-name=libgcc.a` libgcc.a")
+            let cmd = "cp `" ^ M._gcc ^ " -m32 -print-file-name=libgcc.a` libgcc.a" in
+            Cmd (Sh cmd)
         end;;
 
 (*** libkernel.a ***)
@@ -468,8 +471,8 @@ let mk_stlib ?(copy = true) stlib =
                 (* copy libasmrun.a to libkernel.a... *)
                 cp asmrun kernel;
                 (* add compiled objects to libkernel.a... *)
-                Cmd(S[A"ar";A"-rb"; A"startup.o"; Px kernel; T(tags_of_pathname kernel++"c"++"staticlib"); atomize objs]);
-                Cmd(S[A"ranlib";Px kernel]);
+                Cmd(S[A(M._ar);A"-rb"; A"startup.o"; Px kernel; T(tags_of_pathname kernel++"c"++"staticlib"); atomize objs]);
+                Cmd(S[A(M._ranlib);Px kernel]);
             ]
         end;;
 
@@ -493,7 +496,7 @@ let mk_stlib ?(copy = true) stlib =
             A"-freestanding";
             A"-use-runtime"; P"libkernel.a";
             A"-ccopt"; A"-static";
-            A"-cc"; A"ld";
+            A"-cc"; A(M._ld);
             A"-ccopt"; A"-L .";
             A"-ccopt"; A"-T ../kernel/kernel.ldscript";
             A"-clibrary"; A"-lgcc";
@@ -536,6 +539,12 @@ let mk_stlib ?(copy = true) stlib =
         ];;
 
     copy_rule' "tools/ocamlopt/driver/optmain.native" "ocamlopt.opt";;
+    
+    (* Dependencies on the host C toolchain to use *)
+    
+    dep ["file:tools/ocamlopt/utils/ccomp.ml"] ["myocamlbuild_config.cmx"];;
+    dep ["file:tools/ocamlopt/utils/config.ml"] ["myocamlbuild_config.cmx"];;
+    dep [sprintf "file:tools/ocamlopt/asmcomp/%s/proc.ml" C.arch] ["myocamlbuild_config.cmx"];;
 		
     (* Choose the right machine-dependent files *)
 

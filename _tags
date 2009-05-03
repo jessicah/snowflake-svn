@@ -9,6 +9,7 @@ true: -byte, native, nostdlib
 <tools/ocamlopt/**/*.*>: -snowflake
 <tools/bin2ml.*>: -snowflake
 <ocamloptcomp.*>: -snowflake
+<myocamlbuild_config.*>: -snowflake, warn_p
 
 ### libraries/stdlib
 

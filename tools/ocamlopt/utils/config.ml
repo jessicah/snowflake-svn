@@ -12,6 +12,8 @@
 
 (* $Id: config.mlp,v 1.201 2007-02-07 14:49:42 doligez Exp $ *)
 
+module M = Myocamlbuild_config
+
 (* The main OCaml version string has moved to ../VERSION *)
 let version = Sys.ocaml_version
 
@@ -31,12 +33,12 @@ let ccomp_type = "cc"
 let bytecomp_c_compiler = "foobar"
 let bytecomp_c_linker = "foobar"
 let bytecomp_c_libraries = "foobar"
-let native_c_compiler = "gcc -Wall -D_FILE_OFFSET_BITS=64 -D_REENTRANT"
-let native_c_linker = "gcc"
+let native_c_compiler = "foobar -Wall -D_FILE_OFFSET_BITS=64 -D_REENTRANT"
+let native_c_linker = "foobar"
 let native_c_libraries = "foobar"
-let native_partial_linker = "ld -r"
-let native_pack_linker = "ld -r"
-let ranlib = "ranlib"
+let native_partial_linker = M._ld ^ " -r"
+let native_pack_linker = M._ld ^ " -r"
+let ranlib = M._ranlib
 let cc_profile = "-pg"
 
 let exec_magic_number = "Caml1999X008"

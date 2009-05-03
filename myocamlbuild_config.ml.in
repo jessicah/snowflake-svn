@@ -1,0 +1,8 @@
+
+let prefix_C_tools = "@TOOLSPREFIX@"
+
+let [_gcc;_as;_ar;_ranlib;_ld] =
+    List.map begin fun cmd ->
+        if String.length prefix_C_tools = 0 then cmd
+        else prefix_C_tools ^ "-" ^ cmd
+    end ["gcc"; "as"; "ar"; "ranlib"; "ld"]

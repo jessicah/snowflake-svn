@@ -76,7 +76,7 @@ let create device =
 				else begin
 				(* find a spare buffer *)
 				while next_buffer (last_valid ()) = current () do
-					()
+					Thread.yield ();
 				done;
 				let buffer_index = next_buffer (last_valid ()) in
 				let buffer = buffers.(buffer_index) in
@@ -110,6 +110,8 @@ let create device =
 	(* program the bdl *)
 	C.nabmbar.write32 R.bdl_offset (Asm.address C.bdl);
 	C.nabmbar.write8 R.last_valid (C.nabmbar.read8 R.current);
+    (* try: set sample rate to 44100 hertz *)
+    C.nambar.write16 R.sample_rate 44100;
 	(* fixme: register an interrupt handler *)
 	(* start output *)
 	C.nabmbar.write8 R.control
