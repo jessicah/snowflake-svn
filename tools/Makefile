@@ -1,7 +1,7 @@
 
 OCAML = ocaml-3.10.2
 OCAMLFILE = $(OCAML).touch
-BITSTRING = ocaml-bitstring-1.9.9
+BITSTRING = ocaml-bitstring-2.0.0
 BITSTRINGFILE = $(BITSTRING).touch
 PWD = $(shell pwd)
 

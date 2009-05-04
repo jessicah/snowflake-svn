@@ -125,5 +125,5 @@ let create device =
 	}
 
 let init () =
-	DeviceManager.add_driver "Intel ICH0 Sound Card" create 0x8086 0x2415;
+	DeviceManager.add_driver "Intel ICH0 Sound Card" create 0x8086 0x2415; (* http://svn.berlios.de/wsvn/haiku/haiku/trunk/src/add-ons/kernel/drivers/audio/ac97/ichaudio/ichaudio.c *)
 	DeviceManager.add_driver "Intel ICH0 Sound Card" create 0x8086 0x293E
