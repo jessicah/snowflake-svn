@@ -8,11 +8,14 @@ let drivers = Hashtbl.create 7
 let load_driver device =
 	try
 		let (name, driver) = Hashtbl.find drivers (device.vendor, device.device) in
-		Vt100.printf "Loading %s...\r\n" name;
-		driver device
+		begin try
+            driver device;
+            Vt100.printf "%s (%04x:%04x): loaded\n" name device.vendor device.device
+        with ex ->
+            Vt100.printf "%s (%04x:%04x): failure: %s\n"
+                name device.vendor device.device (Printexc.to_string ex)
+        end
 	with Not_found -> ()
-    | ex -> Vt100.printf "Failure loading driver: %s\r\n"
-        (Printexc.to_string ex)
 
 let scan_pci_bus () =
 	let devices = PCI.probe_bus () in
