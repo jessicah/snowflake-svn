@@ -71,8 +71,8 @@ let create device =
 					buffer.{2*i+1} <- read_sample ();
 				done;
 			in
-			let rec loop p  =
-				if p > samples then ()
+            let rec loop p  =
+            	if p >= samples then ()
 				else begin
 				(* find a spare buffer *)
 				while next_buffer (last_valid ()) = current () do
