@@ -37,6 +37,14 @@ end
 let num_buffers = 32
 let buffer_size = 32768
 
+let m = Mutex.create()
+let cv = Condition.create()
+
+let irqfun () = 
+	Mutex.lock m;
+	Condition.signal cv;
+	Mutex.unlock m
+
 let create device =
 	(* set up our i/o spaces *)
 	let module C = struct
@@ -75,9 +83,11 @@ let create device =
             	if p >= samples then ()
 				else begin
 				(* find a spare buffer *)
+				Mutex.lock m;
 				while next_buffer (last_valid ()) = current () do
-					Thread.yield ();
+					Condition.wait cv m;
 				done;
+				Mutex.unlock m;
 				let buffer_index = next_buffer (last_valid ()) in
 				let buffer = buffers.(buffer_index) in
 				(* fill up the buffer *)
@@ -113,6 +123,10 @@ let create device =
     (* try: set sample rate to 44100 hertz *)
     C.nambar.write16 R.sample_rate 44100;
 	(* fixme: register an interrupt handler *)
+	Interrupts.create device.request_line irqfun;
+	C.set_bit C.nabmbar R.control 4;
+	C.set_bit C.nabmbar R.control 2;
+	Vt100.printf "ich0: on request line %02X\n" device.request_line;
 	(* start output *)
 	C.nabmbar.write8 R.control
 		(C.nabmbar.read8 R.control lor 1);
