@@ -18,14 +18,14 @@ type format = int * int * int
 module Wave : sig
 	type t
 	
-	val read : IO.input -> t
+	val read : BlockIO.input -> t
 end
 
 (*val resample : Wave.t -> int -> (unit -> int)*)
 
 type output = {
 	format: format;
-	output: (unit -> int) -> int -> unit;
+	output: BlockIO.input -> unit;
 }
 
 (* Pretty much allows for only one audio device atm *)

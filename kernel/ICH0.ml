@@ -35,20 +35,26 @@ module R = struct
 end
 
 let num_buffers = 32
-let buffer_size = 32768
+let buffer_size = 32768 (* in samples, which are 16-bit *)
 
 let create device =
-	(* set up our i/o spaces *)
 	let module C = struct
 		open Bigarray
+		open BlockIO
+	
+		(* set up our i/o spaces *)
 		let nambar = make_io_space
 			(Int32.to_int (read32 device.id 0x10) land lnot 1)
 		let nabmbar = make_io_space
 			(Int32.to_int (read32 device.id 0x14) land lnot 1)
+		
+		(* create DMA buffers and buffer descriptor list *)
 		let buffers = Array.init num_buffers begin fun _ ->
-				Array1.create int16_signed c_layout buffer_size
+				Array1.create int8_unsigned c_layout (buffer_size * 2)
 			end
 		let bdl = Array1.create int32 c_layout (num_buffers * 2)
+		
+		(* some helper functions rarely used *)
 		let get_bit io_space addr bit =
 			io_space.read8 addr land (1 lsl bit) <> 0
 		let set_bit io_space addr bit =
@@ -56,6 +62,7 @@ let create device =
 		let clear_bit io_space addr bit =
 			io_space.write8 addr (io_space.read8 addr land (lnot (1 lsl bit)))
 		
+		(* get buffer descriptor pointers *)
 		let last_valid () =
 			nabmbar.read8 R.last_valid
 		let current () =
@@ -63,6 +70,7 @@ let create device =
 		let next_buffer buffer =
 			(buffer + 1) mod num_buffers
 		
+		(* isr & output routines *)
 		let m = Mutex.create()
 		let cv = Condition.create()
 		
@@ -75,40 +83,47 @@ let create device =
 				Mutex.unlock m;
 			end
 		
-		(* do output *)
-		let output sample_rate read_sample samples =
-			let fill_buffer n buffer =
-				for i = 0 to n - 1 do
-					buffer.{2*i} <- read_sample ();
-					buffer.{2*i+1} <- read_sample ();
-				done;
-			in
-            let rec loop p  =
-            	if p >= samples then ()
-				else begin
-				(* find a spare buffer *)
-				Mutex.lock m;
-				while next_buffer (last_valid ()) = current () do
-					Condition.wait cv m;
-				done;
-				Mutex.unlock m;
-				let buffer_index = next_buffer (last_valid ()) in
-				let buffer = buffers.(buffer_index) in
-				(* fill up the buffer *)
-				let size = min (buffer_size / 2) (samples - p) in
-				fill_buffer size buffer;
-				(* set the size and begin *)
-				bdl.{2*buffer_index+1} <- Int32.logor 0x8000_0000l (Int32.of_int (size * 2));
-				nabmbar.write8 R.last_valid buffer_index;
-				loop (p + size)
+		let output block_input =
+			(* the length = total size of input - current position *)
+			let len = Array1.dim block_input.data in
+			(*let samples = Array1.dim block_input.data - block_input.pos in*)
+			let rec loop () =
+				if block_input.pos >= len then begin
+					(* we've finished! *)
+					()
+				end else begin
+					(* we can shuffle more data into the card *)
+					Mutex.lock m;
+					while next_buffer (last_valid ()) = current () do
+						(* wait for a free buffer *)
+						Condition.wait cv m;
+					done;
+					Mutex.unlock m;
+					(* get the next buffer *)
+					let ix = next_buffer (last_valid ()) in
+					let buffer = buffers.(ix) in
+					(* copy data into the buffer *)
+					let size = min (buffer_size * 2) (len - block_input.pos) in
+					if size < (buffer_size * 2) then
+						BlockIO.blit block_input (Array1.sub buffer 0 size)
+					else
+						BlockIO.blit block_input buffer;
+					(* send the command byte and size (in samples) *)
+					bdl.{2*ix+1} <- Int32.logor 0x8000_0000l (Int32.of_int (size lsr 1));
+					nabmbar.write8 R.last_valid ix;
+					loop ()
 				end
-			in loop 0
+			in loop ()
+		
+		
 	end in
+	
 	(* init the device *)
 	for i = 0 to num_buffers - 1 do
 		C.bdl.{2*i} <- Asm.address C.buffers.(i);
 		C.bdl.{2*i+1} <- Int32.zero
 	done;
+	
 	(* reset PCM out *)
 	C.clear_bit C.nabmbar R.control 0;
 	C.clear_bit C.nabmbar R.control 4;
@@ -116,30 +131,34 @@ let create device =
 	C.clear_bit C.nabmbar R.control 2;
 	C.set_bit C.nabmbar R.control 1;
 	while C.get_bit C.nabmbar R.control 1 do () done;
+	
 	(* reset and unmute the audio device *)
 	C.nambar.write16 R.reset 1;
 	List.iter begin fun x ->
 		C.nambar.write16 x 0
 	end R.mute;
-	(* program the bdl *)
+	
+	(* program the buffer descriptor list *)
 	C.nabmbar.write32 R.bdl_offset (Asm.address C.bdl);
 	C.nabmbar.write8 R.last_valid (C.nabmbar.read8 R.current);
-    (* try: set sample rate to 44100 hertz *)
+	
+    (* set sample rate to 44100 hertz (more common then default of 48000) *)
     C.nambar.write16 R.sample_rate 44100;
-	(* fixme: register an interrupt handler *)
+	
+	(* register an interrupt handler *)
 	Interrupts.create device.request_line C.isr;
 	C.set_bit C.nabmbar R.control 4; (* interrupts for buffer completion *)
-	(*C.set_bit C.nabmbar R.control 2;*)
 	Vt100.printf "ich0: on request line %02X\n" device.request_line;
+	
 	(* start output *)
-	C.nabmbar.write8 R.control
-		(C.nabmbar.read8 R.control lor 1);
-	(* returns some struct *)
+	C.nabmbar.write8 R.control (C.nabmbar.read8 R.control lor 1);
+	
+	(* register with the audio mixer *)
 	let sample_rate = C.nambar.read16 R.sample_rate in
 	Vt100.printf "ich0: sample rate = %d\n" sample_rate;
 	AudioMixer.register_device {
 		format = 16, sample_rate, 2;
-		output = C.output sample_rate;
+		output = C.output;
 	}
 
 let init () =

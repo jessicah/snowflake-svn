@@ -37,19 +37,7 @@ let () =
 	begin try
 		Vt100.printf "Attempting to load and play wave file...\n";
 		let wave_data = Multiboot.open_module () in
-		let get_data =
-			let i = ref 0 in
-			begin fun () ->
-				let ch = wave_data.{!i} in
-				incr i;
-				ch
-			end
-		in
-		let chan = IO.from_in_chars (object
-			method get () = get_data ()
-			method close_in () = ()
-		end) in
-		let wave = AudioMixer.Wave.read chan in
+		let wave = AudioMixer.Wave.read (BlockIO.make wave_data) in
 		AudioMixer.play wave;
 	with ex ->
 		Vt100.printf "audio mixer: %s\n"

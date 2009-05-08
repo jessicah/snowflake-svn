@@ -3,6 +3,8 @@
 
 (* Provides an interface to a sound device *)
 
+open BlockIO
+
 type bit_rate
 	= Bits8
 	| Bits16
@@ -25,7 +27,7 @@ module Wave = struct
 		block_align: int;
 		bits_per_sec: int;
 		samples: int;
-		input: input;
+		input: BlockIO.input;
 	}
 	
 	type chunk = {
@@ -38,7 +40,8 @@ module Wave = struct
 		let length = read_i32 ic in
 		{ id = id; length = length; }
 	
-	let read ic =
+	let read blockIO =
+		let ic = BlockIO.make_io blockIO in
 		let riff = really_nread ic 4 in
 		ignore (really_nread ic 4);
 		let wave = really_nread ic 4 in
@@ -65,17 +68,7 @@ module Wave = struct
 				block_align = block_align;
 				bits_per_sec = bits_per_sec;
 				samples = chunk.length / (channels * bits_per_sec / 8);
-				(*read_sample = begin function
-					| Some rate -> begin
-						match bits_per_sec with
-						| 16 ->
-					| None -> begin
-						match bits_per_sec with
-						| 16 -> read_i16 ic (* only signed 16-bit even *)
-						| _ -> failwith "unsupported bit rate"
-					end
-				end;*)
-				input = ic;
+				input = blockIO;
 			}
 		in loop (read_chunk ic)
 end
@@ -84,12 +77,13 @@ open Wave
 
 type output = {
 	format: format;
-	output: (unit -> int) -> int -> unit;
+	output: BlockIO.input -> unit;
 }
 
 (* resampling *)
 
 let resample wave new_rate =
+	failwith "resample: removed while block io worked on"(*
 	let ratio = float new_rate /. float wave.samples_per_sec in
 	let scale v = int_of_float (float v /. ratio) in
 	let last_samples = Array.make wave.channels 0 in
@@ -113,7 +107,7 @@ let resample wave new_rate =
 			end;
 			last_samples.(chan);
 		end
-	in read, length
+	in read, length*)
 
 (* Pretty much allows for only one audio device atm *)
 
@@ -124,23 +118,20 @@ let play_to device wave =
 		&& hertz = wave.samples_per_sec
 		&& chans = wave.channels ->
 		(* no conversion required; push data directly to the driver *)
-		(*let fill_buffer buffer samples =
-			for i = 0 to samples / chans - 1 do
-				for j = 0 to chans - 1 do
-					buffer.{i,j} <- wave.read_sample None;
-				done;
-			done
-		in*) (* pass to driver so it can grab more data when it wants it *)
-		device.output (fun () -> IO.read_i16 wave.input) wave.samples
-	| (bits,hertz,chans)
+		begin try
+			device.output wave.input;
+		with ex ->
+			Vt100.printf "play_to: %s\n" (Printexc.to_string ex)
+		end
+	(*| (bits,hertz,chans)
 		when bits = wave.bits_per_sec && bits = 16
 		&& chans = wave.channels ->
 		(* only sample rate conversion needed *)
 		let (read, length) = resample wave hertz in
-		device.output read length
+		device.output read length*)
 	| _ ->
 		(* wave and device formats don't match *)
-		failwith "input format not match output format"
+		failwith "play_to: resampling not supported"
 
 let device = ref None
 
