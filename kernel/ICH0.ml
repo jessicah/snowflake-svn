@@ -37,14 +37,6 @@ end
 let num_buffers = 32
 let buffer_size = 32768
 
-let m = Mutex.create()
-let cv = Condition.create()
-
-let irqfun () = 
-	Mutex.lock m;
-	Condition.signal cv;
-	Mutex.unlock m
-
 let create device =
 	(* set up our i/o spaces *)
 	let module C = struct
@@ -71,6 +63,18 @@ let create device =
 		let next_buffer buffer =
 			(buffer + 1) mod num_buffers
 		
+		let m = Mutex.create()
+		let cv = Condition.create()
+		
+		let isr () =
+			if next_buffer (last_valid ()) <> current () then begin
+				(* clear the interrupt, by writing '1' to bit 3 *)
+				nabmbar.write16 R.status (nabmbar.read16 R.status lor 8);
+				Mutex.lock m;
+				Condition.signal cv;
+				Mutex.unlock m;
+			end
+		
 		(* do output *)
 		let output sample_rate read_sample samples =
 			let fill_buffer n buffer =
@@ -94,7 +98,7 @@ let create device =
 				let size = min (buffer_size / 2) (samples - p) in
 				fill_buffer size buffer;
 				(* set the size and begin *)
-				bdl.{2*buffer_index+1} <- Int32.of_int (size * 2);
+				bdl.{2*buffer_index+1} <- Int32.logor 0x8000_0000l (Int32.of_int (size * 2));
 				nabmbar.write8 R.last_valid buffer_index;
 				loop (p + size)
 				end
@@ -123,9 +127,9 @@ let create device =
     (* try: set sample rate to 44100 hertz *)
     C.nambar.write16 R.sample_rate 44100;
 	(* fixme: register an interrupt handler *)
-	Interrupts.create device.request_line irqfun;
-	C.set_bit C.nabmbar R.control 4;
-	C.set_bit C.nabmbar R.control 2;
+	Interrupts.create device.request_line C.isr;
+	C.set_bit C.nabmbar R.control 4; (* interrupts for buffer completion *)
+	(*C.set_bit C.nabmbar R.control 2;*)
 	Vt100.printf "ich0: on request line %02X\n" device.request_line;
 	(* start output *)
 	C.nabmbar.write8 R.control
