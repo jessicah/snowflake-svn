@@ -14,6 +14,7 @@ let () =
 	Keyboard.init (); (* set up the keyboard handler *)
 	Tulip.init (); (* unfortunately it won't get linked in otherwise... *)
     E1000.init ();
+	IDE.init ();
 	ICH0.init ();
 	Vt100.printf "Hello, from ML :)\nUsing ocaml version: %s\n" Sys.ocaml_version;
 	Asm.sti ();
