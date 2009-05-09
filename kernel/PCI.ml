@@ -94,11 +94,11 @@ let probe_bus () =
 	let list = ref [] in
 	for i = 0 to 255 do
 		for j = 0 to 31 do
-			for k = 0 to 7 do
+			(*for k = 0 to 7 do*)
 				try
-					list := probe i j k :: !list
+					list := probe i j 0 :: !list
 				with Not_found -> ()
-			done
+			(*done*)
 		done
 	done;
 	!list

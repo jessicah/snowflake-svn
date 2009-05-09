@@ -4,7 +4,7 @@
 let word bstring n =
 	bitmatch bstring with
 	| { word : n : bigendian } when word <= 0xFFFF_L -> Int64.to_int word
-	| { _ } -> assert(false)
+	| { _ : -1 : bitstring } -> assert(false)
 
 let checksum data =
 	let rec checksum rem sum data =
@@ -32,7 +32,7 @@ let parse_array bits =
 		| { rest : -1 : bitstring }
 			when Bitstring.bitstring_length rest = 0 ->
 			array
-		| { _ } -> assert false (* the test at start avoids this case *)
+		| { _ : -1 : bitstring } -> assert false (* the test at start avoids this case *)
 	in parse_bytes 0 bits
 
 let unparse_array array =
@@ -45,7 +45,7 @@ let rec parse_list bits acc = bitmatch bits with
 	| { rest : -1 : bitstring }
 		when Bitstring.bitstring_length rest = 0 ->
 		acc
-	| { _ } -> assert false
+	| { _ : -1 : bitstring } -> assert false
 
 let parse_list bits =
 	if Bitstring.bitstring_length bits mod 8 <> 0 then
@@ -141,7 +141,7 @@ module IPv4 = struct
 				content = payload;
 			}
 		| { version : 4 } -> failwith "Expected IPv4 packet"
-		| { _ } -> failwith "Not an IPv4 packet"
+		| { _ : -1 : bitstring } -> failwith "Not an IPv4 packet"
 	
 	let unparse_addr = function Addr (a,b,c,d) ->
 		BITSTRING { a : 8; b : 8; c : 8; d : 8 }
@@ -167,6 +167,7 @@ module IPv4 = struct
 		packet
 	
 	let broadcast = Addr (255, 255, 255, 255)
+	let invalid = Addr (0, 0, 0, 0)
 
 end
 

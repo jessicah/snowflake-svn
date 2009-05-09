@@ -94,7 +94,7 @@ let copy_rule' ?insert src dst =
 	
 	flag ["ocaml"; "pp"; "use_bitstring"] (S [
 		Sh"LD_LIBRARY_PATH=../tools/ocaml/lib/ocaml/stublibs";
-		A"camlp4o";
+		A"../tools/ocaml/bin/camlp4o";
 		A"-I";
 		A"../tools/ocaml/lib/ocaml/bitstring";
 		A"bitstring.cma";

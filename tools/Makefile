@@ -4,6 +4,7 @@ OCAMLFILE = $(OCAML).touch
 BITSTRING = ocaml-bitstring-2.0.0
 BITSTRINGFILE = $(BITSTRING).touch
 PWD = $(shell pwd)
+OCAMLCMDS = "ocamlc=$(PWD)/ocaml/bin/ocamlc.opt ocamlopt=$(PWD)/ocaml/bin/ocamlopt.opt camlp4o=$(PWD)/ocaml/bin/camlp4o"
 
 ocaml: $(OCAMLFILE)
 	cd $(OCAML) && patch -Np0 -i ../ocamlbuild.snowflake.patch && ./configure -prefix $(PWD)/ocaml -no-curses -no-pthread -no-tk
@@ -14,8 +15,8 @@ $(OCAMLFILE):
 	touch $(OCAMLFILE)
 
 bitstring: $(BITSTRINGFILE) ocaml
-	cd $(BITSTRING) && patch Makefile.in ../ocaml-bitstring.makefile.patch && ./configure --prefix=$(PWD)/ocaml
-	OCAMLFIND_DESTDIR=$(PWD)/ocaml/lib/ocaml $(MAKE) -C $(BITSTRING) all install
+	cd $(BITSTRING) && cp -f ../Makefile.in.bitstring Makefile.in && ./configure --prefix=$(PWD)/ocaml
+	$(MAKE) -C $(BITSTRING) all install
 	touch bitstring
 
 $(BITSTRINGFILE):

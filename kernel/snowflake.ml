@@ -16,6 +16,7 @@ let () =
     E1000.init ();
 	IDE.init ();
 	ICH0.init ();
+	RealTek8139.init ();
 	Vt100.printf "Hello, from ML :)\nUsing ocaml version: %s\n" Sys.ocaml_version;
 	Asm.sti ();
 	(*let pci_devices = PCI.probe_bus () in
@@ -43,4 +44,14 @@ let () =
 	with ex ->
 		Vt100.printf "audio mixer: %s\n"
 			(Printexc.to_string ex)
+	end;
+	begin try
+		Vt100.printf "Attempting to send raw packet...\n";
+		let tftp_packet = "\x00\x0f\xfe\x68\xb1\xef\x00\x30\x4f\x04\x58\x0b\x08\x00\x45\x00\x00\x4a\x00\x02\x00\x00\x40\x11\x6d\xed\x82\x7b\x83\xd9\x82\x7b\x83\xe4\x04\x00\x00\x45\x00\x36\x88\x24\x00\x01\x73\x6e\x6f\x77\x66\x6c\x61\x6b\x65\x2e\x6e\x61\x74\x69\x76\x65\x00\x6f\x63\x74\x65\x74\x00\x62\x6c\x6b\x73\x69\x7a\x65\x00\x31\x34\x33\x32\x00\x74\x73\x69\x7a\x65\x00\x30\x00" in
+		NetworkStack.send tftp_packet;
+		let reply = NetworkStack.recv () in
+		Vt100.printf "Got a reply...\n%s\n" reply
+	with ex ->
+		Vt100.printf "netstack: %s\n" (Printexc.to_string ex)
 	end
+	

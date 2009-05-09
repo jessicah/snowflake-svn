@@ -60,6 +60,8 @@ module IPv4 : sig
 	val unparse : t -> Bitstring.t
 	
 	val broadcast : addr
+	
+	val invalid : addr
 
 end
 

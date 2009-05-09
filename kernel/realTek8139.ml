@@ -306,4 +306,8 @@ let create pcii =
 			| _ -> failwith "Invalid MAC address"
 	end in
 	let module Driver = EthernetDriver(RTL8139) in
-	EthernetStack.create Driver.init Driver.read Driver.write pcii.request_line Driver.address
+	let net_device = EthernetStack.create Driver.init Driver.read Driver.write pcii.request_line Driver.address in
+	NetworkStack.register_device net_device
+
+let init () =
+	DeviceManager.add_driver "RealTek 8139" create 0x10EC 0x8139

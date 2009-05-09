@@ -9,6 +9,12 @@ type net_device = {
 	hw_addr : NetworkProtocolStack.Ethernet.addr
 }
 
+val register_device : net_device -> unit
+
+val send : string -> unit
+val recv : unit -> string
+val get_hw_addr : unit -> NetworkProtocolStack.Ethernet.addr
+
 module type ETHERNET = sig
 		type t
 		val init : unit -> t
