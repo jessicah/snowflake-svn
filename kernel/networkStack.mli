@@ -39,3 +39,5 @@ module EthernetDriver : functor (Driver : ETHERNET) -> sig
 module EthernetStack : sig
 	val create : (int -> 'a) -> (unit -> string) -> ('a -> string -> unit) -> int -> ('a -> NetworkProtocolStack.Ethernet.addr) -> net_device
 end
+
+val init : unit -> unit

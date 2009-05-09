@@ -120,7 +120,10 @@ exception Restart
 
 let create pcii =
 	(* set up the in/out functions *)
-	let IO reg_base = pcii.resources.(0) in
+	let reg_base = match pcii.resources.(0) with
+	| IO x -> x
+	| _ -> failwith "rtl8139: can't get IO port"
+	in
 	let out8  offset value = Asm.out8  (reg_base + offset) value
 	and out16 offset value = Asm.out16 (reg_base + offset) value
 	and out32 offset value = Asm.out32 (reg_base + offset) value

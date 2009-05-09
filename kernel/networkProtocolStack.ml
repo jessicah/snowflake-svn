@@ -92,6 +92,12 @@ module Ethernet = struct
 		}
 	
 	let broadcast = Addr (0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF)
+	
+	let invalid = Addr (0, 0, 0, 0, 0, 0)
+	
+	let to_string = function
+		Addr(a,b,c,d,e,f) ->
+			Printf.sprintf "%02x:%02x:%02x:%02x:%02x:%02x" a b c d e f
 
 end
 
@@ -124,7 +130,7 @@ module IPv4 = struct
 			source : 32 : bitstring;
 			dest : 32 : bitstring;
 			options : (hdrlen-5) * 32 : bitstring;
-			payload : (length - hdrlen*4) * 8 : bitstring } as packet
+			payload : (length - hdrlen*4) * 8 : bitstring } (*as packet*)
 			when version = 4 -> (* match an IPv4 packet *)
 			{
 				tos = tos;
@@ -168,6 +174,10 @@ module IPv4 = struct
 	
 	let broadcast = Addr (255, 255, 255, 255)
 	let invalid = Addr (0, 0, 0, 0)
+	
+	let to_string = function
+		Addr(a,b,c,d) ->
+			Printf.sprintf "%d.%d.%d.%d" a b c d
 
 end
 

@@ -32,6 +32,10 @@ module Ethernet : sig
 	val unparse : t -> Bitstring.t
 	
 	val broadcast : addr
+	
+	val invalid : addr
+	
+	val to_string : addr -> string
 
 end
 
@@ -62,6 +66,8 @@ module IPv4 : sig
 	val broadcast : addr
 	
 	val invalid : addr
+	
+	val to_string : addr -> string
 
 end
 
