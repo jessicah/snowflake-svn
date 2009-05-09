@@ -44,11 +44,50 @@ module API = struct
 		mutable gateway : P.IPv4.addr;
 	}
 	
-	let settings = { ip = P.IPv4.invalid; dns = P.IPv4.invalid; netmask = P.IPv4.invalid; gateway = P.IPv4.invalid }
+	let settings = {
+			ip = P.IPv4.invalid;
+			dns = P.IPv4.invalid;
+			netmask = P.IPv4.invalid;
+			gateway = P.IPv4.invalid;
+		}
 	
-	let make_ip_packet x = failwith "make_ip_packet"
-	let make_udp_packet x = failwith "make_udp_packet"
-	let make_eth_packet x = failwith "make_eth_packet"
+	let make_ip_packet ?(tos = 0) ?(ttl = 255) protocol ?src dst content =
+		let src = match src with
+			| None -> settings.ip
+			| Some ip -> ip
+		in
+		P.IPv4.unparse {
+			P.IPv4.tos = tos;
+			P.IPv4.ttl = ttl;
+			P.IPv4.protocol = protocol;
+			P.IPv4.src = src;
+			P.IPv4.dst = dst;
+			P.IPv4.options = Bitstring.empty_bitstring;
+			P.IPv4.content = content;
+		}
+	
+	let make_udp_packet src_port dst_port ?src_ip dst_ip content =
+		let src_ip = match src_ip with
+			| None -> settings.ip
+			| Some ip -> ip
+		in
+		P.UDP.unparse {
+			P.UDP.src = src_port;
+			P.UDP.dst = dst_port;
+			P.UDP.content = content;
+		} src_ip dst_ip
+	
+	let make_eth_packet dst ?src protocol content =
+		let src = match src with
+			| None -> get_hw_addr ()
+			| Some addr -> addr
+		in
+		P.Ethernet.unparse {
+			P.Ethernet.dst = dst;
+			P.Ethernet.src = src;
+			P.Ethernet.protocol = protocol;
+			P.Ethernet.content = content;
+		}
 	
 	let open_udp src_port dst_port dst_ip =
 		failwith "open_udp"
