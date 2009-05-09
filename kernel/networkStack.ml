@@ -185,6 +185,11 @@ module API = struct
 	type tcp_state = Listen | Syn_sent | Syn_recv | Established | Fin_wait1 | Fin_wait2
 		| Close_wait | Closing | Last_ack | Time_wait | Closed
 	
+	let state_to_string = function
+		| Syn_sent -> "syn sent"
+		| Established -> "established"
+		| _ -> "<unknown>"
+	
 	type tcb = {
 		mutable snd_una : int32; (* send unacknowledged *)
 		mutable snd_nxt : int32; (* sent next *)
@@ -207,6 +212,7 @@ module API = struct
 		let out_data = Event.new_channel () in
 		let obuf = Buffer.create 512 in
 		let ibuf = Buffer.create 512 in
+		let m = Mutex.create () in
 		
 		let tcb = {
 			snd_nxt = 0l;
@@ -262,12 +268,20 @@ module API = struct
 					let rest = Buffer.sub obuf tcb.window_size (blen - tcb.window_size) in
 					Buffer.clear obuf;
 					Buffer.add_string obuf rest;
+					let s = tcb.snd_nxt in
+					Mutex.lock m;
 					send [ P.TCP.Ack ] (Bitstring.bitstring_of_string left);
 					tcb.snd_nxt <- Int32.add (Int32.of_int tcb.window_size) tcb.snd_nxt;
+					Mutex.unlock m;
+					Vt100.printf "seq: %ld => %ld\n" s tcb.snd_nxt;
 					flush ()
 				| blen ->
+					let s = tcb.snd_nxt in
+					Mutex.lock m;
 					send [ P.TCP.Ack ] (Bitstring.bitstring_of_string (Buffer.contents obuf));
 					tcb.snd_nxt <- Int32.add (Int32.of_int blen) tcb.snd_nxt;
+					Mutex.unlock m;
+					Vt100.printf "seq: %ld => %ld\n" s tcb.snd_nxt;
 					Buffer.clear obuf
 				end
 			| Some data ->
@@ -275,12 +289,20 @@ module API = struct
 				| 0, len when len > tcb.window_size ->
 					let left = String.sub data 0 tcb.window_size in
 					Buffer.add_substring obuf data tcb.window_size (len - tcb.window_size);
+					let s = tcb.snd_nxt in
+					Mutex.lock m;
 					send [ P.TCP.Ack ] (Bitstring.bitstring_of_string left);
 					tcb.snd_nxt <- Int32.add (Int32.of_int tcb.window_size) tcb.snd_nxt;
+					Mutex.unlock m;
+					Vt100.printf "seq: %ld => %ld\n" s tcb.snd_nxt;
 					flush ()
 				| 0, len ->
+					let s = tcb.snd_nxt in
+					Mutex.lock m;
 					send [ P.TCP.Ack ] (Bitstring.bitstring_of_string data);
-					tcb.snd_nxt <- Int32.add (Int32.of_int len) tcb.snd_nxt
+					tcb.snd_nxt <- Int32.add (Int32.of_int len) tcb.snd_nxt;
+					Mutex.unlock m;
+					Vt100.printf "seq: %ld => %ld\n" s tcb.snd_nxt;
 				| blen, _ ->
 					Buffer.add_string obuf data;
 					let len = min tcb.window_size blen in
@@ -288,8 +310,12 @@ module API = struct
 					let rest = Buffer.sub obuf len (blen - len) in
 					Buffer.clear obuf;
 					Buffer.add_string obuf rest;
+					let s = tcb.snd_nxt in
+					Mutex.lock m;
 					send [ P.TCP.Ack ] (Bitstring.bitstring_of_string left);
 					tcb.snd_nxt <- Int32.add (Int32.of_int len) tcb.snd_nxt;
+					Mutex.unlock m;
+					Vt100.printf "seq: %ld => %ld\n" s tcb.snd_nxt;
 					flush ()
 				end
 			end
@@ -299,6 +325,7 @@ module API = struct
 			let set f = List.mem f t.P.TCP.flags in
 			match tcb.state with
 				| Syn_sent when set P.TCP.Syn && set P.TCP.Ack && t.P.TCP.ack_num = Int32.add 1l tcb.iss ->
+					Mutex.lock m;
 					tcb.state <- Established;
 					
 					tcb.irs <- t.P.TCP.seq_num;
@@ -306,28 +333,35 @@ module API = struct
 					
 					(* send ack *)
 					send [ P.TCP.Ack ] Bitstring.empty_bitstring;
+					Mutex.unlock m;
 					
 					(* send any waiting data *)
 					flush ()
 				| Established when not (set P.TCP.Syn) && set P.TCP.Ack && t.P.TCP.seq_num = tcb.rcv_nxt ->
-					let len = Bitstring.bitstring_length t.P.TCP.content in
+					let len = Bitstring.bitstring_length t.P.TCP.content / 8 in
+					Mutex.lock m;
 					tcb.snd_una <- Int32.add (Int32.of_int len) tcb.snd_una;
 					tcb.rcv_nxt <- Int32.add (Int32.of_int len) tcb.rcv_nxt;
 					
 					(* send ack *)
 					send [ P.TCP.Ack ] Bitstring.empty_bitstring;
+					Mutex.unlock m;
 					
 					(* send data somewhere *)
 					Event.sync (Event.send in_data (Bitstring.string_of_bitstring t.P.TCP.content))
-				| _ -> () (* minimalist tcp stack :P *)
+				| _ ->
+					Vt100.printf "tcp: state = %s, seq = %lx, ack = %lx, rcv_nxt = %lx\n"
+						(state_to_string tcb.state) t.P.TCP.seq_num t.P.TCP.ack_num tcb.rcv_nxt;
 		in
 					
 		(* bind function to process received tcp packets *)
 		bind_tcp src_port process;
 		
 		(* initialise connection *)
+		Mutex.lock m;
 		send [ P.TCP.Syn ] Bitstring.empty_bitstring;
 		tcb.snd_nxt <- Int32.add 1l tcb.iss;
+		Mutex.unlock m;
 		
 		(* now need to return I/O channels *)
 		IO.from_in_channel (object

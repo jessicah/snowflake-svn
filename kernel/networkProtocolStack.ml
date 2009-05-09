@@ -158,7 +158,8 @@ module IPv4 = struct
 		let packet = BITSTRING {
 			4 : 4; hdrlen : 4;
 			t.tos : 8; length + hdrlen*4 : 16;
-			0 (* identification *) : 16; 0 (* flags *) : 3;
+			0xBABE : (* identification *) : 16;
+			0 (* flags *) : 3;
 			0 (* fragoffset *) : 13;
 			t.ttl : 8; t.protocol : 8; 0 (* checksum *) : 16;
 			unparse_addr t.src : 32 : bitstring;
