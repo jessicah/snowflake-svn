@@ -61,6 +61,11 @@ module API = struct
 			gateway = P.IPv4.invalid;
 		}
 	
+	let tcp_bindings = Hashtbl.create 7
+	
+	let bind_tcp port f =
+		Hashtbl.add tcp_bindings port f
+	
 	(* move the make_xxx_packet functions outside of the module? *)
 	let make_ip_packet ?(tos = 0) ?(ttl = 255) protocol ?src dst content =
 		let src = match src with
@@ -143,28 +148,202 @@ module API = struct
 				0x0800 : 16;
 				6 : 8;
 				4 : 8;
-				0x0002 : 16; (* opcode = reply *)
+				opcode : 16; (* opcode = reply *)
 				sender_mac : 48 : bitstring;
 				sender_ip : 32 : bitstring;
-				_ : 48 : bitstring;
+				target_mac : 48 : bitstring;
 				_ : 32 : bitstring
 			} ->
 				let ip = P.IPv4.parse_addr sender_ip in
 				let mac = P.Ethernet.parse_addr sender_mac in
 				(* update the table *)
-				Hashtbl.replace table ip mac;
+				if ip <> P.IPv4.invalid then
+					Hashtbl.replace table ip mac;
 				(* notify that we have a new entry in our ARP table *)				
 				Mutex.lock m;
 				Condition.signal cv;
 				Mutex.unlock m;
-				Vt100.printf "Added new mapping: %s => %s\n"
-					(P.IPv4.to_string ip) (P.Ethernet.to_string mac)
-			| { _ : -1 : bitstring } -> (* ignore ARP requests *) ()
+				(*Vt100.printf "Added new mapping: %s => %s\n"
+					(P.IPv4.to_string ip) (P.Ethernet.to_string mac);*)
+				if opcode = 1 && P.Ethernet.parse_addr target_mac = (get_hw_addr ()) then begin (* it's a request *)
+					Vt100.printf "Got an ARP request\n";
+					let content = BITSTRING {
+						1 : 16; 0x0800 : 16; 6 : 8; 4 : 8; 2 : 16;
+						P.Ethernet.unparse_addr (get_hw_addr ()) : 48 : bitstring;
+						P.IPv4.unparse_addr settings.ip : 32 : bitstring;
+						sender_mac : 48 : bitstring;
+						sender_ip : 32 : bitstring
+					} in
+					send (Bitstring.string_of_bitstring (make_eth_packet mac 0x0806 content));
+				end
+			| { _ : -1 : bitstring } -> ()
 	end
 	
 	let open_udp src_port dst_port dst_ip =
 		failwith "open_udp"
+	
+	type tcp_state = Listen | Syn_sent | Syn_recv | Established | Fin_wait1 | Fin_wait2
+		| Close_wait | Closing | Last_ack | Time_wait | Closed
+	
+	type tcb = {
+		mutable snd_una : int32; (* send unacknowledged *)
+		mutable snd_nxt : int32; (* sent next *)
+		mutable iss : int32; (* initial send sequence number *)
+		mutable rcv_nxt : int32; (* receive next *)
+		mutable irs : int32; (* initial receive sequence number *)
+		mutable window_size : int;
+		mutable state : tcp_state;
+	}
+	
+	let next_available_port = ref 65535
+	
+	let get_next_available_port () =
+		let port = !next_available_port in
+		decr next_available_port;
+		port
+	
+	let open_tcp ip port =
+		let in_data = Event.new_channel () in
+		let out_data = Event.new_channel () in
+		let obuf = Buffer.create 512 in
+		let ibuf = Buffer.create 512 in
 		
+		let tcb = {
+			snd_nxt = 0l;
+			snd_una = 0l;
+			iss = 0l;
+			irs = 0l;
+			rcv_nxt = 0l;
+			state = Syn_sent;
+			window_size = 512;
+		} in
+		
+		let src_port = get_next_available_port () in
+		
+		let send flags data =
+			let content =
+				make_ip_packet 6 (* tcp *)ip (P.TCP.unparse {
+					P.TCP.src_port = src_port;
+					P.TCP.dst_port = port;
+					P.TCP.seq_num = tcb.snd_nxt;
+					P.TCP.ack_num = tcb.rcv_nxt;
+					P.TCP.flags = flags;
+					P.TCP.window = tcb.window_size;
+					P.TCP.content = data;
+				} settings.ip ip)
+			in
+			send (Bitstring.string_of_bitstring (make_eth_packet (ARP.lookup ip) 0x0800 content))
+		in
+		
+		let rec input buf ofs len = begin match Buffer.length ibuf with
+			| 0 -> (* nothing in the buffer *)
+				Buffer.add_string ibuf (Event.sync (Event.receive in_data));
+				input buf ofs len
+			| n when n > len ->
+				let left = Buffer.sub ibuf 0 len in
+				let rest = Buffer.sub ibuf len (n - len) in
+				Buffer.clear ibuf;
+				Buffer.add_string ibuf rest;
+				String.blit left 0 buf ofs len;
+				len
+			| n ->
+				String.blit (Buffer.contents ibuf) 0 buf ofs n;
+				Buffer.clear ibuf;
+				n
+			end
+		in
+		
+		let rec flush () = begin match Event.poll (Event.receive out_data) with
+			| None ->
+				begin match Buffer.length obuf with
+				| 0 -> ()
+				| blen when blen > tcb.window_size ->
+					let left = Buffer.sub obuf 0 tcb.window_size in
+					let rest = Buffer.sub obuf tcb.window_size (blen - tcb.window_size) in
+					Buffer.clear obuf;
+					Buffer.add_string obuf rest;
+					send [ P.TCP.Ack ] (Bitstring.bitstring_of_string left);
+					tcb.snd_nxt <- Int32.add (Int32.of_int tcb.window_size) tcb.snd_nxt;
+					flush ()
+				| blen ->
+					send [ P.TCP.Ack ] (Bitstring.bitstring_of_string (Buffer.contents obuf));
+					tcb.snd_nxt <- Int32.add (Int32.of_int blen) tcb.snd_nxt;
+					Buffer.clear obuf
+				end
+			| Some data ->
+				begin match Buffer.length obuf, String.length data with
+				| 0, len when len > tcb.window_size ->
+					let left = String.sub data 0 tcb.window_size in
+					Buffer.add_substring obuf data tcb.window_size (len - tcb.window_size);
+					send [ P.TCP.Ack ] (Bitstring.bitstring_of_string left);
+					tcb.snd_nxt <- Int32.add (Int32.of_int tcb.window_size) tcb.snd_nxt;
+					flush ()
+				| 0, len ->
+					send [ P.TCP.Ack ] (Bitstring.bitstring_of_string data);
+					tcb.snd_nxt <- Int32.add (Int32.of_int len) tcb.snd_nxt
+				| blen, _ ->
+					Buffer.add_string obuf data;
+					let len = min tcb.window_size blen in
+					let left = Buffer.sub obuf 0 len in
+					let rest = Buffer.sub obuf len (blen - len) in
+					Buffer.clear obuf;
+					Buffer.add_string obuf rest;
+					send [ P.TCP.Ack ] (Bitstring.bitstring_of_string left);
+					tcb.snd_nxt <- Int32.add (Int32.of_int len) tcb.snd_nxt;
+					flush ()
+				end
+			end
+		in
+		
+		let process t =
+			let set f = List.mem f t.P.TCP.flags in
+			match tcb.state with
+				| Syn_sent when set P.TCP.Syn && set P.TCP.Ack && t.P.TCP.ack_num = Int32.add 1l tcb.iss ->
+					tcb.state <- Established;
+					
+					tcb.irs <- t.P.TCP.seq_num;
+					tcb.rcv_nxt <- Int32.add 1l tcb.irs;
+					
+					(* send ack *)
+					send [ P.TCP.Ack ] Bitstring.empty_bitstring;
+					
+					(* send any waiting data *)
+					flush ()
+				| Established when not (set P.TCP.Syn) && set P.TCP.Ack && t.P.TCP.seq_num = tcb.rcv_nxt ->
+					let len = Bitstring.bitstring_length t.P.TCP.content in
+					tcb.snd_una <- Int32.add (Int32.of_int len) tcb.snd_una;
+					tcb.rcv_nxt <- Int32.add (Int32.of_int len) tcb.rcv_nxt;
+					
+					(* send ack *)
+					send [ P.TCP.Ack ] Bitstring.empty_bitstring;
+					
+					(* send data somewhere *)
+					Event.sync (Event.send in_data (Bitstring.string_of_bitstring t.P.TCP.content))
+				| _ -> () (* minimalist tcp stack :P *)
+		in
+					
+		(* bind function to process received tcp packets *)
+		bind_tcp src_port process;
+		
+		(* initialise connection *)
+		send [ P.TCP.Syn ] Bitstring.empty_bitstring;
+		tcb.snd_nxt <- Int32.add 1l tcb.iss;
+		
+		(* now need to return I/O channels *)
+		IO.from_in_channel (object
+				method input buf ofs len =
+					input buf ofs len
+				method close_in () = () (* this should close the TCP connection *)
+			end),
+		IO.from_out_channel (object
+				method output buf ofs len =
+					Event.sync (Event.send out_data (String.sub buf ofs len));
+					if len >= tcb.window_size then flush ();
+					len
+				method flush () = flush ()
+				method close_out () = flush () (* this should close the TCP connection *)
+			end)
+			
 end
 
 (* run the network stack *)
@@ -176,14 +355,29 @@ let init () =
 	API.settings.API.gateway <- P.IPv4.Addr (130,123,131,129);
 	let read_thread () =
 		(* this is a blocking call until data ready *)
+		while true do
 		begin try
 			let eth = P.Ethernet.parse (Bitstring.bitstring_of_string (recv ())) in
 			match eth.P.Ethernet.protocol with
 				| 0x0806 -> (* got an ARP packet *)
 					API.ARP.process_arp eth.P.Ethernet.content
+				| 0x0800 -> (* got an IP packet *)
+					let ip = P.IPv4.parse eth.P.Ethernet.content in
+					begin match ip.P.IPv4.protocol with
+					| 6 (* tcp *) ->
+						begin
+							let tcp = P.TCP.parse ip.P.IPv4.content in
+							try
+								let f = Hashtbl.find API.tcp_bindings tcp.P.TCP.dst_port in
+								f tcp
+							with Not_found -> Vt100.printf "No handler for port %d...\n" tcp.P.TCP.dst_port
+						end
+					| _ -> ()
+					end
 				| _ -> (* discard packet *)
 					()
 		with ex -> Vt100.printf "netstack read: %s\n" (Printexc.to_string ex) end
+		done
 	in			
 	let thread_fun () =
 		Mutex.lock m;
@@ -194,9 +388,7 @@ let init () =
 		(* start the read thread *)
 		ignore (Thread.create read_thread ())
 	in
-	ignore (Thread.create thread_fun ());
-	(* test ARP lookup *)
-	ignore (API.ARP.lookup (P.IPv4.Addr (130,123,131,228)))
+	ignore (Thread.create thread_fun ())
 
 module type ETHERNET = sig
 		type t

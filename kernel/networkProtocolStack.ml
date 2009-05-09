@@ -10,7 +10,7 @@ let checksum data =
 	let rec checksum rem sum data =
 		if rem = 0 then
 			(lnot (sum mod 0xFFFF)) land 0xFFFF
-		else if rem < 16 then
+		else if rem = 8 then
 			(lnot ((sum + word data rem) mod 0xFFFF)) land 0xFFFF
 		else
 			checksum (rem-16) (word data 16 + sum) (Bitstring.dropbits 16 data)
@@ -163,14 +163,14 @@ module IPv4 = struct
 			t.ttl : 8; t.protocol : 8; 0 (* checksum *) : 16;
 			unparse_addr t.src : 32 : bitstring;
 			unparse_addr t.dst : 32 : bitstring;
-			t.options : Bitstring.bitstring_length t.options : bitstring;
-			t.content : -1 : bitstring
+			t.options : Bitstring.bitstring_length t.options : bitstring(*;
+			t.content : -1 : bitstring*)
 		} in
 		let checksum_field = Bitstring.subbitstring packet 80 16 in
-		let n = checksum (Bitstring.subbitstring packet 0 80) in
+		let n = checksum packet in
 		let checksum = BITSTRING { n : 16 } in
 		Bitstring.blit checksum checksum_field;
-		packet
+		Bitstring.concat [packet; t.content]
 	
 	let broadcast = Addr (255, 255, 255, 255)
 	let invalid = Addr (0, 0, 0, 0)
