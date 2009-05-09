@@ -84,3 +84,23 @@ module UDP : sig
 	val unparse : t -> IPv4.addr -> IPv4.addr -> Bitstring.t
 
 end
+
+module TCP : sig
+
+	type flags = Urgent | Ack | Push | Reset | Syn | Finish
+	
+	type t = {
+		src_port : int;
+		dst_port : int;
+		seq_num : int32;
+		ack_num : int32;
+		flags : flags list;
+		window : int;
+		content : Bitstring.t;
+	}
+	
+	val parse : Bitstring.t -> t
+	
+	val unparse : t -> IPv4.addr -> IPv4.addr -> Bitstring.t
+
+end

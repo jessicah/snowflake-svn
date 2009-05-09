@@ -220,3 +220,84 @@ module UDP = struct
 		packet
 
 end
+
+module TCP = struct
+
+	type flags = Urgent | Ack | Push | Reset | Syn | Finish
+	
+	let flags = [ 32, Urgent; 16, Ack; 8, Push; 4, Reset; 2, Syn; 1, Finish ]
+	
+	let of_flag f = List.assoc f (List.map (fun (a,b) -> (b,a)) flags)
+	
+	let to_flags f =
+		List.map snd (List.filter (fun p -> fst p land f <> 0) flags)
+	
+	type t = {
+		src_port : int;
+		dst_port : int;
+		seq_num : int32;
+		ack_num : int32;
+		flags : flags list;
+		window : int;
+		content : Bitstring.t;
+	}
+	
+	let parse bits =
+		bitmatch bits with
+		{
+			src_port : 16;
+			dst_port : 16;
+			seq_num : 32;
+			ack_num : 32;
+			offset : 4;
+			_ : 6; (* reserved *)
+			flags : 6;
+			window : 16;
+			_ : 16; (* checksum *)
+			_ : 16; (* urgent pointer *)
+			_ : (offset-5) * 8 : bitstring;
+			content : -1 : bitstring
+		} -> {
+				src_port = src_port;
+				dst_port = dst_port;
+				seq_num = seq_num;
+				ack_num = ack_num;
+				flags = to_flags flags;
+				window = window;
+				content = content;
+			}
+	
+	let unparse t src_ip dst_ip (* no options or urgent pointer *) =
+		let flags = List.fold_right (fun f x -> of_flag f lor x) t.flags 0 in
+		let packet = BITSTRING {
+			t.src_port : 16;
+			t.dst_port : 16;
+			t.seq_num : 32;
+			t.ack_num : 32;
+			0x6000 lor flags : 16; (* no options, offset to data *)
+			t.window : 16;
+			0 : 16; (* checksum *)
+			0 : 16; (* urgent pointer *)
+			0l : 32; (* padding I think *)
+			t.content : -1 : bitstring
+		} in
+		(* put the checksum in *)
+		let checksum_field = Bitstring.subbitstring packet 128 16 in
+		let len = Bitstring.bitstring_length packet / 8 in
+		let header = BITSTRING {
+			IPv4.unparse_addr src_ip : 32 : bitstring;
+			IPv4.unparse_addr dst_ip : 32 : bitstring;
+			0x0006 : 16; (* tcp protocol *)
+			len : 16
+		} in
+		let checksum_data = Bitstring.concat [
+				header;
+				packet;
+				if len mod 2 = 0 then Bitstring.empty_bitstring
+				else BITSTRING { 0 : 8 }
+			]
+		in
+		let n = checksum checksum_data in
+		Bitstring.blit (BITSTRING { n : 16 }) checksum_field;
+		packet
+end
