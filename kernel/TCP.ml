@@ -25,7 +25,7 @@ type status = {
 
 type t = {
 	(* port we've bound to *)
-	src_port : int;
+	mutable src_port : int;
 	(* port we've connected to *)
 	dst_port : int;
 	(* ip we've connected to *)
@@ -55,12 +55,12 @@ let send t seq ack flags data =
 		flags
 		t.status.window_size
 		t.dst_ip
-		data
+		(Bitstring.bitstring_of_string data)
 
 let (++) = Int32.add (* so we have an infix operator for addition *)
 let one = Int32.one
 
-let empty = Bitstring.empty_bitstring
+let empty = ""
 
 let on_input cookie packet =
 	let has_flag f = List.mem f packet.flags in
@@ -83,14 +83,15 @@ let on_input cookie packet =
 				Vt100.printf "tcp: seq# not equal r_next\n";
 			end else begin
 				(* we have some packet data *)
-				let len = Bitstring.bitstring_length packet.content / 8 in
+				let packet_data = Bitstring.string_of_bitstring packet.content in
+				let len = String.length packet_data in
 				(* update r_next to next sequence #, current + data length *)
 				cookie.status.r_next <- cookie.status.r_next ++ (Int32.of_int len);
 				(* send ACK *)
 				send cookie cookie.status.s_next cookie.status.r_next [Ack] empty;
-				if len < cookie.status.window_size || has_flag Push then begin
+				if (len < cookie.status.window_size && len > 0) || has_flag Push then begin
 					(* reassemble and push to application layer *)
-					Vt100.printf "tcp: have data to push to application\n"
+					Vt100.printf "tcp: push data to app layer\n"
 				end else begin
 					(* add to packets to be reassembled later *)
 					Vt100.printf "tcp: caching packet data, to be reassembled later\n"
@@ -100,6 +101,34 @@ let on_input cookie packet =
 			Vt100.printf "unhandled tcp state\n";
 			NetworkStack.unbind_tcp cookie.src_port
 	end
+
+let rec do_output cookie app_data =
+	while cookie.status.mode = Syn_sent do
+		(* can't send until connection is established *)
+		Vt100.printf "waiting for established connection...\n";
+		Thread.yield ();
+	done;
+	match String.length app_data with
+	| 0 ->
+		(* no more data to send *)
+		()
+	| n when n > cookie.status.window_size ->
+		(* send up to window_size bytes *)
+		let data = String.sub app_data 0 cookie.status.window_size in
+		let s_next = cookie.status.s_next in
+		cookie.status.s_next <- cookie.status.s_next ++ (Int32.of_int cookie.status.window_size);
+		send cookie s_next cookie.status.r_next [Ack] data;
+		do_output cookie (String.sub app_data cookie.status.window_size (n - cookie.status.window_size))
+	| n when n = cookie.status.window_size ->
+		(* send the rest, which is exact fit *)
+		let s_next = cookie.status.s_next in
+		cookie.status.s_next <- cookie.status.s_next ++ (Int32.of_int n);
+		send cookie s_next cookie.status.r_next [Ack;Push] app_data
+	| n ->
+		(* send the rest, less than window_size *)
+		let s_next = cookie.status.s_next in
+		cookie.status.s_next <- cookie.status.s_next ++ (Int32.of_int n);
+		send cookie s_next cookie.status.r_next [Ack;Push] app_data
 
 (* connect to an end-point *)
 let connect ip port =
@@ -122,34 +151,16 @@ let connect ip port =
 	in
 	
 	t.on_input <- on_input t;
+	t.do_output <- do_output t;
 	
 	(* bind to the network stack first *)
 	NetworkStack.bind_tcp t.src_port t.on_input;
 	
 	(* send connection initiation packet *)
 	(* flags = SYN, seq = x *)
-	send t seq Int32.zero [Syn] empty
-	(*
-			
-	(* create a packet to the specified endpoint *)
-	let packet = create ip port in
-	(* set packet and status values *)
-	status.s_next <- x + 1;
-	packet.seq <- x;
-	packet.flags <- [SYN];
-	(* send the packet *)
-	send packet;
-	(* receive the packet -- in-place update *)
-	recv packet;
-	assert (packet.flags = [SYN;ACK]);
-	assert (packet.ack = status.s_next);
-	(* set packet and status values *)
-	status.r_next <- packet.seq + 1;
-	packet.seq <- status.r_next;
-	packet.ack <- status.s_next;
-	packet.flags <- [ACK];
-	(* send the packet, establishing the connection *)
-	send packet*)
+	send t seq Int32.zero [Syn] empty;
+	(* return function so we can test sending something... *)
+	t.do_output
 
 (* this is close, but not quite what we want *)
 type segment = (int * int * string) list

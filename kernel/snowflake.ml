@@ -53,8 +53,17 @@ let () =
 		IO.printf oc "GET /server-info HTTP/1.1\r\n\r\n";
 		let response = IO.nread ic 80 in
 		Vt100.printf "response:\n%s\n[end]\n" response;*)
-		let _ = TCP.connect (NetworkProtocolStack.IPv4.Addr (130, 123, 131, 228)) 3689 in
-		();
+		let f = TCP.connect (NetworkProtocolStack.IPv4.Addr (130, 123, 131, 228)) 3689 in
+		f "GET /server-info HTTP/1.1\r\n\r\n";
+		(* : now it's not working... =/
+		while true do
+			if Queue.is_empty q then begin
+				Thread.yield ();
+			end else begin
+				Vt100.printf "response:\n%s\n[end]\n" (Queue.take q);
+			end;
+			Thread.yield ();
+		done*)
 	with ex ->
 		Vt100.printf "netstack: %s\n" (Printexc.to_string ex)
 	end
