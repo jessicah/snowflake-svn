@@ -48,11 +48,11 @@ let () =
 	begin try
 		Vt100.printf "Starting netstack...\n";
 		NetworkStack.init ();
-		Vt100.printf "Opening connection to 130.123.131.228:3689...\n";
+		(*Vt100.printf "Opening connection to 130.123.131.228:3689...\n";
 		let (ic,oc) = NetworkStack.API.open_tcp (NetworkProtocolStack.IPv4.Addr (130, 123, 131, 228)) 3689 in
 		IO.printf oc "GET /server-info HTTP/1.1\r\n\r\n";
 		let response = IO.nread ic 80 in
-		Vt100.printf "response:\n%s\n[end]\n" response;
+		Vt100.printf "response:\n%s\n[end]\n" response;*)
 	with ex ->
 		Vt100.printf "netstack: %s\n" (Printexc.to_string ex)
 	end

@@ -91,6 +91,13 @@ module Ethernet = struct
 			t.content : -1 : bitstring
 		}
 	
+	let make dst src protocol content = BITSTRING {
+		unparse_addr dst : 48 : bitstring;
+		unparse_addr src : 48 : bitstring;
+		protocol : 16;
+		content : -1 : bitstring
+	}
+	
 	let broadcast = Addr (0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF)
 	
 	let invalid = Addr (0, 0, 0, 0, 0, 0)
@@ -152,26 +159,32 @@ module IPv4 = struct
 	let unparse_addr = function Addr (a,b,c,d) ->
 		BITSTRING { a : 8; b : 8; c : 8; d : 8 }
 	
-	let unparse t =
-		let hdrlen = (Bitstring.bitstring_length t.options) / 32 + 5 in
-		let length = Bitstring.bitstring_length t.content / 8 in
+	let make ?(tos = 0) ?(ttl = 255) protocol src dst content =
+		(* really, options should be a function parameter *)
+		let options = Bitstring.empty_bitstring in
+		let hdrlen = (Bitstring.bitstring_length options) / 32 + 5 in
+		let length = Bitstring.bitstring_length content / 8 in
 		let packet = BITSTRING {
 			4 : 4; hdrlen : 4;
-			t.tos : 8; length + hdrlen*4 : 16;
+			tos : 8; length + hdrlen*4 : 16;
 			0xBABE : (* identification *) : 16;
 			0 (* flags *) : 3;
 			0 (* fragoffset *) : 13;
-			t.ttl : 8; t.protocol : 8; 0 (* checksum *) : 16;
-			unparse_addr t.src : 32 : bitstring;
-			unparse_addr t.dst : 32 : bitstring;
-			t.options : Bitstring.bitstring_length t.options : bitstring(*;
+			ttl : 8; protocol : 8; 0 (* checksum *) : 16;
+			unparse_addr src : 32 : bitstring;
+			unparse_addr dst : 32 : bitstring;
+			options : Bitstring.bitstring_length options : bitstring(*;
 			t.content : -1 : bitstring*)
 		} in
 		let checksum_field = Bitstring.subbitstring packet 80 16 in
 		let n = checksum packet in
 		let checksum = BITSTRING { n : 16 } in
 		Bitstring.blit checksum checksum_field;
-		Bitstring.concat [packet; t.content]
+		Bitstring.concat [packet; content]
+	
+	let unparse t = make
+		(* options in t are ignored presently *)
+		~tos:t.tos ~ttl:t.ttl t.protocol t.src t.dst t.content
 	
 	let broadcast = Addr (255, 255, 255, 255)
 	let invalid = Addr (0, 0, 0, 0)
@@ -201,12 +214,12 @@ module UDP = struct
 			content = content;
 		} (* validate checksum later *)
 	
-	let unparse t src_addr dst_addr =
+	let make src_port dst_port src_addr dst_addr content =
 		let packet = BITSTRING {
-			t.src : 16; t.dst : 16;
-			((Bitstring.bitstring_length t.content)/8) + 8 : 16;
+			src_port : 16; dst_port : 16;
+			((Bitstring.bitstring_length content)/8) + 8 : 16;
 			0 (* checksum *) : 16;
-			t.content : -1 : bitstring }
+			content : -1 : bitstring }
 		in
 		let header = BITSTRING {
 			IPv4.unparse_addr src_addr : 32 : bitstring;
@@ -219,6 +232,9 @@ module UDP = struct
 		let checksum = BITSTRING { n : 16 } in
 		Bitstring.blit checksum checksum_field;
 		packet
+	
+	let unparse t src_addr dst_addr =
+		make t.src t.dst src_addr dst_addr t.content
 
 end
 
@@ -268,19 +284,19 @@ module TCP = struct
 				content = content;
 			}
 	
-	let unparse t src_ip dst_ip (* no options or urgent pointer *) =
-		let flags = List.fold_right (fun f x -> of_flag f lor x) t.flags 0 in
+	let make src_port dst_port seq_num ack_num flags window src_ip dst_ip content (* no options or urgent pointer *) =
+		let flags = List.fold_right (fun f x -> of_flag f lor x) flags 0 in
 		let packet = BITSTRING {
-			t.src_port : 16;
-			t.dst_port : 16;
-			t.seq_num : 32;
-			t.ack_num : 32;
+			src_port : 16;
+			dst_port : 16;
+			seq_num : 32;
+			ack_num : 32;
 			0x6000 lor flags : 16; (* no options, offset to data *)
-			t.window : 16;
+			window : 16;
 			0 : 16; (* checksum *)
 			0 : 16; (* urgent pointer *)
 			0l : 32; (* padding I think *)
-			t.content : -1 : bitstring
+			content : -1 : bitstring
 		} in
 		(* put the checksum in *)
 		let checksum_field = Bitstring.subbitstring packet 128 16 in
@@ -301,4 +317,12 @@ module TCP = struct
 		let n = checksum checksum_data in
 		Bitstring.blit (BITSTRING { n : 16 }) checksum_field;
 		packet
+	
+	let unparse t src_ip dst_ip = make
+		t.src_port t.dst_port t.seq_num t.ack_num t.flags t.window src_ip dst_ip t.content
 end
+
+let make_eth = Ethernet.make
+let make_ip = IPv4.make
+let make_udp = UDP.make
+let make_tcp = TCP.make

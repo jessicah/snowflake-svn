@@ -15,14 +15,6 @@ val send : string -> unit
 val recv : unit -> string
 val get_hw_addr : unit -> NetworkProtocolStack.Ethernet.addr
 
-module API : sig
-	val make_ip_packet : ?tos:int -> ?ttl:int -> int -> ?src:NetworkProtocolStack.IPv4.addr -> NetworkProtocolStack.IPv4.addr -> Bitstring.t -> Bitstring.t
-	val make_udp_packet : int -> int -> ?src_ip:NetworkProtocolStack.IPv4.addr -> NetworkProtocolStack.IPv4.addr -> Bitstring.t -> Bitstring.t
-	val make_eth_packet : NetworkProtocolStack.Ethernet.addr -> ?src:NetworkProtocolStack.Ethernet.addr -> int -> Bitstring.t -> Bitstring.t
-	
-	val open_tcp : NetworkProtocolStack.IPv4.addr -> int -> (IO.input * unit IO.output)
-end
-
 module type ETHERNET = sig
 		type t
 		val init : unit -> t

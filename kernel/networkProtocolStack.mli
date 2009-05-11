@@ -31,6 +31,8 @@ module Ethernet : sig
 	
 	val unparse : t -> Bitstring.t
 	
+	val make : addr -> addr -> int -> Bitstring.t -> Bitstring.t
+	
 	val broadcast : addr
 	
 	val invalid : addr
@@ -63,6 +65,8 @@ module IPv4 : sig
 	
 	val unparse : t -> Bitstring.t
 	
+	val make : ?tos:int -> ?ttl:int -> int -> addr -> addr -> Bitstring.t -> Bitstring.t
+	
 	val broadcast : addr
 	
 	val invalid : addr
@@ -82,6 +86,8 @@ module UDP : sig
 	val parse : Bitstring.t -> t
 	
 	val unparse : t -> IPv4.addr -> IPv4.addr -> Bitstring.t
+	
+	val make : int -> int -> IPv4.addr -> IPv4.addr -> Bitstring.t -> Bitstring.t
 
 end
 
@@ -102,5 +108,12 @@ module TCP : sig
 	val parse : Bitstring.t -> t
 	
 	val unparse : t -> IPv4.addr -> IPv4.addr -> Bitstring.t
+	
+	val make : int -> int -> int32 -> int32 -> flags list -> int -> IPv4.addr -> IPv4.addr -> Bitstring.t -> Bitstring.t
 
 end
+
+val make_eth : Ethernet.addr -> Ethernet.addr -> int -> Bitstring.t -> Bitstring.t
+val make_ip : ?tos:int -> ?ttl:int -> int -> IPv4.addr -> IPv4.addr -> Bitstring.t -> Bitstring.t
+val make_udp : int -> int -> IPv4.addr -> IPv4.addr -> Bitstring.t -> Bitstring.t
+val make_tcp : int -> int -> int32 -> int32 -> TCP.flags list -> int -> IPv4.addr -> IPv4.addr -> Bitstring.t -> Bitstring.t
