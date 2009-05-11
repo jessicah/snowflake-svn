@@ -38,6 +38,9 @@ type t = {
 	mutable do_output : string -> unit;
 	(* maintains the state for this TCP connection *)
 	status : status;
+	(* to wait for connection to be established *)
+	m : Mutex.t;
+	cv : Condition.t;
 }
 
 (* gets a port to bind to; it's a nasty hack *)
@@ -76,6 +79,10 @@ let on_input cookie packet =
 				Vt100.printf "tcp: connection established\n";
 				cookie.status.mode <- Established;
 				cookie.status.r_next <- packet.seq_num ++ one;
+				(* signal cv to say connection established *)
+				Mutex.lock cookie.m;
+				Condition.signal cookie.cv;
+				Mutex.unlock cookie.m;
 				(* send ACK to complete handshake *)
 				send cookie packet.ack_num cookie.status.r_next [Ack] empty
 			end
@@ -120,11 +127,6 @@ let on_input cookie packet =
 	end
 
 let rec do_output cookie app_data =
-	while cookie.status.mode = Syn_sent do
-		(* can't send until connection is established *)
-		Vt100.printf "waiting for established connection...\n";
-		Thread.yield ();
-	done;
 	match String.length app_data with
 	| 0 ->
 		(* no more data to send *)
@@ -157,18 +159,19 @@ let connect ip port =
 			dst_port = port;
 			dst_ip = ip;
 			on_input = ignore; (* fixme! *)
-			do_output = ignore; (* fixme! *)
+			do_output = begin fun _ -> failwith "tcp: not ready!" end; (* fixme! *)
 			status = {
 				s_next = seq ++ one;
 				r_next = Int32.zero;
 				window_size = 512;
 				mode = Syn_sent;
 			};
+			m = Mutex.create ();
+			cv = Condition.create ();
 		}
 	in
 	
 	t.on_input <- on_input t;
-	t.do_output <- do_output t;
 	
 	(* bind to the network stack first *)
 	NetworkStack.bind_tcp t.src_port t.on_input;
@@ -176,6 +179,14 @@ let connect ip port =
 	(* send connection initiation packet *)
 	(* flags = SYN, seq = x *)
 	send t seq Int32.zero [Syn] empty;
+	(* wait for connection to be established *)
+	Mutex.lock t.m;
+	while t.status.mode = Syn_sent do
+		Condition.wait t.cv t.m;
+	done;
+	Mutex.unlock t.m;
+	(* connection established *)
+	t.do_output <- do_output t;
 	(* return function so we can test sending something... *)
 	t.do_output
 
