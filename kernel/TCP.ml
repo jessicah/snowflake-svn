@@ -78,7 +78,7 @@ let on_input cookie packet =
 				NetworkStack.unbind_tcp cookie.src_port;
 				send cookie Int32.zero Int32.zero [Reset] empty;
 			end else begin
-				Vt100.printf "tcp: connection established\n";
+				(*Vt100.printf "tcp: connection established\n";*)
 				cookie.status.mode <- Established;
 				cookie.status.r_next <- packet.seq_num ++ one;
 				(* signal cv to say connection established *)
@@ -90,7 +90,9 @@ let on_input cookie packet =
 			end
 		| Established ->
 			if packet.seq_num <> cookie.status.r_next then begin
-				Vt100.printf "tcp: seq# not equal r_next\n";
+				(*Vt100.printf "tcp: seq# not equal r_next\n";*)
+				(* ignore it *)
+				()
 			end else begin
 				(* we have some packet data *)
 				let packet_data = Bitstring.string_of_bitstring packet.content in
@@ -113,14 +115,15 @@ let on_input cookie packet =
 					()
 				end else begin
 					(* add to packets to be reassembled later *)
-					Vt100.printf "tcp: caching packet data, to be reassembled later\n"
+					(*Vt100.printf "tcp: caching packet data, to be reassembled later\n"*)
+					()
 				end
 			end
 		| Closing when has_flag Ack ->
 			(* close the connection *)
 			cookie.status.mode <- Closed;
 			NetworkStack.unbind_tcp cookie.src_port;
-			Vt100.printf "tcp: connection closed\n";
+			(*Vt100.printf "tcp: connection closed\n";*)
 		| Closed ->
 			Vt100.printf "tcp: received data on closed connection\n";
 		| _ ->
@@ -191,7 +194,29 @@ let connect ip port =
 	(* connection established *)
 	t.do_output <- do_output t;
 	(* return function so we can test sending something... *)
-	t.do_output, t.queue
+	t
+
+let open_channel ip port =
+	let t = connect ip port in
+	let pos = ref 0 in
+	let rec enum () =
+		if Queue.is_empty t.queue && t.status.mode <> Established then
+			raise Enum.No_more_elements;
+		if Queue.is_empty t.queue then begin
+			pos := 0;
+			while Queue.is_empty t.queue do
+				Thread.yield ();
+			done;
+		end;
+		if !pos = String.length (Queue.peek t.queue) then begin
+			ignore (Queue.pop t.queue);
+			enum ()
+		end else begin
+			let ch = (Queue.peek t.queue).[!pos] in
+			incr pos;
+			ch
+		end
+	in t.do_output, IO.input_enum (Enum.from enum)		
 
 (* this is close, but not quite what we want *)
 type segment = (int * int * string) list
