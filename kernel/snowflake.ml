@@ -54,7 +54,7 @@ let () =
 		let response = IO.nread ic 80 in
 		Vt100.printf "response:\n%s\n[end]\n" response;*)
 		let f = TCP.connect (NetworkProtocolStack.IPv4.Addr (130, 123, 131, 228)) 3689 in
-		f "GET /server-info HTTP/1.1\r\n\r\n";
+		f "GET /server-info HTTP/1.0\r\n\r\n";
 		(* : now it's not working... =/
 		while true do
 			if Queue.is_empty q then begin

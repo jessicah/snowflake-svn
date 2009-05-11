@@ -68,9 +68,10 @@ let on_input cookie packet =
 		| Syn_sent when has_flag Syn && has_flag Ack ->
 			(* establishing connection *)
 			if packet.ack_num <> cookie.status.s_next then begin
-				Vt100.printf "tcp: ack# not equal next seq#\n";
+				Vt100.printf "tcp: ack# not equal next seq#, reset connection\n";
 				(* should close the connection now *)
 				NetworkStack.unbind_tcp cookie.src_port;
+				send cookie Int32.zero Int32.zero [Reset] empty;
 			end else begin
 				Vt100.printf "tcp: connection established\n";
 				cookie.status.mode <- Established;
@@ -87,16 +88,32 @@ let on_input cookie packet =
 				let len = String.length packet_data in
 				(* update r_next to next sequence #, current + data length *)
 				cookie.status.r_next <- cookie.status.r_next ++ (Int32.of_int len);
-				(* send ACK *)
-				send cookie cookie.status.s_next cookie.status.r_next [Ack] empty;
+				if has_flag Finish then begin
+					(* send FIN & ACK *)
+					cookie.status.r_next <- cookie.status.r_next ++ one;
+					cookie.status.mode <- Closing;
+					send cookie cookie.status.s_next cookie.status.r_next [Ack;Finish] empty;
+				end else begin
+					(* send ACK *)
+					send cookie cookie.status.s_next cookie.status.r_next [Ack] empty;
+				end;
 				if (len < cookie.status.window_size && len > 0) || has_flag Push then begin
 					(* reassemble and push to application layer *)
 					Vt100.printf "tcp: push data to app layer\n"
+				end else if len = 0 then begin
+					()
 				end else begin
 					(* add to packets to be reassembled later *)
 					Vt100.printf "tcp: caching packet data, to be reassembled later\n"
 				end
 			end
+		| Closing when has_flag Ack ->
+			(* close the connection *)
+			cookie.status.mode <- Closed;
+			NetworkStack.unbind_tcp cookie.src_port;
+			Vt100.printf "tcp: connection closed\n";
+		| Closed ->
+			Vt100.printf "tcp: received data on closed connection\n";
 		| _ ->
 			Vt100.printf "unhandled tcp state\n";
 			NetworkStack.unbind_tcp cookie.src_port
