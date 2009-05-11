@@ -49,8 +49,14 @@ let () =
 		Vt100.printf "Starting netstack...\n";
 		NetworkStack.init ();
 		Vt100.printf "Reading iTunes server info at 130.123.131.228...\n";
-		let server_info = HTTP.request "/server-info" [130;123;131;228] 3689 in
+		let server = [130;123;131;228] in
+		let server_info = HTTP.request "/server-info" server 3689 in
 		DAAP.parse_server_info server_info;
+		let content_codes = HTTP.request "/content-codes" server 3689 in
+		(* ignore *)
+		let login = HTTP.request "/login" server 3689 in
+		(* got login response *)
+		DAAP.parse_login login;
 	with ex ->
 		Vt100.printf "netstack: %s\n" (Printexc.to_string ex)
 	end

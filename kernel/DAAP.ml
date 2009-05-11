@@ -194,3 +194,14 @@ let parse_server_info server_info =
 		"minm", "Library Name";
 		"msdc", "Database Count";
 	]
+
+let parse_login login =
+	let tag, data, rest = parse (Bitstring.bitstring_of_string login) in
+	if String.compare tag "mlog" <> 0 then
+		failwith "daap: expected login response";
+	let daap = parse_kind tag data in
+	Vt100.printf "Login Response:\n";
+	print daap [
+		"mstt", "Status";
+		"mlid", "Session ID";
+	]
