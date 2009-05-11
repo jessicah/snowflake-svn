@@ -53,6 +53,8 @@ let () =
 		IO.printf oc "GET /server-info HTTP/1.1\r\n\r\n";
 		let response = IO.nread ic 80 in
 		Vt100.printf "response:\n%s\n[end]\n" response;*)
+		let _ = TCP.connect (NetworkProtocolStack.IPv4.Addr (130, 123, 131, 228)) 3689 in
+		();
 	with ex ->
 		Vt100.printf "netstack: %s\n" (Printexc.to_string ex)
 	end

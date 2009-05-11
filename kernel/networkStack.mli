@@ -11,9 +11,15 @@ type net_device = {
 
 val register_device : net_device -> unit
 
+(* this is all kind of random being here... *)
 val send : string -> unit
 val recv : unit -> string
 val get_hw_addr : unit -> NetworkProtocolStack.Ethernet.addr
+
+val send_eth : NetworkProtocolStack.Ethernet.addr -> int -> Bitstring.t -> unit
+val send_ip : int -> NetworkProtocolStack.IPv4.addr -> Bitstring.t -> unit
+val send_udp : int -> int -> NetworkProtocolStack.IPv4.addr -> Bitstring.t -> unit
+val send_tcp : int -> int -> int32 -> int32 -> NetworkProtocolStack.TCP.flags list -> int -> NetworkProtocolStack.IPv4.addr -> Bitstring.t -> unit
 
 module type ETHERNET = sig
 		type t
@@ -33,5 +39,8 @@ module EthernetDriver : functor (Driver : ETHERNET) -> sig
 module EthernetStack : sig
 	val create : (int -> 'a) -> (unit -> string) -> ('a -> string -> unit) -> int -> ('a -> NetworkProtocolStack.Ethernet.addr) -> net_device
 end
+
+val bind_tcp : int -> (NetworkProtocolStack.TCP.t -> unit) -> unit
+val unbind_tcp : int -> unit
 
 val init : unit -> unit

@@ -59,12 +59,11 @@ let settings = {
 		netmask = P.IPv4.invalid;
 		gateway = P.IPv4.invalid;
 	}
-	
-(*	let tcp_bindings = Hashtbl.create 7
-	
-	let bind_tcp port f =
-		Hashtbl.add tcp_bindings port f*)
-	
+
+let send_eth dst protocol content =
+	send (Bitstring.string_of_bitstring
+		(P.Ethernet.make dst (get_hw_addr ()) protocol content))
+
 module ARP = struct
 	(* provides address resolution service to the rest of the network stack *)
 	(* currently, it's just for IPv4 :P *)
@@ -92,8 +91,7 @@ module ARP = struct
 			in
 			let entries = Hashtbl.length table in
 			(* send the packet! *)
-			send (Bitstring.string_of_bitstring 
-				(P.Ethernet.make P.Ethernet.invalid (get_hw_addr ()) 0x0806 content));
+			send_eth P.Ethernet.invalid 0x0806 content;
 			(* wait for ARP table to be updated *)
 			Mutex.lock m;
 			while entries = Hashtbl.length table do
@@ -117,8 +115,10 @@ module ARP = struct
 		} ->
 			let ip = P.IPv4.parse_addr sender_ip in
 			let mac = P.Ethernet.parse_addr sender_mac in
-			(* update the table *)
-			if ip <> P.IPv4.invalid then
+			let target_mac = P.Ethernet.parse_addr target_mac in
+			let this_mac = get_hw_addr () in
+			(* update the table if we already have the IP, or it matches us *)
+			if ip <> P.IPv4.invalid && (Hashtbl.mem table ip || target_mac = this_mac) then
 				Hashtbl.replace table ip mac;
 			(* notify that we have a new entry in our ARP table *)				
 			Mutex.lock m;
@@ -126,7 +126,8 @@ module ARP = struct
 			Mutex.unlock m;
 			(*Vt100.printf "Added new mapping: %s => %s\n"
 				(P.IPv4.to_string ip) (P.Ethernet.to_string mac);*)
-			if opcode = 1 && P.Ethernet.parse_addr target_mac = (get_hw_addr ()) then begin (* it's a request *)
+			if opcode = 1 && target_mac = this_mac then begin
+				(* send reply to request for our mac address *)
 				Vt100.printf "Got an ARP request\n";
 				let content = BITSTRING {
 					1 : 16; 0x0800 : 16; 6 : 8; 4 : 8; 2 : 16;
@@ -135,12 +136,23 @@ module ARP = struct
 					sender_mac : 48 : bitstring;
 					sender_ip : 32 : bitstring
 				} in
-				send (Bitstring.string_of_bitstring
-					(P.Ethernet.make mac (get_hw_addr ()) 0x0806 content));
+				send_eth mac 0x0806 content
 			end
 		| { _ : -1 : bitstring } -> ()
 
 end
+
+let send_ip protocol dst content =
+	send_eth (ARP.lookup dst) 0x0800
+		(P.IPv4.make protocol settings.ip dst content)
+
+let send_udp src_port dst_port dst_ip content =
+	send_ip 17 (* UDP over IP *) dst_ip
+		(P.UDP.make src_port dst_port settings.ip dst_ip content)
+
+let send_tcp src_port dst_port seq ack flags window dst_ip content =
+	send_ip 6 (* TCP over IP *) dst_ip
+		(P.TCP.make src_port dst_port seq ack flags window settings.ip dst_ip content)
 	
 (*	type tcp_state = Listen | Syn_sent | Syn_recv | Established | Fin_wait1 | Fin_wait2
 		| Close_wait | Closing | Last_ack | Time_wait | Closed
@@ -341,6 +353,13 @@ end
 
 (* run the network stack *)
 
+(* hmm: where does routing go? *)
+
+let tcp_bindings = Hashtbl.create 7
+
+let bind_tcp port f = Hashtbl.add tcp_bindings port f
+let unbind_tcp port = Hashtbl.remove tcp_bindings port
+
 let init () =
 	(* hard-code the settings for now :P *)
 	settings.ip <- P.IPv4.Addr (130,123,131,217);
@@ -355,19 +374,19 @@ let init () =
 			match eth.P.Ethernet.protocol with
 				| 0x0806 -> (* got an ARP packet *)
 					ARP.process_arp eth.P.Ethernet.content
-				(*| 0x0800 -> (* got an IP packet *)
+				| 0x0800 -> (* got an IP packet *)
 					let ip = P.IPv4.parse eth.P.Ethernet.content in
 					begin match ip.P.IPv4.protocol with
 					| 6 (* tcp *) ->
 						begin
 							let tcp = P.TCP.parse ip.P.IPv4.content in
 							try
-								let f = Hashtbl.find API.tcp_bindings tcp.P.TCP.dst_port in
+								let f = Hashtbl.find tcp_bindings tcp.P.TCP.dst_port in
 								f tcp
 							with Not_found -> Vt100.printf "No handler for port %d...\n" tcp.P.TCP.dst_port
 						end
 					| _ -> ()
-					end*)
+					end
 				| _ -> (* discard packet *)
 					()
 		with ex -> Vt100.printf "netstack read: %s\n" (Printexc.to_string ex) end
