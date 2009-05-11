@@ -20,15 +20,15 @@
 PACKAGE		= @PACKAGE_NAME@
 VERSION		= @PACKAGE_VERSION@
 
-OCAMLMKLIB	= ../ocaml/bin/ocamlmklib
-CAMLP4OF	= ../ocaml/bin/camlp4of
-OCAMLC		= ../ocaml/bin/ocamlc
-OCAMLOPT	= ../ocaml/bin/ocamlopt
-OCAMLDEP	= ../ocaml/bin/ocamldep
+OCAMLMKLIB	= @OCAMLMKLIB@
+CAMLP4OF	= @CAMLP4OF@
+OCAMLC		= @OCAMLC@
+OCAMLOPT	= @OCAMLOPT@
+OCAMLDEP	= @OCAMLDEP@
 
 BYTESWAP_H	= @BYTESWAP_H@
 
-OCAMLLIB	= ../ocaml/lib/ocaml
+OCAMLLIB	= @OCAMLLIB@
 top_srcdir	= @top_srcdir@
 srcdir		= @srcdir@
 

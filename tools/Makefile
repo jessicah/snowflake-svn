@@ -15,7 +15,8 @@ $(OCAMLFILE):
 	touch $(OCAMLFILE)
 
 bitstring: $(BITSTRINGFILE) ocaml
-	cd $(BITSTRING) && cp -f ../Makefile.in.bitstring Makefile.in && ./configure --prefix=$(PWD)/ocaml
+	
+	cd $(BITSTRING) && cp -f ../Makefile.in.bitstring Makefile.in && cp -f ../configure.bitstring configure && PATH=../ocaml/bin:$$PATH$$ ./configure
 	$(MAKE) -C $(BITSTRING) all install
 	touch bitstring
 

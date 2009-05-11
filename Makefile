@@ -34,6 +34,5 @@ clean:
 	rm -rf cdrom/iso_prep
 	rm -f myocamlbuild_config.ml
 
-distclean:
+distclean: clean
 	$(MAKE) -C tools clean
-	rm -f myocamlbuild_config.ml

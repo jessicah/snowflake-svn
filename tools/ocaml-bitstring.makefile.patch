@@ -1,6 +1,0 @@
-34a35
-> srcdir     = @srcdir@
-116c117
-< 	$(OCAMLFIND) ocamlc -I +camlp4 unix.cma camlp4lib.cma \
----
-> 	$(OCAMLFIND) ocamlc -I +camlp4 unix.cma dynlink.cma camlp4lib.cma \
