@@ -462,10 +462,10 @@ value caml_thread_exit(value unit)   /* ML */
 
 value caml_thread_yield(value unit)        /* ML */
 {
-  if (caml_runtime_waiters == 0) {
+  /*if (caml_runtime_waiters == 0) {
 		thread_yield();
 		return Val_unit;
-	}
+	}*/
   caml_enter_blocking_section();
   caml_young_limit = caml_young_end;
   /*if (! broken_sched_yield)*/ thread_yield();

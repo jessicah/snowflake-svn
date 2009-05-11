@@ -41,6 +41,8 @@ type t = {
 	(* to wait for connection to be established *)
 	m : Mutex.t;
 	cv : Condition.t;
+	(* buffer for received (reassembled) packets *)
+	queue : string Queue.t;
 }
 
 (* gets a port to bind to; it's a nasty hack *)
@@ -106,7 +108,7 @@ let on_input cookie packet =
 				end;
 				if (len < cookie.status.window_size && len > 0) || has_flag Push then begin
 					(* reassemble and push to application layer *)
-					Vt100.printf "tcp: push data to app layer\n"
+					Queue.add packet_data cookie.queue;
 				end else if len = 0 then begin
 					()
 				end else begin
@@ -168,6 +170,7 @@ let connect ip port =
 			};
 			m = Mutex.create ();
 			cv = Condition.create ();
+			queue = Queue.create ();
 		}
 	in
 	
@@ -188,7 +191,7 @@ let connect ip port =
 	(* connection established *)
 	t.do_output <- do_output t;
 	(* return function so we can test sending something... *)
-	t.do_output
+	t.do_output, t.queue
 
 (* this is close, but not quite what we want *)
 type segment = (int * int * string) list
