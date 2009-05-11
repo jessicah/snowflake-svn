@@ -206,6 +206,12 @@ let init () =
 	in
 	ignore (Thread.create thread_fun ())
 
+module Helpers = struct
+	let ip_addr = function
+		| [a;b;c;d] -> P.IPv4.Addr(a,b,c,d)
+		| _ -> failwith "Invalid IP address"
+end
+
 module type ETHERNET = sig
 		type t
 		val init : unit -> t

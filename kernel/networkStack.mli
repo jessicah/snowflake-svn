@@ -21,6 +21,10 @@ val send_ip : int -> NetworkProtocolStack.IPv4.addr -> Bitstring.t -> unit
 val send_udp : int -> int -> NetworkProtocolStack.IPv4.addr -> Bitstring.t -> unit
 val send_tcp : int -> int -> int32 -> int32 -> NetworkProtocolStack.TCP.flags list -> int -> NetworkProtocolStack.IPv4.addr -> Bitstring.t -> unit
 
+module Helpers : sig
+	val ip_addr : int list -> NetworkProtocolStack.IPv4.addr
+end
+
 module type ETHERNET = sig
 		type t
 		val init : unit -> t

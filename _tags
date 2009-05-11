@@ -35,6 +35,7 @@ true: -byte, native, nostdlib
 <kernel/networkStack.ml>: use_bitstring
 <kernel/dhcpClient.ml>: use_bitstring
 <kernel/ELF.ml>: use_bitstring
+<kernel/DAAP.ml>: use_bitstring
 
 <{test1.o,test2.o,test.out}>: precious
 
