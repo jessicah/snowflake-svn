@@ -50,13 +50,17 @@ let () =
 		NetworkStack.init ();
 		Vt100.printf "Reading iTunes server info at 130.123.131.228...\n";
 		let server = [130;123;131;228] in
-		let server_info = HTTP.request "/server-info" server 3689 in
+		let server_info = HTTP.request "/server-info" [] server 3689 in
 		DAAP.parse_server_info server_info;
-		let content_codes = HTTP.request "/content-codes" server 3689 in
+		let content_codes = HTTP.request "/content-codes" [] server 3689 in
 		(* ignore *)
-		let login = HTTP.request "/login" server 3689 in
+		let login = HTTP.request "/login" [] server 3689 in
 		(* got login response *)
-		DAAP.parse_login login;
+		let session_id = DAAP.parse_login login in
+		let update = HTTP.request (Printf.sprintf "/update?session-id=%ld" session_id) [
+			"Authorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ=="
+		] server 3689 in
+		Vt100.printf "got database updates...\n";
 	with ex ->
 		Vt100.printf "netstack: %s\n" (Printexc.to_string ex)
 	end

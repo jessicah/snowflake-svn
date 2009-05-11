@@ -165,6 +165,22 @@ let rec print (tag,kind) fields =
 	| _ -> ()
 	end
 
+let rec find_list t = function
+	| [] -> raise Not_found
+	| (tag,kind) :: xs when tag = t -> kind
+	| (_,Ls l) :: xs -> begin
+			try find_list t l
+			with Not_found -> find_list t xs
+		end
+	| _ :: xs -> find_list t xs
+	| _ -> raise Not_found
+let find (tag,kind) t =
+	if String.compare tag t = 0 then kind
+	else begin match kind with
+	| Ls l -> find_list t l
+	| _ -> raise Not_found
+	end
+
 (*let features = [
 		"msix", "index"; "msex", "extensions"; "msup", "update";
 		"msal", "auto-logout"; "mslr", "requires-logon";
@@ -204,4 +220,6 @@ let parse_login login =
 	print daap [
 		"mstt", "Status";
 		"mlid", "Session ID";
-	]
+	];
+	let I id = find daap "mlid" in
+	id

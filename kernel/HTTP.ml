@@ -2,10 +2,14 @@
 open ExtString
 
 (* a very naive HTTP client :P *)
-let request path ip port =
+let request path headers ip port =
 	let ip = NetworkStack.Helpers.ip_addr ip in
 	let writer, queue = TCP.connect ip port in
-	Printf.kprintf writer "GET %s HTTP/1.0\r\n\r\n" path;
+	let headers = String.concat "\r\n" headers in
+	if String.length headers > 0 then
+		Printf.kprintf writer "GET %s HTTP/1.0\r\n%s\r\n\r\n" path headers
+	else
+		Printf.kprintf writer "GET %s HTTP/1.0\r\n\r\n" path;
 	while Queue.is_empty queue do
 		Thread.yield ();
 	done;
