@@ -49,7 +49,7 @@ let types = [
 	"mlog", List;
 	"mlid", Int;
 	"mupd", List;
-	"msur", Int;
+	"musr", Int;
 	"muty", Byte;
 	"mudl", List;
 	"avdb", List;
@@ -223,3 +223,27 @@ let parse_login login =
 	];
 	let I id = find daap "mlid" in
 	id
+
+let parse_update update =
+	let tag, data, rest = parse (Bitstring.bitstring_of_string update) in
+	if String.compare tag "mupd" <> 0 then
+		failwith "daap: expected update response";
+	let daap = parse_kind tag data in
+	let I id = find daap "musr" in
+	id
+
+let output_databases database_list =
+	let tag, data, rest = parse (Bitstring.bitstring_of_string database_list) in
+	if String.compare tag "avdb" <> 0 then
+		failwith "daap: expected database list";
+	let daap = parse_kind tag data in
+	let Ls records = find daap "mlcl" in
+	Vt100.printf "Databases:\n";
+	List.iter begin fun daap ->
+		print daap [
+			"miid", "ID";
+			"minm", "Name";
+			"mimc", "Songs";
+			"mctc", "Playlists";
+		]
+	end records

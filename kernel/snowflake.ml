@@ -57,10 +57,12 @@ let () =
 		let login = HTTP.request "/login" [] server 3689 in
 		(* got login response *)
 		let session_id = DAAP.parse_login login in
-		let update = HTTP.request (Printf.sprintf "/update?session-id=%ld" session_id) [
-			"Authorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ=="
-		] server 3689 in
-		Vt100.printf "got database updates...\n";
+		(* get revision id *)
+		let update = HTTP.request (Printf.sprintf "/update?session-id=%ld" session_id) [] server 3689 in
+		let revision_id = DAAP.parse_update update in
+		(* get database list *)
+		let database_list = HTTP.request (Printf.sprintf "/databases?session-id=%ld&revision-id=%ld" session_id revision_id) [] server 3689 in
+		DAAP.output_databases database_list;
 	with ex ->
 		Vt100.printf "netstack: %s\n" (Printexc.to_string ex)
 	end

@@ -168,7 +168,7 @@ let connect ip port =
 			status = {
 				s_next = seq ++ one;
 				r_next = Int32.zero;
-				window_size = 512;
+				window_size = 4096;
 				mode = Syn_sent;
 			};
 			m = Mutex.create ();
