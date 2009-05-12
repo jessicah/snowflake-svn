@@ -12,10 +12,10 @@ open PCI
 let () =
 	Vga.init (); (* set up a pretty console font *)
 	Keyboard.init (); (* set up the keyboard handler *)
-	Tulip.init (); (* unfortunately it won't get linked in otherwise... *)
+	(*Tulip.init (); (* unfortunately it won't get linked in otherwise... *)
     E1000.init ();
 	IDE.init ();
-	ICH0.init ();
+	ICH0.init ();*)
 	RealTek8139.init ();
 	Vt100.printf "Hello, from ML :)\nUsing ocaml version: %s\n" Sys.ocaml_version;
 	Asm.sti ();
@@ -35,16 +35,16 @@ let () =
 	begin try
 		Sb16.output (Array.concat (Array.to_list (Array.make 256 sample)));
 	with Sb16.Timeout -> () end;*)
-	ignore (Thread.create echo_shell ());
-	begin try
+	ignore (Thread.create echo_shell () "echo shell");
+	(*begin try
 		Vt100.printf "Attempting to load and play wave file...\n";
 		let wave_data = Multiboot.open_module () in
 		let wave = AudioMixer.Wave.read (BlockIO.make wave_data) in
-		AudioMixer.play wave;
+		ignore (Thread.create AudioMixer.play wave "audio mixer");
 	with ex ->
 		Vt100.printf "audio mixer: %s\n"
 			(Printexc.to_string ex)
-	end;
+	end;*)
 	begin try
 		Vt100.printf "Starting netstack...\n";
 		NetworkStack.init ();
@@ -62,7 +62,15 @@ let () =
 		let revision_id = DAAP.parse_update update in
 		(* get database list *)
 		let database_list = HTTP.request (Printf.sprintf "/databases?session-id=%ld&revision-id=%ld" session_id revision_id) [] server 3689 in
-		DAAP.output_databases database_list;
+		(*DAAP.output_databases database_list;*)
+		(* get song list *)
+		let r = Printf.sprintf "/databases/%ld/items?type=music&session-id=%ld&revision-id=%ld" Int32.one session_id revision_id in
+		let song_list = HTTP.request r [] server 3689 in
+		DAAP.output_songs song_list;
+		let r = Printf.sprintf
+			"/databases/1/items/1829.wav?session-id=%ld" session_id in
+		let wave_data = HTTP.request r [] server 3689 in
+		Vt100.printf "got wave data! (%d bytes)\n" (String.length wave_data);
 	with ex ->
 		Vt100.printf "netstack: %s\n" (Printexc.to_string ex)
 	end

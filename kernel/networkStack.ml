@@ -33,15 +33,21 @@ let register_device dev = match !devices with
 (* really, we shouldn't expose these! *)
 
 let send data = match !devices with
-	| [] -> failwith "netstack: no nic to send on!"
+	| [] -> 
+		Vt100.printf "netstack: no nic to send on!";
+		failwith "netstack: no nic to send on!"
 	| x :: _ -> x.send data
 
 let recv () = match !devices with
-	| [] -> failwith "netstack: no nic to recv from!"
+	| [] -> 
+		Vt100.printf "netstack: no nic to recv from!";
+		failwith "netstack: no nic to recv from!"
 	| x :: _ -> x.recv ()
 
 let get_hw_addr () = match !devices with
-	| [] -> failwith "netstack: no nic present!"
+	| [] ->
+		Vt100.printf "netstack: no nic present!";
+		failwith "netstack: no nic present!"
 	| x :: _ -> x.hw_addr
 
 module P = NetworkProtocolStack
@@ -202,9 +208,9 @@ let init () =
 		done;
 		Mutex.unlock m;
 		(* start the read thread *)
-		ignore (Thread.create read_thread ())
+		ignore (Thread.create read_thread () "netstack_read")
 	in
-	ignore (Thread.create thread_fun ())
+	ignore (Thread.create thread_fun () "netstack_init")
 
 module Helpers = struct
 	let ip_addr = function

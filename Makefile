@@ -28,6 +28,9 @@ all: myocamlbuild_config.ml
 myocamlbuild_config.ml: myocamlbuild_config.ml.in
 	sed -e 's/@TOOLSPREFIX@/$(subst /,\/,$(TOOLSPREFIX))/' $< > $@
 
+qemu:
+	qemu -serial stdio -cdrom snowflake.iso -soundhw all -net nic,model=rtl8139 -net tap -m 96 -no-kqemu
+
 clean:
 	$(OCAMLBUILD) -clean || true
 	rm -f $(ISO)

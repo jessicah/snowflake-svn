@@ -247,3 +247,16 @@ let output_databases database_list =
 			"mctc", "Playlists";
 		]
 	end records
+
+let output_songs song_list =
+	let tag, data, rest = parse (Bitstring.bitstring_of_string song_list) in
+	(*if String.compare tag "apso" <> 0 then
+		failwith "daap: expected song list";*)
+	let daap = parse_kind tag data in
+	let Ls records = find daap "mlcl" in
+	Vt100.printf "Songs:\n";
+	List.iter begin fun daap ->
+		print daap [
+			"minm", "Name";
+		]
+	end records

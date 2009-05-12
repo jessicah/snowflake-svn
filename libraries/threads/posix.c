@@ -364,7 +364,7 @@ static void * caml_thread_start(void * arg)
   return NULL;
 }  
 
-value caml_thread_new(value clos)          /* ML */
+value caml_thread_new(value clos, value name)          /* ML */
 {
   caml_thread_t th;
   value mu = Val_unit;
@@ -404,6 +404,7 @@ value caml_thread_new(value clos)          /* ML */
     curr_thread->next = th;
     /* Fork the new thread */
     thread_create(&th->pthread, caml_thread_start, (void *) th);
+	dprintf("ocaml thread: %d = %s\n", Int_val(Ident(th->descr)), String_val(name));
   End_roots();
   return descr;
 }

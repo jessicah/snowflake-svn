@@ -188,19 +188,27 @@ void set_signal_handler(int signum, struct sigaction *sa, struct sigaction *olds
 	}
 	if (sa) {
 		if (sa->sa_handler == SIG_DFL) {
+			#ifdef DEBUG_THREADS
 			dprintf("setting to default handler\r\n");
+			#endif
 			signal_handlers[signum] = default_handler;
 		} else if (sa->sa_handler == SIG_IGN) {
+			#ifdef DEBUG_THREADS
 			dprintf("setting to ignore\r\n");
+			#endif
 			signal_handlers[signum] = ignore_handler;
 		} else {
+			#ifdef DEBUG_THREADS
 			dprintf("installing a signal handler for irq %d\r\n", signum);
+			#endif
 			signal_handlers[signum] = sa->sa_handler;
 		}
 	} else {
 		signal_handlers[signum] = default_handler;
 	}
+	#ifdef DEBUG_THREADS
 	dprintf("set_signal_handler\r\n");
+	#endif
 }
 
 #define EI(n) extern irq##n();

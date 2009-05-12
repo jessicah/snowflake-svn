@@ -47,7 +47,7 @@ type t = {
 
 (* gets a port to bind to; it's a nasty hack *)
 let get_port =
-	let next = ref 60000 in
+	let next = ref 40000 in
 	begin fun () -> decr next; !next end
 
 (* utility function to send TCP packets *)

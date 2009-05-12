@@ -18,7 +18,7 @@
 type t
 
 external thread_initialize : unit -> unit = "caml_thread_initialize"
-external thread_new : (unit -> unit) -> t = "caml_thread_new"
+external thread_new : (unit -> unit) -> string -> t = "caml_thread_new"
 external thread_uncaught_exception : exn -> unit = 
             "caml_thread_uncaught_exception"
 
@@ -33,13 +33,13 @@ external wake : t -> unit = "caml_thread_wake"
 (* For new, make sure the function passed to thread_new never
    raises an exception. *)
 
-let create fn arg =
+let create fn arg name =
   thread_new
     (fun () ->
       try
         fn arg; ()
       with exn ->
-             thread_uncaught_exception exn)
+             thread_uncaught_exception exn) name
 
 (* Thread.kill is currently not implemented due to problems with
    cleanup handlers on several platforms *)

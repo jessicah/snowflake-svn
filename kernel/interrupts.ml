@@ -15,6 +15,6 @@ let create irq cb =
 			if irq > 7 then
 				Asm.out8 0xA0 0x20;
 		done
-	) () in
+	) () (Printf.sprintf "irq %d" irq) in
 	let u () = unsafe_unlock m in
 	ignore (Sys.signal irq (Sys.Signal_handle (fun _ -> u ())))

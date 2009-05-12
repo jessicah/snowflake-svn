@@ -90,7 +90,7 @@ let create device =
 			let rec loop () =
 				if block_input.pos >= len then begin
 					(* we've finished! *)
-					()
+					Vt100.printf "no more audio\n";
 				end else begin
 					(* we can shuffle more data into the card *)
 					Mutex.lock m;
