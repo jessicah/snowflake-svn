@@ -962,10 +962,10 @@ CAMLprim value caml_ba_to_string(value vsrc)
 	  caml_ba_num_elts(src)
 	  * caml_ba_element_size[src->flags & CAML_BA_KIND_MASK];
 	/* Create string of num_bytes */
-	char *dst = (char*)malloc(sizeof(char)*num_bytes);
+	value s = caml_alloc_string(num_bytes);
 	/* Do the copying */
-	memmove(dst, src->data, num_bytes);
-	return caml_copy_string(dst);
+	memmove(String_val(s), src->data, num_bytes);
+	return s;
 }
 
 /* Filling a big array with a given value */

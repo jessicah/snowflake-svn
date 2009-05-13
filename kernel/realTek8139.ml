@@ -276,25 +276,28 @@ let create pcii =
 				(*if length = 0xFFF0 then raise Restart;*)
 				(* I don't understand why it resets the card if length > 1518... *)
 				if bits land 0x1 = 0 (*|| length > 1518*) then (reset properties; raise Restart);
-				let packet = String.create (length - 4) in
+				let packet =
+					(* hopefully a more efficient, and possibly correct, copying algo *)
 				if properties.receivebufferoffset + (length - 4) > 65536 then begin
-					(* unused: let len = 0x10000 - (properties.receivebufferoffset + 4) in*)
-					let j = ref (properties.receivebufferoffset + 4) in
-					for i = 0 to String.length packet - 1 do
-						if !j >= 0x10000 then j := 0;
-						packet.[i] <- char_of_int properties.receivebuffer.{!j};
-						incr j;
-					done;
+					let len = 0x10000 - (properties.receivebufferoffset + 4) in
+					Vt100.printf "wrap-around: %d-%d : %d-%d = %d\n"
+						(properties.receivebufferoffset + 4) len
+						0 (length - 4 - len) ((length - 4 - len) + len);
+					String.concat "" [
+						Array1.to_string
+							(Array1.sub properties.receivebuffer (properties.receivebufferoffset + 4) len);
+						Array1.to_string
+							(Array1.sub properties.receivebuffer 0 (length - 4 - len))
+						]
 				end else begin
-					for i = 0 to String.length packet - 1 do
-						packet.[i] <- char_of_int properties.receivebuffer.{properties.receivebufferoffset + 4 + i};
-					done;
-				end;
+					Array1.to_string (Array1.sub properties.receivebuffer (properties.receivebufferoffset + 4) (length - 4))
+				end
+				in
 				(* the land (lnot 3) makes it a multiple of four... the adding of 3 appears to be due to the bitwise ops *)
 				(* it doesn't seem to account for wrap-around... *)
 				properties.receivebufferoffset <- (properties.receivebufferoffset + length + 4 + 3) land (lnot 3);
 				(* try this... *)
-				if properties.receivebufferoffset >= 0x10000 then
+				if properties.receivebufferoffset >= (0x10000+16) then
 					properties.receivebufferoffset <- properties.receivebufferoffset - 0x10000;
 				if properties.receivebufferoffset < 16 then
 					Vt100.printf "rtl: writing negative value to capr\n";
