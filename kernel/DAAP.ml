@@ -28,7 +28,7 @@ let types = [
 	"mbcl", List;
 	"mdcl", List;
 	"msrv", List;
-	(*msaud*)
+	"msau", Byte;
 	"mslr", Byte;
 	"mpro", Version;
 	"apro", Version;
@@ -103,6 +103,10 @@ let parse bits = bitmatch bits with {
 		data : (Int32.to_int length) * 8 : bitstring;
 		rest : -1 : bitstring
 	} -> tag, data, rest
+	| { packet : -1 : bitstring } ->
+		Vt100.printf "daap: parse, failure matching packet:\n";
+		Vt100.printf "%s (%d)\n" (Bitstring.string_of_bitstring bits) (String.length (Bitstring.string_of_bitstring bits));
+		"", packet, Bitstring.empty_bitstring
 
 let rec parse_kind tag data =
 	if List.mem_assoc tag types then
@@ -202,25 +206,25 @@ let parse_server_info server_info =
 		failwith "daap: expected server info response";
 	if Bitstring.bitstring_length rest <> 0 then
 		Vt100.printf "daap: warning, trailing data found\n";
-	let daap = parse_kind tag data in
+	(*let daap = parse_kind tag data in
 	Vt100.printf "Server Info:\n";
 	print daap [
 		"mpro", "M-Version";
 		"apro", "A-Version";
 		"minm", "Library Name";
 		"msdc", "Database Count";
-	]
+	]*)Vt100.printf "server_info done\n"
 
 let parse_login login =
 	let tag, data, rest = parse (Bitstring.bitstring_of_string login) in
 	if String.compare tag "mlog" <> 0 then
 		failwith "daap: expected login response";
 	let daap = parse_kind tag data in
-	Vt100.printf "Login Response:\n";
+	(*Vt100.printf "Login Response:\n";
 	print daap [
 		"mstt", "Status";
 		"mlid", "Session ID";
-	];
+	];*)
 	let I id = find daap "mlid" in
 	id
 
@@ -236,7 +240,7 @@ let output_databases database_list =
 	let tag, data, rest = parse (Bitstring.bitstring_of_string database_list) in
 	if String.compare tag "avdb" <> 0 then
 		failwith "daap: expected database list";
-	let daap = parse_kind tag data in
+	(*let daap = parse_kind tag data in
 	let Ls records = find daap "mlcl" in
 	Vt100.printf "Databases:\n";
 	List.iter begin fun daap ->
@@ -246,7 +250,7 @@ let output_databases database_list =
 			"mimc", "Songs";
 			"mctc", "Playlists";
 		]
-	end records
+	end records*)Vt100.printf "done db list\n"
 
 let output_songs song_list =
 	let tag, data, rest = parse (Bitstring.bitstring_of_string song_list) in

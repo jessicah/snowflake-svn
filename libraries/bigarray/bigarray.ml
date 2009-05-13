@@ -113,6 +113,7 @@ module Array1 = struct
     let ofs = if layout = c_layout then 0 else 1 in
     for i = 0 to Array.length data - 1 do set ba (i + ofs) data.(i) done;
     ba
+  external to_string: ('a, 'b, 'c) t -> string = "caml_ba_to_string"
 end
 
 module Array2 = struct

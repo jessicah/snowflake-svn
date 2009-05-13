@@ -167,7 +167,7 @@ module IPv4 = struct
 		let packet = BITSTRING {
 			4 : 4; hdrlen : 4;
 			tos : 8; length + hdrlen*4 : 16;
-			0xBABE : (* identification *) : 16;
+			(Random.int 0xFFFF) land 0xFFFF : (* identification *) : 16;
 			0 (* flags *) : 3;
 			0 (* fragoffset *) : 13;
 			ttl : 8; protocol : 8; 0 (* checksum *) : 16;

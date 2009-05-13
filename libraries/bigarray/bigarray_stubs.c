@@ -951,6 +951,23 @@ CAMLprim value caml_ba_blit(value vsrc, value vdst)
   return Val_unit;              /* not reached */
 }
 
+/* Copying a big array, making a string */
+
+CAMLprim value caml_ba_to_string(value vsrc)
+{
+	struct caml_ba_array * src = Caml_ba_array_val(vsrc);
+	intnat num_bytes;
+	/* Compute number of bytes in array data */
+	num_bytes =
+	  caml_ba_num_elts(src)
+	  * caml_ba_element_size[src->flags & CAML_BA_KIND_MASK];
+	/* Create string of num_bytes */
+	char *dst = (char*)malloc(sizeof(char)*num_bytes);
+	/* Do the copying */
+	memmove(dst, src->data, num_bytes);
+	return caml_copy_string(dst);
+}
+
 /* Filling a big array with a given value */
 
 CAMLprim value caml_ba_fill(value vb, value vinit)

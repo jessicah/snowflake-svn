@@ -70,7 +70,7 @@ let empty = ""
 let on_input cookie packet =
 	let has_flag f = List.mem f packet.flags in
 	begin match cookie.status.mode with
-		| Syn_sent when has_flag Syn && has_flag Ack ->
+		| Syn_sent when (*has_flag Syn &&*) has_flag Ack ->
 			(* establishing connection *)
 			if packet.ack_num <> cookie.status.s_next then begin
 				Vt100.printf "tcp: ack# not equal next seq#, reset connection\n";
@@ -88,7 +88,7 @@ let on_input cookie packet =
 				(* send ACK to complete handshake *)
 				send cookie packet.ack_num cookie.status.r_next [Ack] empty
 			end
-		| Established ->
+		| Established | Closing ->
 			if packet.seq_num <> cookie.status.r_next then begin
 				(*Vt100.printf "tcp: seq# not equal r_next\n";*)
 				(* ignore it *)
@@ -106,28 +106,34 @@ let on_input cookie packet =
 					send cookie cookie.status.s_next cookie.status.r_next [Ack;Finish] empty;
 				end else begin
 					(* send ACK *)
-					send cookie cookie.status.s_next cookie.status.r_next [Ack] empty;
+					if packet.window > 0 then
+						send cookie cookie.status.s_next cookie.status.r_next [Ack] empty;
 				end;
 				if (len < cookie.status.window_size && len > 0) || has_flag Push then begin
 					(* reassemble and push to application layer *)
 					Queue.add packet_data cookie.queue;
 				end else if len = 0 then begin
-					()
+					if cookie.status.mode = Closing then begin
+						cookie.status.mode <- Closed;
+						NetworkStack.unbind_tcp cookie.src_port;
+					end;
 				end else begin
 					(* add to packets to be reassembled later *)
 					(*Vt100.printf "tcp: caching packet data, to be reassembled later\n"*)
-					()
+					Queue.add packet_data cookie.queue;
 				end
 			end
 		| Closing when has_flag Ack ->
 			(* close the connection *)
 			cookie.status.mode <- Closed;
-			NetworkStack.unbind_tcp cookie.src_port;
+			(*NetworkStack.unbind_tcp cookie.src_port;*)
+			send cookie Int32.zero Int32.zero [Reset] empty;
 			(*Vt100.printf "tcp: connection closed\n";*)
 		| Closed ->
 			Vt100.printf "tcp: received data on closed connection\n";
 		| _ ->
 			Vt100.printf "unhandled tcp state\n";
+			send cookie Int32.zero Int32.zero [Reset] empty;
 			NetworkStack.unbind_tcp cookie.src_port
 	end
 
@@ -168,7 +174,7 @@ let connect ip port =
 			status = {
 				s_next = seq ++ one;
 				r_next = Int32.zero;
-				window_size = 4096;
+				window_size = 64240; (* try a larger window size *)
 				mode = Syn_sent;
 			};
 			m = Mutex.create ();

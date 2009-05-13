@@ -21,3 +21,15 @@ let request path headers ip port =
 	(* return the response :P *)
 	IO.read_all input
 	(* since it's HTTP/1.0, the connection should close for us... *)
+
+let open_stream path ip port =
+	let ip = NetworkStack.Helpers.ip_addr ip in
+	let writer, input = TCP.open_channel ip port in
+	Printf.kprintf writer "GET %s HTTP/1.0\r\n\r\n" path;
+	let status = IO.read_line input in
+	if not (String.starts_with status "HTTP/1.0 200 OK") && not (String.starts_with status "HTTP/1.1 200 OK") then
+		Printf.kprintf failwith "http: %s\n" status;
+	skip_headers input;
+	(* return the input *)
+	input
+

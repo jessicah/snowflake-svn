@@ -445,6 +445,10 @@ module Array1 : sig
   (** Build a one-dimensional big array initialized from the
      given array.  *)
 
+  external to_string: ('a, 'b, 'c) t -> string
+	  = "caml_ba_to_string"
+  (** Copy the big array into a string. *)
+
 end
 
 

@@ -46,31 +46,44 @@ let () =
 			(Printexc.to_string ex)
 	end;*)
 	begin try
-		Vt100.printf "Starting netstack...\n";
 		NetworkStack.init ();
 		Vt100.printf "Reading iTunes server info at 130.123.131.228...\n";
 		let server = [130;123;131;228] in
+		Vt100.printf "server-info...\n";
 		let server_info = HTTP.request "/server-info" [] server 3689 in
-		DAAP.parse_server_info server_info;
+		(*DAAP.parse_server_info server_info;*)
+		Vt100.printf "content-codes...\n";
 		let content_codes = HTTP.request "/content-codes" [] server 3689 in
 		(* ignore *)
+		Vt100.printf "login... session-id = ";
 		let login = HTTP.request "/login" [] server 3689 in
 		(* got login response *)
 		let session_id = DAAP.parse_login login in
+		Vt100.printf "%ld\n" session_id;
 		(* get revision id *)
+		Vt100.printf "update... revision-id = ";
 		let update = HTTP.request (Printf.sprintf "/update?session-id=%ld" session_id) [] server 3689 in
 		let revision_id = DAAP.parse_update update in
-		(* get database list *)
+		Vt100.printf "%ld\n" revision_id;
+		(*(* get database list *)
+		Vt100.printf "databases...\n";
 		let database_list = HTTP.request (Printf.sprintf "/databases?session-id=%ld&revision-id=%ld" session_id revision_id) [] server 3689 in
 		(*DAAP.output_databases database_list;*)
 		(* get song list *)
+		Vt100.printf "songs...\n";
 		let r = Printf.sprintf "/databases/%ld/items?type=music&session-id=%ld&revision-id=%ld" Int32.one session_id revision_id in
 		let song_list = HTTP.request r [] server 3689 in
-		DAAP.output_songs song_list;
+		(*DAAP.output_songs song_list;*)*)
+		Vt100.printf "getting wave data...\n";
 		let r = Printf.sprintf
 			"/databases/1/items/1829.wav?session-id=%ld" session_id in
-		let wave_data = HTTP.request r [] server 3689 in
-		Vt100.printf "got wave data! (%d bytes)\n" (String.length wave_data);
+		let wave_data = HTTP.open_stream r server 3689 in
+		Vt100.printf "got input stream to the wave data!\n";
+		while true do
+			ignore (IO.nread wave_data 64240);
+			Vt100.printf "  .";
+		done;
+		Vt100.printf "[end of wave file]\n";
 	with ex ->
-		Vt100.printf "netstack: %s\n" (Printexc.to_string ex)
+		Vt100.printf "daap test: %s\n" (Printexc.to_string ex)
 	end

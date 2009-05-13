@@ -154,6 +154,7 @@ let create pcii =
 		}
 		
 		let reset properties =
+			Vt100.printf "rtl: resetting device\n";
 			out8 Registers.command CommandActions.reset;
 			out16 Registers.imr 0x00;
 			out16 Registers.cbr 0x00;
@@ -246,6 +247,7 @@ let create pcii =
 				Mutex.unlock m;
 				properties.writes <- properties.writes + 1;
 				properties.transmitbusy.(transmitid) <- true;
+				(* this is a very inefficient loop; we really want bigarrays throughout, not strings... *)
 				for i = 0 to String.length packet - 1 do
 					properties.transmitbuffer.(transmitid).{i} <- int_of_char packet.[i];
 				done;
@@ -258,12 +260,22 @@ let create pcii =
 			try
 				if in8 Registers.command land CommandActions.bufe <> 0 then
 					raise Break;
-				let packet_header = Array1.sub properties.receivebuffer properties.receivebufferoffset 5 in
+				let packet_header = begin try
+						Array1.sub properties.receivebuffer properties.receivebufferoffset 5
+					with _ ->
+						(* it appears the receiverbufferoffset is 8 bytes larger than the buffer size *)
+						(* buffer size is 65552 = 65536 (0x10000) + 16 *)
+						Vt100.printf "rtl: unable to extract packet header (%d, %d)\n" properties.receivebufferoffset
+							(Array1.dim properties.receivebuffer);
+						failwith "rtl: internal driver error";
+					end
+				in
 				(* packet_header: uint16 bits, uint16 length, uint8 data[1] *)
 				let length = (packet_header.{3} lsl 8) lor packet_header.{2}
 				and bits = (packet_header.{1} lsl 8) lor packet_header.{0} in
-				if length = 0xFFF0 then raise Restart;
-				if bits land 0x1 = 0 || length > 1518 then (reset properties; raise Restart);
+				(*if length = 0xFFF0 then raise Restart;*)
+				(* I don't understand why it resets the card if length > 1518... *)
+				if bits land 0x1 = 0 (*|| length > 1518*) then (reset properties; raise Restart);
 				let packet = String.create (length - 4) in
 				if properties.receivebufferoffset + (length - 4) > 65536 then begin
 					(* unused: let len = 0x10000 - (properties.receivebufferoffset + 4) in*)
@@ -278,8 +290,15 @@ let create pcii =
 						packet.[i] <- char_of_int properties.receivebuffer.{properties.receivebufferoffset + 4 + i};
 					done;
 				end;
+				(* the land (lnot 3) makes it a multiple of four... the adding of 3 appears to be due to the bitwise ops *)
+				(* it doesn't seem to account for wrap-around... *)
 				properties.receivebufferoffset <- (properties.receivebufferoffset + length + 4 + 3) land (lnot 3);
-				out16 Registers.capr (properties.receivebufferoffset - 16);
+				(* try this... *)
+				if properties.receivebufferoffset >= 0x10000 then
+					properties.receivebufferoffset <- properties.receivebufferoffset - 0x10000;
+				if properties.receivebufferoffset < 16 then
+					Vt100.printf "rtl: writing negative value to capr\n";
+				out16 Registers.capr (properties.receivebufferoffset - 16); (* what happens if this is negative? *)
 				(* send received packet to the rx_buffer *)
 				Event.sync (Event.send rx_buffer packet);
 			with Break -> Vt100.printf "rtl.read error!\r\n" | Restart -> read properties rx_buffer
@@ -301,7 +320,7 @@ let create pcii =
 					Condition.signal cv;*)
 				end;
 				out16 Registers.isr isr_contents;
-				isr properties rx_buffer ();
+				(*isr properties rx_buffer (); (* maybe we should just let this return... *)*)
 			with Break -> ()
 		
 		let address properties = match properties.address with
