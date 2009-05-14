@@ -40,3 +40,5 @@ external peek32 : int32 -> int32 = "snowflake_peek32"
 external poke32 : int32 -> int32 -> unit = "snowflake_poke32"
 external peek32_offset : int32 -> int -> int32 = "snowflake_peek32_offset"
 external poke32_offset : int32 -> int -> int32 -> unit = "snowflake_poke32_offset"
+
+external rdtsc : unit -> int64 = "snowflake_rdtsc"

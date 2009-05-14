@@ -128,3 +128,42 @@ CAMLprim value snowflake_poke32_offset(value address, value offset, value data) 
     *(volatile uint32 *)((char *)(Int32_val(address)) + Int_val(offset)) = Int32_val(data);
     return Val_unit;
 }
+
+typedef union {
+	unsigned long long tick;
+	struct {
+		unsigned long low;
+		unsigned long high;
+	} sub;
+} tick_t;
+
+#define ticks(tick) __asm__ __volatile__("rdtsc" : "=a" \
+				((tick).sub.low),"=d" ((tick).sub.high));
+
+unsigned long snowflake_random_seed() {
+	tick_t tick;
+	ticks(tick);
+	tick.tick /= 1000ULL;
+	return (unsigned long)tick.tick;
+}
+
+CAMLprim value snowflake_rdtsc(value unit) {
+	tick_t tick;
+	ticks(tick);
+	return caml_copy_int64(tick.tick);
+}
+
+CAMLprim value caml_sys_random_seed (value unit)
+{
+	return Val_long(snowflake_random_seed());
+}
+
+/*
+CAMLprim value snowflake_usleep(value usec) {
+	tick_t start, tick;
+	int diff = Int_val(usec);
+	ticks(start);
+	do {
+		ticks(tick);
+	} while (tick
+*/

@@ -45,10 +45,17 @@ type t = {
 	queue : string Queue.t;
 }
 
-(* gets a port to bind to; it's a nasty hack *)
-let get_port =
-	let next = ref 40000 in
-	begin fun () -> decr next; !next end
+let used_ports = ref []
+
+let rec get_port () =
+	let next = Random.int 60000 + 1024 in
+	(* make sure it's not used, else try again *)
+	if List.mem next !used_ports then get_port ()
+	else begin
+		(* add it to the used ports list and return it *)
+		used_ports := next :: !used_ports;
+		next
+	end
 
 (* utility function to send TCP packets *)
 let send t seq ack flags data =
@@ -163,7 +170,7 @@ let rec do_output cookie app_data =
 (* connect to an end-point *)
 let connect ip port =
 	(* our sending sequence seed *)
-	let seq = Random.int32 0xBABE_l in
+	let seq = Random.int32 (Int32.max_int) in
 	(* establish our state *)
 	let t = {
 			src_port = get_port ();
@@ -174,7 +181,7 @@ let connect ip port =
 			status = {
 				s_next = seq ++ one;
 				r_next = Int32.zero;
-				window_size = 64240; (* try a larger window size *)
+				window_size = 512; (*64240; (* try a larger window size *)*)
 				mode = Syn_sent;
 			};
 			m = Mutex.create ();

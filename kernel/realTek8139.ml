@@ -249,9 +249,6 @@ let create pcii =
 				properties.transmitbusy.(transmitid) <- true;
 				(* this is a very inefficient loop; we really want bigarrays throughout, not strings... *)
 				Array1.blit_from_string packet properties.transmitbuffer.(transmitid);
-				(*for i = 0 to String.length packet - 1 do
-					properties.transmitbuffer.(transmitid).{i} <- int_of_char packet.[i];
-				done;*)
 				let transmitdescription = (max (String.length packet) 60) lor 0x80000 in
 				out32 (Registers.tsd0 + (4 * transmitid)) (Int32.logand (Int32.of_int transmitdescription) (Int32.lognot (Int32.of_int TransmitDescription.own)));
 				properties.queued_packets <- properties.queued_packets + 1;
@@ -262,7 +259,7 @@ let create pcii =
 				if in8 Registers.command land CommandActions.bufe <> 0 then
 					raise Break;
 				let packet_header = begin try
-						Array1.sub properties.receivebuffer properties.receivebufferoffset 5
+						Array1.sub properties.receivebuffer properties.receivebufferoffset 4
 					with _ ->
 						(* it appears the receiverbufferoffset is 8 bytes larger than the buffer size *)
 						(* buffer size is 65552 = 65536 (0x10000) + 16 *)
@@ -312,13 +309,15 @@ let create pcii =
 					read properties rx_buffer;
 				end;
 				if isr_contents land InterruptStatusBits.transmitok <> 0 then begin
-					(*Mutex.lock m;*)
+					(* with cv never being signalled, if we had more than 4 calls to send above
+					   simultaneously, the driver would block *)
+					Mutex.lock m;
 					let transmitid = properties.finished_packets mod 4 in
 					properties.transmitbusy.(transmitid) <- false;
 					properties.writes <- properties.writes - 1;
 					properties.finished_packets <- properties.finished_packets + 1;
-					(*Mutex.unlock m;
-					Condition.signal cv;*)
+					Condition.signal cv;
+					Mutex.unlock m;
 				end;
 				out16 Registers.isr isr_contents;
 				isr properties rx_buffer (); (* maybe we should just let this return... *)

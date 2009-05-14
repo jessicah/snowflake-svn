@@ -20,8 +20,7 @@
    It is seeded by a MD5-based PRNG.
 *)
 
-(*external random_seed: unit -> int = "caml_sys_random_seed";;*)
-let random_seed () = 0xBABE;;
+external random_seed: unit -> int = "caml_sys_random_seed";;
 
 module State = struct
 

@@ -273,8 +273,11 @@ CAMLprim value caml_sys_time(value unit)
 extern intnat caml_win32_random_seed (void);
 #endif
 
+extern unsigned long snowflake_random_seed();
+
 CAMLprim value caml_sys_random_seed (value unit)
 {
+	/*
 #ifdef _WIN32
   return Val_long(caml_win32_random_seed());
 #else
@@ -291,6 +294,8 @@ CAMLprim value caml_sys_random_seed (value unit)
 #endif
   return Val_long(seed);
 #endif
+	*/
+	return Val_long(snowflake_random_seed());
 }
 
 CAMLprim value caml_sys_get_config(value unit)

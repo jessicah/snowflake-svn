@@ -123,13 +123,6 @@ module ARP = struct
 			let mac = P.Ethernet.parse_addr sender_mac in
 			let target_mac = P.Ethernet.parse_addr target_mac in
 			let this_mac = get_hw_addr () in
-			(* update the table if we already have the IP, or it matches us *)
-			if ip <> P.IPv4.invalid && (Hashtbl.mem table ip || target_mac = this_mac) then
-				Hashtbl.replace table ip mac;
-			(* notify that we have a new entry in our ARP table *)				
-			Mutex.lock m;
-			Condition.signal cv;
-			Mutex.unlock m;
 			(*Vt100.printf "Added new mapping: %s => %s\n"
 				(P.IPv4.to_string ip) (P.Ethernet.to_string mac);*)
 			if opcode = 1 && target_mac = this_mac then begin
@@ -143,7 +136,14 @@ module ARP = struct
 					sender_ip : 32 : bitstring
 				} in
 				send_eth mac 0x0806 content
-			end
+			end;
+			(* update the table if we already have the IP, or it matches us *)
+			if ip <> P.IPv4.invalid && (Hashtbl.mem table ip || target_mac = this_mac) then
+				Hashtbl.replace table ip mac;
+			(* notify that we have a new entry in our ARP table *)				
+			Mutex.lock m;
+			Condition.signal cv;
+			Mutex.unlock m;
 		| { _ : -1 : bitstring } -> ()
 
 end

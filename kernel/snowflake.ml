@@ -10,6 +10,8 @@ let print_device dev =
 open PCI
 
 let () =
+	(* seed the random number generator *)
+	Random.self_init ();
 	Vga.init (); (* set up a pretty console font *)
 	Keyboard.init (); (* set up the keyboard handler *)
 	(*Tulip.init (); (* unfortunately it won't get linked in otherwise... *)
@@ -81,7 +83,7 @@ let () =
 		Vt100.printf "got input stream to the wave data!\n";
 		while true do
 			(* dies in IO.nread *)
-			ignore (IO.nread wave_data 64240);
+			ignore (IO.nread wave_data 512);
 			Vt100.printf "  .";
 		done;
 		Vt100.printf "[end of wave file]\n";
