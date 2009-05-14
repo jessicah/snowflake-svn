@@ -259,6 +259,7 @@ let create pcii =
 				if in8 Registers.command land CommandActions.bufe <> 0 then
 					raise Break;
 				let packet_header = begin try
+						if properties.receivebufferoffset = 65552 then properties.receivebufferoffset <- 0;
 						Array1.sub properties.receivebuffer properties.receivebufferoffset 4
 					with _ ->
 						(* it appears the receiverbufferoffset is 8 bytes larger than the buffer size *)
@@ -276,8 +277,9 @@ let create pcii =
 				if bits land 0x1 = 0 (*|| length > 1518*) then (reset properties; raise Restart);
 				let packet =
 					(* hopefully a more efficient, and possibly correct, copying algo *)
+					try
 					if properties.receivebufferoffset + (length - 4) > 65536 then begin
-						let len = 0x10000 - (properties.receivebufferoffset + 4) in
+						let len = 65552 - (properties.receivebufferoffset + 4) in
 						String.concat "" [
 							Array1.to_string
 								(Array1.sub properties.receivebuffer (properties.receivebufferoffset + 4) len);
@@ -287,12 +289,23 @@ let create pcii =
 					end else begin
 						Array1.to_string (Array1.sub properties.receivebuffer (properties.receivebufferoffset + 4) (length - 4))
 					end
+					with Invalid_argument _ ->
+						if properties.receivebufferoffset + (length - 4) > 65536 then begin
+							Vt100.printf "rtl: get packet fail (wrapping): %d (%d) + %d (%d) = %d bytes (%d expected)\n"
+								(properties.receivebufferoffset + 4) (65552 - (properties.receivebufferoffset + 4))
+								0 (length - 4 - (65552 - (properties.receivebufferoffset + 4)))
+								((65552 - properties.receivebufferoffset + 4) + ((length - 4 - (65552 - (properties.receivebufferoffset + 4)))))
+								(length - 4)
+						end else begin
+							Vt100.printf "rtl: get packet fail: %d %d bytes\n" (properties.receivebufferoffset + 4) (length - 4)
+						end;
+						failwith "rtl: packet extraction logic fail"
 				in
 				(* the land (lnot 3) makes it a multiple of four... the adding of 3 appears to be due to the bitwise ops *)
 				(* it doesn't seem to account for wrap-around... *)
 				properties.receivebufferoffset <- (properties.receivebufferoffset + length + 4 + 3) land (lnot 3);
 				(* try this... *)
-				if properties.receivebufferoffset >= (0x10000+16) then
+				if properties.receivebufferoffset > (0x10000+16) then
 					properties.receivebufferoffset <- properties.receivebufferoffset - 0x10000;
 				if properties.receivebufferoffset < 16 then
 					Vt100.printf "rtl: writing negative value to capr\n";

@@ -111,6 +111,13 @@ let resample wave new_rate =
 
 (* Pretty much allows for only one audio device atm *)
 
+let play_to_raw device data =
+	begin try
+		device.output data
+	with ex ->
+		Vt100.printf "play_to_raw: %s\n" (Printexc.to_string ex)
+	end
+
 let play_to device wave =
 	match device.format with
 	| (bits,hertz,chans)
@@ -138,6 +145,10 @@ let device = ref None
 let play wave = match !device with
 	| None -> failwith "No audio device present"
 	| Some device -> play_to device wave
+
+let play_raw data = match !device with
+	| None -> failwith "No audio device present"
+	| Some device -> play_to_raw device data
 
 let stop () = failwith "not implemented"
 

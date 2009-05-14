@@ -118,7 +118,10 @@ let on_input cookie packet =
 				end;
 				if (len < cookie.status.window_size && len > 0) || has_flag Push then begin
 					(* reassemble and push to application layer *)
+					Mutex.lock cookie.m;
 					Queue.add packet_data cookie.queue;
+					Condition.signal cookie.cv;
+					Mutex.unlock cookie.m;
 				end else if len = 0 then begin
 					if cookie.status.mode = Closing then begin
 						cookie.status.mode <- Closed;
@@ -127,7 +130,10 @@ let on_input cookie packet =
 				end else begin
 					(* add to packets to be reassembled later *)
 					(*Vt100.printf "tcp: caching packet data, to be reassembled later\n"*)
+					Mutex.lock cookie.m;
 					Queue.add packet_data cookie.queue;
+					Condition.signal cookie.cv;
+					Mutex.unlock cookie.m;
 				end
 			end
 		| Closing when has_flag Ack ->
@@ -181,7 +187,7 @@ let connect ip port =
 			status = {
 				s_next = seq ++ one;
 				r_next = Int32.zero;
-				window_size = 512; (*64240; (* try a larger window size *)*)
+				window_size = 64240; (* try a larger window size *)
 				mode = Syn_sent;
 			};
 			m = Mutex.create ();
@@ -212,7 +218,50 @@ let connect ip port =
 let open_channel ip port =
 	let t = connect ip port in
 	let pos = ref 0 in
-	let rec enum () =
+	let input = IO.from_in_channel(object(self)
+			method input buf ofs len =
+				if Queue.is_empty t.queue then begin
+					if t.status.mode <> Established then begin
+						(*Vt100.printf "no more data";*)
+						0
+					end else begin
+						pos := 0;
+						Mutex.lock t.m;
+						while Queue.is_empty t.queue do
+							Condition.wait t.cv t.m;
+						done;
+						Mutex.unlock t.m;
+						self#input buf ofs len
+					end
+				end else begin
+					if !pos = String.length (Queue.peek t.queue) then begin
+						ignore (Queue.pop t.queue);
+						self#input buf ofs len
+					end else begin
+						let s = Queue.peek t.queue in
+						let l = String.length s in
+						match !pos, len with
+						| 0, _ when len > l ->
+							(*Vt100.printf " %d" l;*)
+							String.unsafe_blit s 0 buf ofs l;
+							pos := l;
+							l
+						| 0, _ ->
+							(*Vt100.printf " %d" len;*)
+							String.unsafe_blit s 0 buf ofs len;
+							pos := len;
+							len
+						| _ ->
+							let ll = min len (l - !pos) in
+							(*Vt100.printf " %d" ll;*)
+							String.unsafe_blit s !pos buf ofs ll;
+							pos := !pos + ll;
+							ll
+					end
+				end
+			method close_in () = ()
+		end)
+	(*let rec enum () =
 		if Queue.is_empty t.queue && t.status.mode <> Established then
 			raise Enum.No_more_elements;
 		if Queue.is_empty t.queue then begin
@@ -228,8 +277,8 @@ let open_channel ip port =
 			let ch = (Queue.peek t.queue).[!pos] in
 			incr pos;
 			ch
-		end
-	in t.do_output, IO.input_enum (Enum.from enum)		
+		end*)
+	in t.do_output, input
 
 (* this is close, but not quite what we want *)
 type segment = (int * int * string) list

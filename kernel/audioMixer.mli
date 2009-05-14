@@ -31,6 +31,7 @@ type output = {
 (* Pretty much allows for only one audio device atm *)
 
 val play : Wave.t -> unit
+val play_raw : BlockIO.input -> unit
 val stop : unit -> unit
 
 val register_device : output -> unit

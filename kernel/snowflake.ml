@@ -1,4 +1,6 @@
 
+open Bigarray
+
 let echo_shell () =
 	while true do
 		Vt100.printf "%c" (Keyboard.get_char ())
@@ -16,8 +18,8 @@ let () =
 	Keyboard.init (); (* set up the keyboard handler *)
 	(*Tulip.init (); (* unfortunately it won't get linked in otherwise... *)
     E1000.init ();
-	IDE.init ();
-	ICH0.init ();*)
+	IDE.init ();*)
+	ICH0.init ();
 	RealTek8139.init ();
 	Vt100.printf "Hello, from ML :)\nUsing ocaml version: %s\n" Sys.ocaml_version;
 	Asm.sti ();
@@ -81,10 +83,19 @@ let () =
 			"/databases/1/items/1829.wav?session-id=%ld" session_id in
 		let wave_data = HTTP.open_stream r server 3689 in
 		Vt100.printf "got input stream to the wave data!\n";
+		let input_buffer = BlockIO.make
+			(Array1.create int8_unsigned c_layout 131072)
+		in
+		(* process first buffer, which _should_ include the wave header... *)
+		Array1.blit_from_string (IO.nread wave_data 131072) input_buffer.BlockIO.data;
+		Vt100.printf "play it...\n";
+		AudioMixer.play (AudioMixer.Wave.read input_buffer);
+		(* now process all remaining buffers *)
 		while true do
-			(* dies in IO.nread *)
-			ignore (IO.nread wave_data 512);
-			Vt100.printf "  .";
+			Vt100.printf ".";
+			input_buffer.BlockIO.pos <- 0; (* reset position *)
+			Array1.blit_from_string (IO.nread wave_data 131072) input_buffer.BlockIO.data;
+			AudioMixer.play_raw input_buffer;
 		done;
 		Vt100.printf "[end of wave file]\n";
 	with
