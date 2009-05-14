@@ -56,8 +56,8 @@ let () =
 		Vt100.printf "server-info...\n";
 		let server_info = HTTP.request "/server-info" [] server 3689 in
 		(*DAAP.parse_server_info server_info;*)
-		Vt100.printf "content-codes...\n";
-		let content_codes = HTTP.request "/content-codes" [] server 3689 in
+		(*Vt100.printf "content-codes...\n";
+		let content_codes = HTTP.request "/content-codes" [] server 3689 in*)
 		(* ignore *)
 		Vt100.printf "login... session-id = ";
 		let login = HTTP.request "/login" [] server 3689 in
@@ -78,21 +78,27 @@ let () =
 		let r = Printf.sprintf "/databases/%ld/items?type=music&session-id=%ld&revision-id=%ld" Int32.one session_id revision_id in
 		let song_list = HTTP.request r [] server 3689 in
 		(*DAAP.output_songs song_list;*)*)
+		
+		
 		Vt100.printf "getting wave data...\n";
 		let r = Printf.sprintf
 			"/databases/1/items/1829.wav?session-id=%ld" session_id in
+			
 		let wave_data = HTTP.open_stream r server 3689 in
 		Vt100.printf "got input stream to the wave data!\n";
+		
 		let input_buffer = BlockIO.make
 			(Array1.create int8_unsigned c_layout 131072)
 		in
-		(* IO.nread allocates memory; don't do that! *)
+		
 		let string_buffer = String.make 131072 '\000' in
+		
 		(* process first buffer, which _should_ include the wave header... *)
 		ignore (IO.really_input wave_data string_buffer 0 131072);
 		Array1.blit_from_string string_buffer input_buffer.BlockIO.data;
 		Vt100.printf "play it...\n";
 		AudioMixer.play (AudioMixer.Wave.read input_buffer);
+		
 		(* now process all remaining buffers *)
 		while true do
 			Vt100.printf ".";
@@ -101,6 +107,7 @@ let () =
 			Array1.blit_from_string string_buffer input_buffer.BlockIO.data;
 			AudioMixer.play_raw input_buffer;
 		done;
+		
 		Vt100.printf "[end of wave file]\n";
 	with
 		|Invalid_argument x ->

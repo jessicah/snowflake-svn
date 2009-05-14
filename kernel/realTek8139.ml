@@ -232,19 +232,22 @@ let create pcii =
 			properties
 		
 		let send properties packet =
-			Mutex.lock m;
+			(*Mutex.lock m;*)
 			while properties.writes = 4 do
-				Condition.wait cv m;
+				(*Condition.wait cv m;*)
+				(* yield, because this should be fast *)
+				Thread.yield ();
 			done;
-			Mutex.unlock m;
+			(*Mutex.unlock m;*)
 			try
 				if String.length packet > 1792 then raise Break;
 				let transmitid = properties.queued_packets mod 4 in
-				Mutex.lock m;
+				(*Mutex.lock m;*)
 				while properties.transmitbusy.(transmitid) do
-					Condition.wait cv m;
+					(*Condition.wait cv m;*)
+					Thread.yield (); (* this should be fast *)
 				done;
-				Mutex.unlock m;
+				(*Mutex.unlock m;*)
 				properties.writes <- properties.writes + 1;
 				properties.transmitbusy.(transmitid) <- true;
 				(* this is a very inefficient loop; we really want bigarrays throughout, not strings... *)
@@ -324,13 +327,13 @@ let create pcii =
 				if isr_contents land InterruptStatusBits.transmitok <> 0 then begin
 					(* with cv never being signalled, if we had more than 4 calls to send above
 					   simultaneously, the driver would block *)
-					Mutex.lock m;
+					(*Mutex.lock m;*)
 					let transmitid = properties.finished_packets mod 4 in
 					properties.transmitbusy.(transmitid) <- false;
 					properties.writes <- properties.writes - 1;
 					properties.finished_packets <- properties.finished_packets + 1;
-					Condition.signal cv;
-					Mutex.unlock m;
+					(*Condition.signal cv;
+					Mutex.unlock m;*)
 				end;
 				out16 Registers.isr isr_contents;
 				isr properties rx_buffer (); (* maybe we should just let this return... *)
