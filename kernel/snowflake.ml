@@ -80,10 +80,14 @@ let () =
 		let wave_data = HTTP.open_stream r server 3689 in
 		Vt100.printf "got input stream to the wave data!\n";
 		while true do
+			(* dies in IO.nread *)
 			ignore (IO.nread wave_data 64240);
 			Vt100.printf "  .";
 		done;
 		Vt100.printf "[end of wave file]\n";
-	with ex ->
-		Vt100.printf "daap test: %s\n" (Printexc.to_string ex)
+	with
+		|Invalid_argument x ->
+			Vt100.printf "daap test: invalid argument: %s\n" x
+		| ex ->
+			Vt100.printf "daap test: %s\n" (Printexc.to_string ex)
 	end

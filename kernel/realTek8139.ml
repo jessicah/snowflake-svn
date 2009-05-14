@@ -248,9 +248,10 @@ let create pcii =
 				properties.writes <- properties.writes + 1;
 				properties.transmitbusy.(transmitid) <- true;
 				(* this is a very inefficient loop; we really want bigarrays throughout, not strings... *)
-				for i = 0 to String.length packet - 1 do
+				Array1.blit_from_string packet properties.transmitbuffer.(transmitid);
+				(*for i = 0 to String.length packet - 1 do
 					properties.transmitbuffer.(transmitid).{i} <- int_of_char packet.[i];
-				done;
+				done;*)
 				let transmitdescription = (max (String.length packet) 60) lor 0x80000 in
 				out32 (Registers.tsd0 + (4 * transmitid)) (Int32.logand (Int32.of_int transmitdescription) (Int32.lognot (Int32.of_int TransmitDescription.own)));
 				properties.queued_packets <- properties.queued_packets + 1;
@@ -278,20 +279,17 @@ let create pcii =
 				if bits land 0x1 = 0 (*|| length > 1518*) then (reset properties; raise Restart);
 				let packet =
 					(* hopefully a more efficient, and possibly correct, copying algo *)
-				if properties.receivebufferoffset + (length - 4) > 65536 then begin
-					let len = 0x10000 - (properties.receivebufferoffset + 4) in
-					Vt100.printf "wrap-around: %d-%d : %d-%d = %d\n"
-						(properties.receivebufferoffset + 4) len
-						0 (length - 4 - len) ((length - 4 - len) + len);
-					String.concat "" [
-						Array1.to_string
-							(Array1.sub properties.receivebuffer (properties.receivebufferoffset + 4) len);
-						Array1.to_string
-							(Array1.sub properties.receivebuffer 0 (length - 4 - len))
-						]
-				end else begin
-					Array1.to_string (Array1.sub properties.receivebuffer (properties.receivebufferoffset + 4) (length - 4))
-				end
+					if properties.receivebufferoffset + (length - 4) > 65536 then begin
+						let len = 0x10000 - (properties.receivebufferoffset + 4) in
+						String.concat "" [
+							Array1.to_string
+								(Array1.sub properties.receivebuffer (properties.receivebufferoffset + 4) len);
+							Array1.to_string
+								(Array1.sub properties.receivebuffer 0 (length - 4 - len))
+							]
+					end else begin
+						Array1.to_string (Array1.sub properties.receivebuffer (properties.receivebufferoffset + 4) (length - 4))
+					end
 				in
 				(* the land (lnot 3) makes it a multiple of four... the adding of 3 appears to be due to the bitwise ops *)
 				(* it doesn't seem to account for wrap-around... *)
@@ -323,7 +321,7 @@ let create pcii =
 					Condition.signal cv;*)
 				end;
 				out16 Registers.isr isr_contents;
-				(*isr properties rx_buffer (); (* maybe we should just let this return... *)*)
+				isr properties rx_buffer (); (* maybe we should just let this return... *)
 			with Break -> ()
 		
 		let address properties = match properties.address with

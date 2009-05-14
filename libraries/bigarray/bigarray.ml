@@ -114,6 +114,7 @@ module Array1 = struct
     for i = 0 to Array.length data - 1 do set ba (i + ofs) data.(i) done;
     ba
   external to_string: ('a, 'b, 'c) t -> string = "caml_ba_to_string"
+  external blit_from_string: string -> ('a, 'b, 'c) t -> unit = "caml_ba_blit_from_string"
 end
 
 module Array2 = struct

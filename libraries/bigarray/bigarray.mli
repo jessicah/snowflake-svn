@@ -448,6 +448,11 @@ module Array1 : sig
   external to_string: ('a, 'b, 'c) t -> string
 	  = "caml_ba_to_string"
   (** Copy the big array into a string. *)
+  
+  external blit_from_string: string -> ('a, 'b, 'c) t -> unit
+      = "caml_ba_blit_from_string"
+  (** Copy the string to the big array, number of bytes minimum
+     of the length of string and bigarray. *)
 
 end
 

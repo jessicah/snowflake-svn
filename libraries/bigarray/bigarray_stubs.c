@@ -964,8 +964,24 @@ CAMLprim value caml_ba_to_string(value vsrc)
 	/* Create string of num_bytes */
 	value s = caml_alloc_string(num_bytes);
 	/* Do the copying */
-	memmove(String_val(s), src->data, num_bytes);
+	memcpy(String_val(s), src->data, num_bytes);
 	return s;
+}
+
+/* Copying a string to a bigarray */
+
+CAMLprim value caml_ba_blit_from_string(value src, value vdst)
+{
+	struct caml_ba_array * dst = Caml_ba_array_val(vdst);
+	intnat num_bytes, str_len;
+	/* Computer number of bytes in array data */
+	num_bytes =
+		caml_ba_num_elts(dst)
+		* caml_ba_element_size[dst->flags & CAML_BA_KIND_MASK];
+	str_len = caml_string_length(src);
+	/* Do the copying */
+	memcpy(dst->data, String_val(src), num_bytes > str_len ? str_len : num_bytes);
+	return Val_unit;
 }
 
 /* Filling a big array with a given value */
