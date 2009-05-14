@@ -30,6 +30,8 @@ external exit : unit -> unit = "caml_thread_exit"
 external sleep : unit -> unit = "caml_thread_sleep"
 external wake : t -> unit = "caml_thread_wake"
 
+external usleep : int -> unit = "snowflake_thread_usleep"
+
 (* For new, make sure the function passed to thread_new never
    raises an exception. *)
 

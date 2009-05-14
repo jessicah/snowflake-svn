@@ -86,15 +86,19 @@ let () =
 		let input_buffer = BlockIO.make
 			(Array1.create int8_unsigned c_layout 131072)
 		in
+		(* IO.nread allocates memory; don't do that! *)
+		let string_buffer = String.make 131072 '\000' in
 		(* process first buffer, which _should_ include the wave header... *)
-		Array1.blit_from_string (IO.nread wave_data 131072) input_buffer.BlockIO.data;
+		ignore (IO.really_input wave_data string_buffer 0 131072);
+		Array1.blit_from_string string_buffer input_buffer.BlockIO.data;
 		Vt100.printf "play it...\n";
 		AudioMixer.play (AudioMixer.Wave.read input_buffer);
 		(* now process all remaining buffers *)
 		while true do
 			Vt100.printf ".";
+			ignore (IO.really_input wave_data string_buffer 0 131072);
 			input_buffer.BlockIO.pos <- 0; (* reset position *)
-			Array1.blit_from_string (IO.nread wave_data 131072) input_buffer.BlockIO.data;
+			Array1.blit_from_string string_buffer input_buffer.BlockIO.data;
 			AudioMixer.play_raw input_buffer;
 		done;
 		Vt100.printf "[end of wave file]\n";

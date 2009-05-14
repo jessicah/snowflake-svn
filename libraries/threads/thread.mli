@@ -33,6 +33,8 @@ val create : ('a -> 'b) -> 'a -> string -> t
    result of the application [funct arg] is discarded and not
    directly accessible to the parent thread. *)
 
+external usleep : int -> unit = "snowflake_thread_usleep"
+
 external self : unit -> t = "caml_thread_self"
 (** Return the thread currently executing. *)
 

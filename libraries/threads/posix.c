@@ -490,6 +490,19 @@ value caml_thread_sleep(value unit)
 	return Val_unit;
 }
 
+extern unsigned long long get_ticks();
+
+value snowflake_thread_usleep(value usec)
+{
+	unsigned long long start = get_ticks();
+	caml_enter_blocking_section();
+	while ((get_ticks() - start) < Int_val(usec)) {
+		thread_yield();
+	}
+	caml_leave_blocking_section();
+	return Val_unit;
+}
+
 value caml_thread_wake(value thread)
 {
 	caml_thread_t th;

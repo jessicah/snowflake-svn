@@ -42,7 +42,7 @@ type t = {
 	m : Mutex.t;
 	cv : Condition.t;
 	(* buffer for received (reassembled) packets *)
-	queue : string Queue.t;
+	rb : RingBuffer.t;
 }
 
 let used_ports = ref []
@@ -83,6 +83,7 @@ let on_input cookie packet =
 				Vt100.printf "tcp: ack# not equal next seq#, reset connection\n";
 				(* should close the connection now *)
 				NetworkStack.unbind_tcp cookie.src_port;
+				RingBuffer.close cookie.rb;
 				send cookie Int32.zero Int32.zero [Reset] empty;
 			end else begin
 				(*Vt100.printf "tcp: connection established\n";*)
@@ -118,34 +119,30 @@ let on_input cookie packet =
 				end;
 				if (len < cookie.status.window_size && len > 0) || has_flag Push then begin
 					(* reassemble and push to application layer *)
-					Mutex.lock cookie.m;
-					Queue.add packet_data cookie.queue;
-					Condition.signal cookie.cv;
-					Mutex.unlock cookie.m;
+					RingBuffer.write cookie.rb packet_data;
 				end else if len = 0 then begin
 					if cookie.status.mode = Closing then begin
 						cookie.status.mode <- Closed;
+						RingBuffer.close cookie.rb;
 						NetworkStack.unbind_tcp cookie.src_port;
 					end;
 				end else begin
 					(* add to packets to be reassembled later *)
 					(*Vt100.printf "tcp: caching packet data, to be reassembled later\n"*)
-					Mutex.lock cookie.m;
-					Queue.add packet_data cookie.queue;
-					Condition.signal cookie.cv;
-					Mutex.unlock cookie.m;
+					RingBuffer.write cookie.rb packet_data;
 				end
 			end
-		| Closing when has_flag Ack ->
+		(*unmatched:| Closing when has_flag Ack ->
 			(* close the connection *)
 			cookie.status.mode <- Closed;
 			(*NetworkStack.unbind_tcp cookie.src_port;*)
 			send cookie Int32.zero Int32.zero [Reset] empty;
-			(*Vt100.printf "tcp: connection closed\n";*)
+			(*Vt100.printf "tcp: connection closed\n";*)*)
 		| Closed ->
 			Vt100.printf "tcp: received data on closed connection\n";
 		| _ ->
 			Vt100.printf "unhandled tcp state\n";
+			RingBuffer.close cookie.rb;
 			send cookie Int32.zero Int32.zero [Reset] empty;
 			NetworkStack.unbind_tcp cookie.src_port
 	end
@@ -192,7 +189,7 @@ let connect ip port =
 			};
 			m = Mutex.create ();
 			cv = Condition.create ();
-			queue = Queue.create ();
+			rb = RingBuffer.create ();
 		}
 	in
 	
@@ -217,7 +214,7 @@ let connect ip port =
 
 let open_channel ip port =
 	let t = connect ip port in
-	let pos = ref 0 in
+	(*let pos = ref 0 in
 	let input = IO.from_in_channel(object(self)
 			method input buf ofs len =
 				if Queue.is_empty t.queue then begin
@@ -260,7 +257,7 @@ let open_channel ip port =
 					end
 				end
 			method close_in () = ()
-		end)
+		end)*)
 	(*let rec enum () =
 		if Queue.is_empty t.queue && t.status.mode <> Established then
 			raise Enum.No_more_elements;
@@ -278,7 +275,7 @@ let open_channel ip port =
 			incr pos;
 			ch
 		end*)
-	in t.do_output, input
+	t.do_output, RingBuffer.mk_input t.rb
 
 (* this is close, but not quite what we want *)
 type segment = (int * int * string) list

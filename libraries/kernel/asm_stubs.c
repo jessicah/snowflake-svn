@@ -158,6 +158,13 @@ CAMLprim value caml_sys_random_seed (value unit)
 	return Val_long(snowflake_random_seed());
 }
 
+unsigned long long get_ticks()
+{
+	tick_t tick;
+	ticks(tick);
+	return (tick.tick / 1000ULL);
+}
+
 /*
 CAMLprim value snowflake_usleep(value usec) {
 	tick_t start, tick;
