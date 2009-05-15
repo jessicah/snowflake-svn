@@ -8,11 +8,11 @@
    2. Register itself with the network stack using the identifier above
 *)
 
-type rx_channel = string Event.channel
+type rx_channel = PacketParsing.t Event.channel
 
 type net_device = {
 	send : string -> unit;
-	recv : unit -> string;
+	recv : unit -> PacketParsing.t;
 	hw_addr : NetworkProtocolStack.Ethernet.addr
 }
 
@@ -51,6 +51,7 @@ let get_hw_addr () = match !devices with
 	| x :: _ -> x.hw_addr
 
 module P = NetworkProtocolStack
+module PP = PacketParsing
 
 type settings = {
 	mutable ip : P.IPv4.addr;
@@ -107,45 +108,36 @@ module ARP = struct
 			lookup ip
 		end
 	
-	let process_arp bits =
-		bitmatch bits with {
-			0x0001 : 16;
-			0x0800 : 16;
-			6 : 8;
-			4 : 8;
-			opcode : 16;
-			sender_mac : 48 : bitstring;
-			sender_ip : 32 : bitstring;
-			target_mac : 48 : bitstring;
-			_ : 32 : bitstring
-		} ->
-			let ip = P.IPv4.parse_addr sender_ip in
-			let mac = P.Ethernet.parse_addr sender_mac in
-			let target_mac = P.Ethernet.parse_addr target_mac in
-			let this_mac = get_hw_addr () in
-			(*Vt100.printf "Added new mapping: %s => %s\n"
-				(P.IPv4.to_string ip) (P.Ethernet.to_string mac);*)
-			if opcode = 1 && target_mac = this_mac then begin
-				(* send reply to request for our mac address *)
+	let process packet =
+		if PP.ARP.is_ipv4_over_ethernet packet then begin
+			let self = get_hw_addr () in
+			let target_eth = PP.to_eth_addr (PP.ARP.target_eth packet) in
+			let sender_eth = PP.to_eth_addr (PP.ARP.sender_eth packet) in
+			let sender_ip = PP.to_ipv4_addr (PP.ARP.sender_ip packet) in
+			if PP.ARP.opcode packet = 1 && target_eth = self then begin
+				(* send reply to request for our address *)
 				Vt100.printf "Got an ARP request\n";
-				let content = BITSTRING {
+				send_eth sender_eth 0x0806 (BITSTRING {
 					1 : 16; 0x0800 : 16; 6 : 8; 4 : 8; 2 : 16;
-					P.Ethernet.unparse_addr (get_hw_addr ()) : 48 : bitstring;
+					P.Ethernet.unparse_addr self : 48 : bitstring;
 					P.IPv4.unparse_addr settings.ip : 32 : bitstring;
-					sender_mac : 48 : bitstring;
-					sender_ip : 32 : bitstring
-				} in
-				send_eth mac 0x0806 content
+					P.Ethernet.unparse_addr sender_eth : 48 : bitstring;
+					P.IPv4.unparse_addr sender_ip : 32 : bitstring
+				})
 			end;
-			(* update the table if we already have the IP, or it matches us *)
-			if ip <> P.IPv4.invalid && (Hashtbl.mem table ip || target_mac = this_mac) then
-				Hashtbl.replace table ip mac;
-			(* notify that we have a new entry in our ARP table *)				
+			(* update the table if we already have the IP, or it's a reply to us *)
+			if sender_ip <> P.IPv4.invalid && (Hashtbl.mem table sender_ip || target_eth = self) then begin
+				Hashtbl.replace table sender_ip sender_eth;
+				(*Vt100.printf "added ARP mapping: %s has mac %s\n"
+					(P.IPv4.to_string sender_ip) (P.Ethernet.to_string sender_eth);*)
+			end;
+			(* notify of updates to the ARP table *)
 			Mutex.lock m;
 			Condition.signal cv;
-			Mutex.unlock m;
-		| { _ : -1 : bitstring } -> ()
-
+			Mutex.unlock m
+		end else begin
+			Vt100.printf "unknown ARP kind: %04x:%04x\n" (PP.ARP.hw_type packet) (PP.ARP.proto_type packet)
+		end
 end
 
 let send_ip protocol dst content =
@@ -179,26 +171,29 @@ let init () =
 		(* this is a blocking call until data ready *)
 		while true do
 		begin try
-			let eth = P.Ethernet.parse (Bitstring.bitstring_of_string (recv ())) in
-			match eth.P.Ethernet.protocol with
-				| 0x0806 -> (* got an ARP packet *)
-					ARP.process_arp eth.P.Ethernet.content
-				| 0x0800 -> (* got an IP packet *)
-					let ip = P.IPv4.parse eth.P.Ethernet.content in
-					begin match ip.P.IPv4.protocol with
-					| 6 (* tcp *) ->
-						begin
-							let tcp = P.TCP.parse ip.P.IPv4.content in
-							try
-								let f = Hashtbl.find tcp_bindings tcp.P.TCP.dst_port in
-								f tcp
-							with Not_found -> Vt100.printf "No handler for port %d...\n" tcp.P.TCP.dst_port
-						end
-					| _ -> ()
+			let packet = recv () in
+			match PP.Ethernet.protocol packet with
+				| 0x0806 ->
+					ARP.process (PP.Ethernet.content packet)
+				| 0x0800 ->
+					let packet = PP.Ethernet.content packet in
+					begin match PP.IPv4.protocol packet with
+						| 6 ->
+							let packet_length = PP.IPv4.content_length packet in
+							let packet = PP.IPv4.content packet in
+							let port = PP.TCP.dst packet in
+							begin try
+								let f = Hashtbl.find tcp_bindings port in
+								f packet packet_length
+							with Not_found ->
+								Vt100.printf "No handler for TCP port %d\n" port
+							end
+						| _ -> ()
 					end
-				| _ -> (* discard packet *)
-					()
-		with ex -> Vt100.printf "netstack read: %s\n" (Printexc.to_string ex) end
+				| _ -> ()
+		with ex ->
+			Vt100.printf "netstack read: %s\n" (Printexc.to_string ex)
+		end
 		done
 	in			
 	let thread_fun () =
@@ -228,7 +223,7 @@ module type ETHERNET = sig
 
 module EthernetDriver : functor (Driver : ETHERNET) -> sig
 		val init : int -> Driver.t
-		val read : unit -> string
+		val read : unit -> PacketParsing.t
 		val write: Driver.t -> string -> unit
 		val address: Driver.t -> NetworkProtocolStack.Ethernet.addr
 	end = functor (Driver : ETHERNET) -> struct
@@ -248,6 +243,6 @@ module EthernetStack = struct
 		let t = init irq in {
 			send = write t;
 			recv = read;
-			hw_addr = addr t
+			hw_addr = addr t;
 		}
 end

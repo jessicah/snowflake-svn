@@ -105,6 +105,8 @@ module TCP : sig
 		content : Bitstring.t;
 	}
 	
+	val to_flags : int -> flags list
+	
 	val parse : Bitstring.t -> t
 	
 	val unparse : t -> IPv4.addr -> IPv4.addr -> Bitstring.t

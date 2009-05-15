@@ -32,7 +32,7 @@ type t = {
 	dst_ip : NetworkProtocolStack.IPv4.addr;
 	(* function called by the network stack when we've received a TCP packet
 	   that matches the port we're bound to -- not port defined above *)
-	mutable on_input : NetworkProtocolStack.TCP.t -> unit;
+	mutable on_input : PacketParsing.t -> int -> unit;
 	(* function called (indirectly) by the application layer to send data to
 	   the end-point. do_output invokes the network stack to send packet(s) *)
 	mutable do_output : string -> unit;
@@ -74,13 +74,16 @@ let one = Int32.one
 
 let empty = ""
 
-let on_input cookie packet =
-	let has_flag f = List.mem f packet.flags in
+module PP = PacketParsing.TCP
+
+let on_input cookie packet packet_length =
+	let has_flag f = List.mem f (to_flags (PP.flags packet)) in
 	begin match cookie.status.mode with
 		| Syn_sent when (*has_flag Syn &&*) has_flag Ack ->
 			(* establishing connection *)
-			if packet.ack_num <> cookie.status.s_next then begin
-				Vt100.printf "tcp: ack# not equal next seq#, reset connection\n";
+			if PP.ack packet <> cookie.status.s_next then begin
+				Vt100.printf "tcp: ack# (%lx) not equal next seq# (%lx), reset connection\n"
+					(PP.ack packet) cookie.status.s_next;
 				(* should close the connection now *)
 				NetworkStack.unbind_tcp cookie.src_port;
 				RingBuffer.close cookie.rb;
@@ -88,22 +91,26 @@ let on_input cookie packet =
 			end else begin
 				(*Vt100.printf "tcp: connection established\n";*)
 				cookie.status.mode <- Established;
-				cookie.status.r_next <- packet.seq_num ++ one;
+				cookie.status.r_next <- PP.seq packet ++ one;
 				(* signal cv to say connection established *)
 				Mutex.lock cookie.m;
 				Condition.signal cookie.cv;
 				Mutex.unlock cookie.m;
 				(* send ACK to complete handshake *)
-				send cookie packet.ack_num cookie.status.r_next [Ack] empty
+				send cookie (PP.ack packet) cookie.status.r_next [Ack] empty
 			end
-		| Established | Closing ->
-			if packet.seq_num <> cookie.status.r_next then begin
+		| Established ->
+			if PP.seq packet <> cookie.status.r_next then begin
 				(*Vt100.printf "tcp: seq# not equal r_next\n";*)
 				(* ignore it *)
 				()
 			end else begin
 				(* we have some packet data *)
-				let packet_data = Bitstring.string_of_bitstring packet.content in
+				let (ba,ofs) = PP.content packet in
+				let packet_data =
+					Bigarray.Array1.to_string
+						(Bigarray.Array1.sub ba ofs (PP.content_length packet packet_length))
+				in
 				let len = String.length packet_data in
 				(* update r_next to next sequence #, current + data length *)
 				cookie.status.r_next <- cookie.status.r_next ++ (Int32.of_int len);
@@ -114,7 +121,7 @@ let on_input cookie packet =
 					send cookie cookie.status.s_next cookie.status.r_next [Ack;Finish] empty;
 				end else begin
 					(* send ACK *)
-					if packet.window > 0 then
+					if PP.window packet > 0 then
 						send cookie cookie.status.s_next cookie.status.r_next [Ack] empty;
 				end;
 				if (len < cookie.status.window_size && len > 0) || has_flag Push then begin
@@ -128,16 +135,16 @@ let on_input cookie packet =
 					end;
 				end else begin
 					(* add to packets to be reassembled later *)
-					(*Vt100.printf "tcp: caching packet data, to be reassembled later\n"*)
 					RingBuffer.write cookie.rb packet_data;
 				end
 			end
-		(*unmatched:| Closing when has_flag Ack ->
+		| Closing when has_flag Ack ->
 			(* close the connection *)
 			cookie.status.mode <- Closed;
-			(*NetworkStack.unbind_tcp cookie.src_port;*)
-			send cookie Int32.zero Int32.zero [Reset] empty;
-			(*Vt100.printf "tcp: connection closed\n";*)*)
+			RingBuffer.close cookie.rb;
+			NetworkStack.unbind_tcp cookie.src_port;
+			(*send cookie Int32.zero Int32.zero [Reset] empty;*)
+			(*Vt100.printf "tcp: connection closed\n";*)
 		| Closed ->
 			Vt100.printf "tcp: received data on closed connection\n";
 		| _ ->
@@ -179,7 +186,7 @@ let connect ip port =
 			src_port = get_port ();
 			dst_port = port;
 			dst_ip = ip;
-			on_input = ignore; (* fixme! *)
+			on_input = begin fun _ _ -> () end; (* fixme! *)
 			do_output = begin fun _ -> failwith "tcp: not ready!" end; (* fixme! *)
 			status = {
 				s_next = seq ++ one;

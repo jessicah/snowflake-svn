@@ -951,6 +951,49 @@ CAMLprim value caml_ba_blit(value vsrc, value vdst)
   return Val_unit;              /* not reached */
 }
 
+/* Given an unsigned 16-bit argument X, return the value corresponding to
+   X with reversed byte order.  */
+#define bswap_16(x) ((((x) & 0x00FF) << 8) | \
+		     (((x) & 0xFF00) >> 8))
+
+/* Given an unsigned 32-bit argument X, return the value corresponding to
+   X with reversed byte order.  */
+#define bswap_32(x) ((((x) & 0x000000FF) << 24) | \
+		     (((x) & 0x0000FF00) << 8) | \
+		     (((x) & 0x00FF0000) >> 8) | \
+		     (((x) & 0xFF000000) >> 24))
+
+CAMLprim value caml_ba_i8(value vsrc, value off1, value off2)
+{
+	struct caml_ba_array * src = Caml_ba_array_val(vsrc);
+	
+	if (caml_ba_num_elts(src) < (Int_val(off1) + Int_val(off2))) {
+		caml_invalid_argument("Bigarray.i32: index out of bounds");
+	}
+	return Val_long(*(((unsigned char *)src->data)+Int_val(off1)+Int_val(off2)));
+}
+
+CAMLprim value caml_ba_i16(value vsrc, value off1, value off2)
+{
+	struct caml_ba_array * src = Caml_ba_array_val(vsrc);
+	
+	if (caml_ba_num_elts(src) < (Int_val(off1) + Int_val(off2))) {
+		caml_invalid_argument("Bigarray.i32: index out of bounds");
+	}
+	return Val_long((unsigned short)bswap_16(*((unsigned short*)(((unsigned char *)src->data)+Int_val(off1)+Int_val(off2)))));
+}
+
+CAMLprim value caml_ba_i32(value vsrc, value off1, value off2)
+{
+	struct caml_ba_array * src = Caml_ba_array_val(vsrc);
+	unsigned long r;
+	
+	if (caml_ba_num_elts(src) < (Int_val(off1) + Int_val(off2))) {
+		caml_invalid_argument("Bigarray.i32: index out of bounds");
+	}
+	return caml_copy_int32((unsigned long)bswap_32(*(((unsigned long*)(((unsigned char *)src->data)+Int_val(off1)+Int_val(off2))))));
+}
+
 /* Copying a big array, making a string */
 
 CAMLprim value caml_ba_to_string(value vsrc)

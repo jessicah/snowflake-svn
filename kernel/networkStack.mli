@@ -1,11 +1,11 @@
 
 (* Network Stack *)
 
-type rx_channel = string Event.channel
+type rx_channel = PacketParsing.t Event.channel
 
 type net_device = {
 	send : string -> unit;
-	recv : unit -> string;
+	recv : unit -> PacketParsing.t;
 	hw_addr : NetworkProtocolStack.Ethernet.addr
 }
 
@@ -13,7 +13,7 @@ val register_device : net_device -> unit
 
 (* this is all kind of random being here... *)
 val send : string -> unit
-val recv : unit -> string
+val recv : unit -> PacketParsing.t
 val get_hw_addr : unit -> NetworkProtocolStack.Ethernet.addr
 
 val send_eth : NetworkProtocolStack.Ethernet.addr -> int -> Bitstring.t -> unit
@@ -35,16 +35,16 @@ module type ETHERNET = sig
 
 module EthernetDriver : functor (Driver : ETHERNET) -> sig
 		val init : int -> Driver.t
-		val read : unit -> string
+		val read : unit -> PacketParsing.t
 		val write: Driver.t -> string -> unit
 		val address: Driver.t -> NetworkProtocolStack.Ethernet.addr
 	end
 
 module EthernetStack : sig
-	val create : (int -> 'a) -> (unit -> string) -> ('a -> string -> unit) -> int -> ('a -> NetworkProtocolStack.Ethernet.addr) -> net_device
+	val create : (int -> 'a) -> (unit -> PacketParsing.t) -> ('a -> string -> unit) -> int -> ('a -> NetworkProtocolStack.Ethernet.addr) -> net_device
 end
 
-val bind_tcp : int -> (NetworkProtocolStack.TCP.t -> unit) -> unit
+val bind_tcp : int -> (PacketParsing.t -> int -> unit) -> unit
 val unbind_tcp : int -> unit
 
 val init : unit -> unit
