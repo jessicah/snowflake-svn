@@ -9,11 +9,11 @@ let rec skip_headers input = match IO.read_line input with
 let request path headers ip port =
 	let ip = NetworkStack.Helpers.ip_addr ip in
 	let writer, input = TCP.open_channel ip port in
-	let headers = String.concat "\r\n" headers in
+	let headers = String.concat "\r\n" ("Connection: close" :: headers) in
 	if String.length headers > 0 then
-		Printf.kprintf writer "GET %s HTTP/1.0\r\n%s\r\n\r\n" path headers
+		Printf.kprintf writer "GET %s HTTP/1.1\r\n%s\r\n\r\n" path headers
 	else
-		Printf.kprintf writer "GET %s HTTP/1.0\r\n\r\n" path;
+		Printf.kprintf writer "GET %s HTTP/1.1\r\n\r\n" path;
 	let status = IO.read_line input in
 	if not (String.starts_with status "HTTP/1.0 200 OK") && not (String.starts_with status "HTTP/1.1 200 OK") then
 		Printf.kprintf failwith "http: %s\n" status;

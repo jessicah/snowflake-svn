@@ -126,7 +126,8 @@ module ARP = struct
 				})
 			end;
 			(* update the table if we already have the IP, or it's a reply to us *)
-			if sender_ip <> P.IPv4.invalid && (Hashtbl.mem table sender_ip || target_eth = self) then begin
+			(*if sender_ip <> P.IPv4.invalid && (Hashtbl.mem table sender_ip || target_eth = self) then begin*)
+			if PP.ARP.opcode packet = 2 then begin
 				Hashtbl.replace table sender_ip sender_eth;
 				(*Vt100.printf "added ARP mapping: %s has mac %s\n"
 					(P.IPv4.to_string sender_ip) (P.Ethernet.to_string sender_eth);*)
@@ -188,12 +189,12 @@ let init () =
 							with Not_found ->
 								Vt100.printf "No handler for TCP port %d\n" port
 							end
-						| _ -> ()
+						| n -> Vt100.printf "IPv4: unknown protocol %d\n" n
 					end
-				| _ -> ()
+				| _ -> ()(*Vt100.printf "Ethernet: unknown protocol %d\n" n*)
 		with ex ->
 			Vt100.printf "netstack read: %s\n" (Printexc.to_string ex)
-		end
+		end;
 		done
 	in			
 	let thread_fun () =
