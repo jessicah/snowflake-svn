@@ -93,7 +93,7 @@ let usage_b buf speclist errmsg =
 let usage speclist errmsg =
   let b = Buffer.create 200 in
   usage_b b speclist errmsg;
-  eprintf "%s" (Buffer.contents b);
+  sprintf "%s" (Buffer.contents b);
 ;;
 
 let current = ref 0;;

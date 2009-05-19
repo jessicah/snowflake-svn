@@ -162,11 +162,42 @@ let tcp_bindings = Hashtbl.create 7
 let bind_tcp port f = Hashtbl.add tcp_bindings port f
 let unbind_tcp port = Hashtbl.remove tcp_bindings port
 
+module Shell = struct
+	(* set up an ipconfig to configure the network *)
+	open Arg
+	
+	let of_string s =
+		try
+			Scanf.sscanf s "%d.%d.%d.%d" (fun a b c d ->
+				P.IPv4.Addr (a,b,c,d))
+		with _ ->
+			raise (Bad "Failure parsing IP address")
+	
+	let set_ip s = settings.ip <- of_string s
+	let set_mask s = settings.netmask <- of_string s
+	let set_gw s = settings.gateway <- of_string s
+	
+	let print_settings () =
+		Vt100.printf "Network settings:\n  IP:      %s\n  Netmask: %s\n  Gateway: %s\n"
+			(P.IPv4.to_string settings.ip)
+			(P.IPv4.to_string settings.netmask)
+			(P.IPv4.to_string settings.gateway)
+	
+	(* ipconfig -ip 130.123.131.217 -mask 255.255.255.128 -gw 130.123.131.129 *)
+	let init () =
+		Shell.add_command "ipconfig" (print_settings, [
+			"-ip", String set_ip, " IP Address";
+			"-mask", String set_mask, " Net Mask";
+			"-gw", String set_gw, " Gateway";
+		])
+end
+
 let init () =
-	(* hard-code the settings for now :P *)
+	(*(* hard-code the settings for now :P *)
 	settings.ip <- P.IPv4.Addr (130,123,131,217);
 	settings.netmask <- P.IPv4.Addr (255,255,255,128);
-	settings.gateway <- P.IPv4.Addr (130,123,131,129);
+	settings.gateway <- P.IPv4.Addr (130,123,131,129);*)
+	Shell.init ();
 	
 	let read_thread () =
 		(* this is a blocking call until data ready *)

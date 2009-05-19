@@ -114,7 +114,7 @@ exception Bad of string
     message to reject invalid arguments.
     [Arg.Bad] is also raised by [Arg.parse_argv] in case of an error. *)
 
-val usage : (key * spec * doc) list -> usage_msg -> unit
+val usage : (key * spec * doc) list -> usage_msg -> string
 (** [Arg.usage speclist usage_msg] prints an error message including
     the list of valid options.  This is the same message that
     {!Arg.parse} prints in case of error.

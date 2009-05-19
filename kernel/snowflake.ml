@@ -1,9 +1,4 @@
 
-let echo_shell () =
-	while true do
-		Vt100.printf "%c" (Keyboard.get_char ())
-	done
-
 let () =
 	(* seed the random number generator *)
 	Random.self_init ();
@@ -13,6 +8,7 @@ let () =
 	Keyboard.init ();
 	ICH0.init ();
 	IDE.init ();
+	NetworkStack.init ();
 	
 	(* let interrupts run *)
 	Asm.sti ();
@@ -20,8 +16,5 @@ let () =
 	(* probe the PCI bus and load any drivers it can find*)
 	DeviceManager.scan_pci_bus ();
 	
-	(* simple thread to echo characters typed *)
-	ignore (Thread.create echo_shell () "echo shell");
-	
-	(* finished *)
-	()
+	(* finished, so launch the shell *)
+	Shell.init ()
