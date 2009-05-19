@@ -196,6 +196,14 @@ let update_cursor console =
 	if console.curr_y >= console.rows then begin
 		console.curr_y <- console.rows - 1;
 		(* scroll by one line *)
+		Array2.blit
+			(Array2.sub_left console.term 1 24)
+			(Array2.sub_left console.term 0 24);
+		let last_row = Array2.slice_left console.term 24 in
+		for i = 0 to Array1.dim last_row / 2 - 1 do
+			last_row.{i * 2} <- ' ';
+			last_row.{i * 2 + 1} <- char_of_int console.attrib;
+		done
 	end;
 	Asm.out8 0x3D4 0xE;
 	Asm.out8 0x3D5 ((console.curr_y * console.cols + console.curr_x) asr 8);

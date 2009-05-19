@@ -60,6 +60,7 @@ let read () =
 	match data () with
 		| 0x2A | 0x36 -> shift := true
 		| 0xAA | 0xB6 -> shift := false
+		| 0x0E -> add '\b'
 		| 0x0F -> add '\t'
 		| 0x1C -> add '\n'
 		| s when s > 0x80 -> ()

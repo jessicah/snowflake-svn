@@ -9,6 +9,29 @@ let add_command name (f,specs) =
 let no_anon arg =
 	raise (Arg.Bad (Printf.sprintf "unknown argument (%s)" arg))
 
+let read_line ic =
+	let line = IO.read_line ic in
+	let length = String.length line in
+	let stack = Stack.create () in
+	for i = 0 to length - 1 do
+		if line.[i] = '\b' then begin
+			if not (Stack.is_empty stack) then
+				ignore (Stack.pop stack)
+		end else
+			Stack.push line.[i] stack
+	done;
+	let s_length = Stack.length stack in
+	if s_length = length then
+		(* we didn't remove anything *)
+		line
+	else begin
+		let s = String.create s_length in
+		for i = s_length - 1 downto 0 do
+			s.[i] <- Stack.pop stack
+		done;
+		s
+	end
+
 let shell () =
 	Vt100.printf "Welcome to the Snowflake shell\n\n";
 	let input = IO.from_in_chars(object
@@ -20,7 +43,7 @@ let shell () =
 		end) in
 	while true do
 		Vt100.printf "> ";
-		let line = IO.read_line input in
+		let line = read_line input in
 		let parts = ExtString.String.nsplit line " " in
 		let current = ref 0 in
 		match parts with
