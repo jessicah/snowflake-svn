@@ -9,6 +9,8 @@ let () =
 	ICH0.init ();
 	IDE.init ();
 	NetworkStack.init ();
+	MusicPlayer.init ();
+	TarFileSystem.init ();
 	
 	(* let interrupts run *)
 	Asm.sti ();

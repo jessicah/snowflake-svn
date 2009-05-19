@@ -185,11 +185,11 @@ module Shell = struct
 	
 	(* ipconfig -ip 130.123.131.217 -mask 255.255.255.128 -gw 130.123.131.129 *)
 	let init () =
-		Shell.add_command "ipconfig" (print_settings, [
+		Shell.add_command "ipconfig" print_settings [
 			"-ip", String set_ip, " IP Address";
 			"-mask", String set_mask, " Net Mask";
 			"-gw", String set_gw, " Gateway";
-		])
+		]
 end
 
 let init () =

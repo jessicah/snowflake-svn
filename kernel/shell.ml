@@ -3,7 +3,7 @@
 
 let commands = Hashtbl.create 7
 
-let add_command name (f,specs) =
+let add_command name f specs =
 	Hashtbl.add commands name (f, Arg.align specs)
 
 let no_anon arg =
@@ -32,6 +32,17 @@ let read_line ic =
 		s
 	end
 
+let rec replace_all s sub rep = match ExtString.String.replace s sub rep with
+	| true, s -> replace_all s sub rep
+	| false, s -> s
+
+let split line =
+	let line = replace_all line "\\ " "%20" in
+	let parts = ExtString.String.nsplit line " " in
+	List.map begin fun part ->
+			replace_all part "%20" " "
+		end parts
+
 let shell () =
 	Vt100.printf "Welcome to the Snowflake shell\n\n";
 	let input = IO.from_in_chars(object
@@ -44,7 +55,7 @@ let shell () =
 	while true do
 		Vt100.printf "> ";
 		let line = read_line input in
-		let parts = ExtString.String.nsplit line " " in
+		let parts = split line in
 		let current = ref 0 in
 		match parts with
 		| [] -> ()
@@ -57,8 +68,14 @@ let shell () =
 				with Arg.Help msg | Arg.Bad msg ->
 					Vt100.printf "%s" msg
 				end
-			with Not_found ->
+			with
+			| Not_found ->
 				Vt100.printf "command not found: %s\n" x
+			| Failure msg ->
+				Vt100.printf "%s: %s\n" x msg
+			| ex ->
+				Vt100.printf "%s: unhandled error\n%s\n"
+					x (Printexc.to_string ex)
 			end
 	done
 
@@ -66,11 +83,11 @@ let shell () =
 
 let init () =
 	(* add a lil help command *)
-	add_command "help" (begin fun () ->
+	add_command "help" begin fun () ->
 			Vt100.printf "Available commands:\n";
 			Hashtbl.iter (fun name _ ->
 				Vt100.printf " %s\n" name
 			) commands
-		end, []);
+		end [];
 	(* then spawn the shell *)
 	ignore (Thread.create shell () "shell")
