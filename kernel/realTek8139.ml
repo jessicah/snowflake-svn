@@ -281,25 +281,25 @@ let create pcii =
 				(* hopefully a more efficient, and possibly correct, copying algo *)
 				let packet = Array1.create int8_unsigned c_layout (length - 4) in
 				begin try
-					if properties.receivebufferoffset + (length - 4) > 65536 then begin
-						let len = 65552 - (properties.receivebufferoffset + 4) in
+					if properties.receivebufferoffset + (length - 4) >= 65536 then begin
+						let len = 65536 - (properties.receivebufferoffset + 4) in
 						Array1.blit
 							(Array1.sub properties.receivebuffer (properties.receivebufferoffset + 4) len)
 							(Array1.sub packet 0 len);
 						Array1.blit
-							(Array1.sub properties.receivebuffer 0 (length - 4 - len))
-							(Array1.sub packet len (length - 4 - len));
+							(Array1.sub properties.receivebuffer 0 (length - (0x10000 - properties.receivebufferoffset)))
+							(Array1.sub packet len (length - (0x10000 - properties.receivebufferoffset)));
 					end else begin
 						Array1.blit
 							(Array1.sub properties.receivebuffer (properties.receivebufferoffset + 4) (length - 4))
 							packet;
 					end
 				with Invalid_argument _ ->
-					if properties.receivebufferoffset + (length - 4) > 65536 then begin
+					if properties.receivebufferoffset + (length - 4) >= 65536 then begin
 						Vt100.printf "rtl: get packet fail (wrapping): %d (%d) + %d (%d) = %d bytes (%d expected)\n"
-							(properties.receivebufferoffset + 4) (65552 - (properties.receivebufferoffset + 4))
-							0 (length - 4 - (65552 - (properties.receivebufferoffset + 4)))
-							((65552 - properties.receivebufferoffset + 4) + ((length - 4 - (65552 - (properties.receivebufferoffset + 4)))))
+							(properties.receivebufferoffset + 4) (65536 - (properties.receivebufferoffset + 4))
+							0 (length - (0x10000 - properties.receivebufferoffset))
+							((65536 - (properties.receivebufferoffset + 4)) + (length - (0x10000 - properties.receivebufferoffset)))
 							(length - 4)
 					end else begin
 						Vt100.printf "rtl: get packet fail: %d %d bytes\n" (properties.receivebufferoffset + 4) (length - 4)
@@ -310,10 +310,10 @@ let create pcii =
 				(* it doesn't seem to account for wrap-around... *)
 				properties.receivebufferoffset <- (properties.receivebufferoffset + length + 4 + 3) land (lnot 3);
 				(* try this... *)
-				if properties.receivebufferoffset > (0x10000+16) then
+				if properties.receivebufferoffset >= 0x10000 then
 					properties.receivebufferoffset <- properties.receivebufferoffset - 0x10000;
-				if properties.receivebufferoffset < 16 then
-					Vt100.printf "rtl: writing negative value to capr\n";
+				(*if properties.receivebufferoffset < 16 then
+					Vt100.printf "rtl: writing negative value to capr\n";*)
 				out16 Registers.capr (properties.receivebufferoffset - 16); (* what happens if this is negative? *)
 				(* send received packet to the rx_buffer *)
 				Event.sync (Event.send rx_buffer (packet,0));

@@ -161,10 +161,12 @@ open Shell
 let path = ref ""
 
 let open_file = ref (fun _ -> failwith "no file system present")
+let dir_list_ref = ref (fun _ -> failwith "no file system present")
 
 let init () =
 	let tarfs = open_tar_file () in
 	open_file := open_a_file tarfs;
+	dir_list_ref := dir_list tarfs;
 	let print_list () =
 		Vt100.printf "Listing for: %s\n" ("/" ^ !path);
 		List.iter begin fun n -> Vt100.printf "  %s\n" n end (dir_list tarfs !path);
@@ -175,3 +177,4 @@ let init () =
 	]
 
 let open_file path = !open_file path
+let dir_list path = !dir_list_ref path

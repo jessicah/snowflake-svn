@@ -8,9 +8,11 @@ let () =
 	Keyboard.init ();
 	ICH0.init ();
 	IDE.init ();
+	RealTek8139.init ();
 	NetworkStack.init ();
 	MusicPlayer.init ();
 	TarFileSystem.init ();
+	IRC.init ();
 	
 	(* let interrupts run *)
 	Asm.sti ();

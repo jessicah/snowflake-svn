@@ -108,6 +108,18 @@ module ARP = struct
 			lookup ip
 		end
 	
+	let resolve ip =
+		(* check netmask, and change ip to gateway if it doesn't match *)
+		let P.IPv4.Addr(la,lb,lc,ld) = ip in
+		let P.IPv4.Addr(ra,rb,rc,rd) = settings.netmask in
+		let ip =
+			if la land ra = la && lb land rb = lb
+				&& lc land rc = lc && ld land rd = ld
+			then ip
+			else settings.gateway
+		in
+		lookup ip
+	
 	let process packet =
 		if PP.ARP.is_ipv4_over_ethernet packet then begin
 			let self = get_hw_addr () in
@@ -142,7 +154,7 @@ module ARP = struct
 end
 
 let send_ip protocol dst content =
-	send_eth (ARP.lookup dst) 0x0800
+	send_eth (ARP.resolve dst) 0x0800
 		(P.IPv4.make protocol settings.ip dst content)
 
 let send_udp src_port dst_port dst_ip content =
@@ -198,6 +210,8 @@ let init () =
 	settings.netmask <- P.IPv4.Addr (255,255,255,128);
 	settings.gateway <- P.IPv4.Addr (130,123,131,129);*)
 	Shell.init ();
+	(* hardcode eth addr for 130.123.131.129 cause it won't reply :( *)
+	Hashtbl.add ARP.table (P.IPv4.Addr(130,123,131,129)) (P.Ethernet.Addr(0x00,0x12,0xDA,0xF7,0x77,0xFF));
 	
 	let read_thread () =
 		(* this is a blocking call until data ready *)
@@ -218,9 +232,11 @@ let init () =
 								let f = Hashtbl.find tcp_bindings port in
 								f packet packet_length
 							with Not_found ->
-								Vt100.printf "No handler for TCP port %d\n" port
+								(*Vt100.printf "No handler for TCP port %d\n" port*)
+								()
 							end
-						| n -> Vt100.printf "IPv4: unknown protocol %d\n" n
+						| (*n -> Vt100.printf "IPv4: unknown protocol %d\n" n*)
+						_ -> ()
 					end
 				| _ -> ()(*Vt100.printf "Ethernet: unknown protocol %d\n" n*)
 		with ex ->

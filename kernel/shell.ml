@@ -43,15 +43,16 @@ let split line =
 			replace_all part "%20" " "
 		end parts
 
+let input = IO.from_in_chars(object
+		method get () =
+			let ch = Keyboard.get_char () in
+			Vt100.printf "%c" ch;
+			ch
+		method close_in () = ()
+	end)
+
 let shell () =
 	Vt100.printf "Welcome to the Snowflake shell\n\n";
-	let input = IO.from_in_chars(object
-			method get () =
-				let ch = Keyboard.get_char () in
-				Vt100.printf "%c" ch;
-				ch
-			method close_in () = ()
-		end) in
 	while true do
 		Vt100.printf "> ";
 		let line = read_line input in
