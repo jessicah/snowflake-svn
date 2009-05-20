@@ -11,7 +11,9 @@ let files = ref []
 let playing = ref false
 
 let add_dir path =
-	files := TarFileSystem.dir_list path
+	files := List.filter
+		(fun n -> ExtString.String.ends_with n ".wav")
+		(TarFileSystem.dir_list path)
 	
 let play_file () =
 	if !playing then
