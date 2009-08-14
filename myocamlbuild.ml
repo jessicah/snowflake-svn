@@ -12,7 +12,7 @@ Options.nostdlib := true;;
 flag ["ocaml"; "compile"; "snowflake"] & S[A"-nostdlib"; A"-freestanding"; A"-g"];;
 flag ["ocaml"; "link"; "snowflake"] & S[A"-nostdlib"; A"-freestanding"];;
 
-flag ["c"; "compile"; "snowflake"] & S[A"-m32"; A"-g"];;
+flag ["c"; "compile"; "snowflake"] & S[A"-m32"; A"-g"; A"-fno-stack-protector"];;
 flag ["S"; "compile"; "snowflake"] & S[A"-m32"; A"-g"];;
 
 dep ["ocaml"; "compile"; "snowflake"] ["ocamlopt.opt"];;
