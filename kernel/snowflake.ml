@@ -9,15 +9,16 @@ let () =
 	ICH0.init ();
 	IDE.init ();
 	RealTek8139.init ();
-	NetworkStack.init ();
+	E1000.init ();
+	(*NetworkStack.init ();
 	MusicPlayer.init ();
-	TarFileSystem.init ();
+	TarFileSystem.init ();*)
 	IRC.init ();
 	
 	(* let interrupts run *)
 	Asm.sti ();
 	
-	(* probe the PCI bus and load any drivers it can find*)
+	(* probe the PCI bus and load any drivers it can find *)
 	DeviceManager.scan_pci_bus ();
 	
 	(* finished, so launch the shell *)

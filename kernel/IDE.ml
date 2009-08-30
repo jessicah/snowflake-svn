@@ -3,6 +3,8 @@
 
 exception Timeout
 
+type t = int
+
 module R = struct
 	let data     = 0x00
 	let error    = 0x01
@@ -68,6 +70,7 @@ let swab s =
 	done;
 	s
 
+(* disk is disk_to_id, 0, 1, 2, 3 *)
 let read_disk disk sector length = (* disk = 0x00/0x10 master/slave *)
 	poll R.status (fun i -> i land S.bsy = 0);
 	write R.seccount length;
@@ -85,6 +88,17 @@ let read_disk disk sector length = (* disk = 0x00/0x10 master/slave *)
 			512;
 	done;
 	data
+	
+let present_disks= [| false; false; false; false |]
+
+type controller = Primary | Secondary
+type device = Master | Slave
+
+let disk_to_id controller device = match controller, device with
+	| Primary, Master -> 0
+	| Primary, Slave -> 1
+	| Secondary, Master -> 2
+	| Secondary, Slave -> 3
 
 let init () =
 	(* look for an ata controller *)
@@ -103,8 +117,19 @@ let init () =
 	
 	(* master present if masterStatus = 1 *)
 	(* slave present if slaveStatus < 0x80 *)
-		if masterStatus land 0x01 = 0x01 then
+		if masterStatus land 0x01 = 0x01 then begin
 			Vt100.printf "ide: found primary master\n";
-		if slaveStatus land 0x01 = 0x01 then
+			present_disks.(0) <- true;
+		end;
+		if slaveStatus land 0x01 = 0x01 then begin
 			Vt100.printf "ide: found primary slave\n";
+			present_disks.(1) <- true;
+		end;
 	end
+
+let get c d =
+	let id = disk_to_id c d in
+	if present_disks.(id) then
+		id
+	else
+		raise Not_found

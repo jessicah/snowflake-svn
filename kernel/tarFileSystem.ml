@@ -36,7 +36,8 @@ module IDE_stuff = struct
 		let l = (length + 512) / 512 in
 		let s = offset / 512 in
 		(*Vt100.printf "reading data: %d (%d), %d (%d)\n" s offset l length;*)
-		let data = IDE.read_disk 0x00 s l in
+		let disk = IDE.get IDE.Primary IDE.Master in
+		let data = IDE.read_disk disk s l in
 		(*for i = 0 to 511 do
 			if i mod 16 = 0 then Vt100.printf "\n%03x: " (i/16);
 			Vt100.printf "%c" data.[i];
