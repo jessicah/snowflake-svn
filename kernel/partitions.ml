@@ -80,3 +80,17 @@ let wrap_write f partition offset length data =
 	let some_data = my_read_function some_offset some_number_of_sectors in
 	(* process some_data *)
 *)
+
+type partition_t = {
+	info : partition;
+	read : int -> int -> string;
+	write : int -> int -> string -> unit;
+}
+
+let partitions_t r w =
+	let partitions = partitions r in
+	List.map (fun p -> {
+		info = p;
+		read = wrap_read r p;
+		write = wrap_write w p;
+	}) partitions

@@ -25,13 +25,14 @@ let () =
 	let partitions =
 		begin try
 			let disk = IDE.get IDE.Primary IDE.Master in
-			let partitions = Partitions.partitions (IDE.read_disk disk) in
+			let partitions = Partitions.partitions_t (IDE.read_disk disk) (fun _ _ _ -> ()) in
 			(* display found partitions *)
 			if partitions = [] then
 				Vt100.printf "No partitions found on ide:0:0\r\n"
 			else begin
 				Vt100.printf "Partitions on ide:0:0:\r\n";
 				List.iter (fun p ->
+					let p = p.Partitions.info in
 					Vt100.printf "type: %s, start: %d, length: %d\r\n"
 						(Partitions.code_to_string p.Partitions.code)
 						p.Partitions.start
@@ -47,6 +48,7 @@ let () =
 				[]
 		end
 	in
+	List.iter Ext2fs.init partitions;
 	
 	(* finished, so launch the shell *)
 	Shell.init ()
