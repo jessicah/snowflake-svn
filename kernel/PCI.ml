@@ -15,7 +15,10 @@ type device =
 		vendor : int;
 		device : int;
 		resources : resource array;
-		request_line : int
+		request_line : int;
+		b : int;
+		d : int;
+		f : int;
 	}
 and resource =
 	| Empty
@@ -87,6 +90,7 @@ let probe bus device funct =
 						else Memory resource
 					end);
 			request_line = read8 id C.request_line;
+			b = bus; d = device; f = funct;
 		}
 	in device
 

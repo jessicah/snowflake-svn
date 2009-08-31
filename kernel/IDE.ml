@@ -99,6 +99,18 @@ let disk_to_id controller device = match controller, device with
 	| Primary, Slave -> 1
 	| Secondary, Master -> 2
 	| Secondary, Slave -> 3
+	
+type device_t = {
+	read : int -> int -> string;
+	write : int -> int -> string -> unit;
+}
+
+let disks =
+	let invalid = {
+		read = (fun _ _ -> raise Not_found);
+		write = (fun _ _ _ -> raise Not_found);
+	} in
+	[| invalid; invalid; invalid; invalid |]
 
 let init () =
 	(* look for an ata controller *)
@@ -120,12 +132,19 @@ let init () =
 		if masterStatus land 0x01 = 0x01 then begin
 			Vt100.printf "ide: found primary master\n";
 			present_disks.(0) <- true;
+		end else begin
+			Vt100.printf "ide: can't find primary master\n";
 		end;
 		if slaveStatus land 0x01 = 0x01 then begin
 			Vt100.printf "ide: found primary slave\n";
 			present_disks.(1) <- true;
+		end else begin
+			Vt100.printf "ide: can't find primary slave\n";
 		end;
-	end
+	end;
+	Array.iteri (fun i d ->
+		if present_disks.(i) then
+			disks.(i) <- { disks.(i) with read = read_disk i }) disks
 
 let get c d =
 	let id = disk_to_id c d in
@@ -133,3 +152,27 @@ let get c d =
 		id
 	else
 		raise Not_found
+
+open PCI
+
+let create dev =
+	begin try
+		(*let dev = PCI.probe dev.b dev.d 1 in
+	Vt100.printf "probing device %04x:%04x\r\n" dev.vendor dev.device;
+	Vt100.printf "programming interface: %x\r\n"
+		(PCI.read8 dev.id 9);
+	(*(* write 1f0 into the bmiba *)
+	PCI.write32 dev.id 0x20
+		(Int32.of_int ((0x1f0 lsl 4) lor 1));*)
+	(*(* write bit to set I/O space enable to command register *)
+	PCI.write16 dev.id 0x04 1;*)
+	(* try init() again *)
+	Vt100.printf "pci ide: init...\r\n";*)
+	init ();
+	with Not_found -> Vt100.printf "no sub device" end
+	
+let init2 () =
+	DeviceManager.add_driver "Generic IDE Controller: Intel PIIX4" create 0x8086 0x7111;
+	DeviceManager.add_driver "Generic IDE Controller: Intel PIIX3" create 0x8086 0x7000;
+	DeviceManager.add_driver "Generic IDE Controller: Intel ICH0" create 0x8086 0x2411;
+	DeviceManager.add_driver "Generic IDE Controller: Intel ICH0" create 0x8086 0x2421
