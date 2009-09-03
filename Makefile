@@ -19,6 +19,7 @@ all: myocamlbuild_config.ml
 	cp cdrom/stage2_eltorito cdrom/iso_prep/boot/grub/
 	cp $(BUILDDIR)/$(KERNEL) cdrom/iso_prep/boot/snowflake.elf
 	cp cdrom/menu.lst cdrom/iso_prep/boot/grub/
+	touch example.wav # think it need be around for grub menu.lst file...
 	cp example.wav cdrom/iso_prep/
 	mkisofs -R -b boot/grub/stage2_eltorito -no-emul-boot \
 		-boot-load-size 4 -boot-info-table \
