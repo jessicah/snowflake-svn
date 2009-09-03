@@ -38,7 +38,7 @@ type superblock = {
 	(* typical stuff :) *)
 	s_def_resgid : int;
 	s_def_resuid : int;
-	s_rev_level : int32;
+	s_rev_level : int;
 	s_creator_os : int32;
 	s_checkinterval : int;
 	s_lastcheck : int32;
@@ -69,9 +69,50 @@ type block_group_descriptor = {
 	bg_used_dirs_count : int;
 	bg_free_inodes_count : int;
 	bg_free_blocks_count :  int;
-	bg_inode_table : int32;
-	bg_inode_bitmap : int32;
-	bg_block_bitmap : int32;
+	bg_inode_table : int;
+	bg_inode_bitmap : int;
+	bg_block_bitmap : int;
+}
+
+type i_mode = i_format * i_rights
+and i_rights = int
+and i_format
+= Socket
+| Symlink
+| File
+| Block_device
+| Directory
+| Char_device
+| FIFO
+| Unknown
+
+type inode = {
+	i_osd2 : int list;
+	i_faddr : int;
+	i_dir_acl : int;
+	i_file_acl : int;
+	i_generation : int;
+	i_block : int array;
+	i_osd1 : int32;
+	i_flags : int32;
+	i_blocks : int;
+	i_links_count : int;
+	i_gid : int;
+	i_dtime : int32;
+	i_mtime : int32;
+	i_ctime : int32;
+	i_atime : int32;
+	i_size : int;
+	i_uid : int;
+	i_mode : i_mode;
+}
+
+type dir_entry = {
+	name : string;
+	file_type : int; (* i_format *)
+	name_len : int;
+	rec_len : int;
+	inode : int;
 }
 
 (* IO helper function *)
@@ -110,7 +151,7 @@ let superblock partition =
 		s_lastcheck = read_real_i32 i;
 		s_checkinterval = read_i32 i;
 		s_creator_os = read_real_i32 i;
-		s_rev_level = read_real_i32 i;
+		s_rev_level = read_i32 i;
 		s_def_resuid = read_i16 i;
 		s_def_resgid = read_i16 i;
 		(* ext2_dynamic_rev specific... *)
@@ -176,9 +217,9 @@ let block_group_descriptor_table p s =
 	(* Array.init works in the expected order *)
 	Array.init num_groups begin fun group ->
 		{
-			bg_block_bitmap = read_real_i32 i;
-			bg_inode_bitmap = read_real_i32 i;
-			bg_inode_table = read_real_i32 i;
+			bg_block_bitmap = read_i32 i;
+			bg_inode_bitmap = read_i32 i;
+			bg_inode_table = read_i32 i;
 			bg_free_blocks_count = read_i16 i;
 			bg_free_inodes_count = read_i16 i;
 			bg_used_dirs_count = read_i16 i;
@@ -186,6 +227,90 @@ let block_group_descriptor_table p s =
 			bg_reserved = read_bytes i 12;
 		}
 	end
+
+let to_imode x =
+	let format = match x land 0xF000 with
+		| 0xC000 -> Socket
+		| 0xA000 -> Symlink
+		| 0x8000 -> File
+		| 0x6000 -> Block_device
+		| 0x4000 -> Directory
+		| 0x2000 -> Char_device
+		| 0x1000 -> FIFO
+		| _ -> Unknown
+	in
+	format, x land 0x1FF
+
+let of_imode (format, rights) =
+	let f = match format with
+		| Socket -> "socket"
+		| Symlink -> "symlink"
+		| File -> "file"
+		| Block_device -> "block device"
+		| Directory -> "directory"
+		| Char_device -> "char device"
+		| FIFO -> "fifo"
+		| Unknown -> "<unknown>"
+	in
+	Printf.sprintf "kind: %s, rights: %03o" f rights
+
+let inode p s t x =
+	let block_group = (x - 1) / s.s_inodes_per_group in
+	let inode_index = (x - 1) mod s.s_inodes_per_group in
+	let descr = t.(block_group) in
+	let inode_size =
+		if s.s_rev_level >= 1 (* ext2_dynamic_rev *)
+		then s.s_inode_size
+		else 128 in
+	(* bg_inode_table is the first block of the inode table *)
+	let pos = (descr.bg_inode_table * (1024 lsl s.s_log_block_size)) + (inode_index * inode_size) in
+	Vt100.printf "inode %d located at offset %d, block group = %d, inode index = %d\n" x pos block_group inode_index;
+	Vt100.printf "inode table = %x, block size = %d (log = %d), inode_size = %d\n" descr.bg_inode_table (1024 lsl s.s_log_block_size) s.s_log_block_size inode_size;
+	(* an inode always fits within a sector, so it works okay *)
+	let sector = p.read (pos / 512) 1 in
+	let offset = pos mod 512 in
+	let i = IO.input_string sector in
+	ignore (read_bytes i offset);
+	{
+		i_mode = to_imode (read_i16 i);
+		i_uid = read_i16 i;
+		i_size = read_i32 i;
+		i_atime = read_real_i32 i;
+		i_ctime = read_real_i32 i;
+		i_mtime = read_real_i32 i;
+		i_dtime = read_real_i32 i;
+		i_gid = read_i16 i;
+		i_links_count = read_i16 i;
+		i_blocks = read_i32 i;
+		i_flags = read_real_i32 i;
+		i_osd1 = read_real_i32 i;
+		i_block = Array.init 15 (fun _ -> read_i32 i);
+		i_generation = read_i32 i;
+		i_file_acl = read_i32 i;
+		i_dir_acl = read_i32 i;
+		i_faddr = read_i32 i;
+		i_osd2 = read_bytes i 12;
+	}
+
+let readdir p s t inode =
+	let buffer = String.make inode.i_size '\000' in
+	let block_size = 1024 lsr s.s_log_block_size in
+	(* copy the data into the buffer *)
+	for i = 0 to (inode.i_size / block_size) - 1 do
+		(* get the block from i_block *)
+		if i < 13 then begin
+			let block = inode.i_block.(i) in
+			if block <> 0 then begin
+				(* got a block number *)
+				()
+			end
+			(* do nothing for 'sparse' blocks *)
+		end else begin
+			(* for 13 and above, we need to use indirection blocks... *)
+			failwith "can't do indirect blocks yet"
+		end
+	done;
+	()
 
 let init p =
 	(* read the superblock, it's 2 sectors worth *)
@@ -212,23 +337,28 @@ let init p =
 	for i = 0 to 3 do
 		Vt100.printf "block group descriptor %d:\n" i;
 		let d = t.(i) in
-		Vt100.printf "block bitmap@%lx; inode bitmap@%lx; inode table@%lx\n"
+		Vt100.printf "block bitmap@%x; inode bitmap@%x; inode table@%x\n"
 			d.bg_block_bitmap d.bg_inode_bitmap d.bg_inode_table;
 		Vt100.printf "free blocks: %d; free inodes: %d; used dirs: %d\n"
 			d.bg_free_blocks_count d.bg_free_inodes_count d.bg_used_dirs_count;
 	done;
 	Vt100.printf "block group descriptor %d (second last):\n" (Array.length t - 2);
 	let d = t.(Array.length t - 2) in
-	Vt100.printf "block bitmap@%lx; inode bitmap@%lx; inode table@%lx\n"
+	Vt100.printf "block bitmap@%x; inode bitmap@%x; inode table@%x\n"
 		d.bg_block_bitmap d.bg_inode_bitmap d.bg_inode_table;
 	Vt100.printf "free blocks: %d; free inodes: %d; used dirs: %d\n"
 		d.bg_free_blocks_count d.bg_free_inodes_count d.bg_used_dirs_count;
 	Vt100.printf "block group descriptor %d (last):\n" (Array.length t - 1);
 	let d = t.(Array.length t - 1) in
-	Vt100.printf "block bitmap@%lx; inode bitmap@%lx; inode table@%lx\n"
+	Vt100.printf "block bitmap@%x; inode bitmap@%x; inode table@%x\n"
 		d.bg_block_bitmap d.bg_inode_bitmap d.bg_inode_table;
 	Vt100.printf "free blocks: %d; free inodes: %d; used dirs: %d\n"
 		d.bg_free_blocks_count d.bg_free_inodes_count d.bg_used_dirs_count;
+	let root_dir_inode = inode p s t 2 in
+	Vt100.printf "root dir inode: %s, size = %d, flags = %lx, uid = %d, gid = %d\n"
+		(of_imode root_dir_inode.i_mode)
+		root_dir_inode.i_size root_dir_inode.i_flags
+		root_dir_inode.i_uid root_dir_inode.i_gid
 		with Failure "not linux native partition" -> ()
 		| ex -> Vt100.printf "error: %s" (Printexc.to_string ex)
 	end
