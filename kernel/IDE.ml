@@ -40,7 +40,9 @@ let pri = 0x1F0
 
 let rec poll ofs f lim =
 	if not (f (Asm.in8 (pri+ofs))) && lim < 100_000 then begin
-		Thread.yield ();
+		(*Thread.yield ();*)
+		Asm.out8 0x80 0x80;
+		ignore (Asm.in8 0x80);
 		poll ofs f (lim+1)
 	end else if lim = 100_000 then begin
 		raise Timeout
@@ -72,7 +74,7 @@ let swab s =
 
 (* disk is disk_to_id, 0, 1, 2, 3 *)
 let read_disk disk sector length = (* disk = 0x00/0x10 master/slave *)
-	poll R.status (fun i -> i land S.bsy = 0);
+	(*poll R.status (fun i -> i land S.bsy = 0);*)
 	write R.seccount length;
 	write R.lba_low (sector land 0xFF);
 	write R.lba_mid ((sector lsr 8) land 0xFF);
