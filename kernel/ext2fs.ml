@@ -123,6 +123,18 @@ let read_bytes i n =
 		| n -> read (IO.read_byte i :: acc) (n-1)
 	in read [] n
 
+let read_asciz i =
+	let rec read acc = function
+		| 0 -> ExtString.String.implode (List.rev_map Char.chr acc)
+		| c -> read (c :: acc) (IO.read_byte i)
+	in read [] (IO.read_byte i)
+
+let to_sector s block =
+	block lsl (s.s_log_block_size + 1)
+
+(* the addition ensures we read enough of a sector to get all the data *)
+let to_num_sectors n = (n + 511) / 512
+
 (* read a superblock *)
 let superblock partition =
 	if partition.info.code <> 0x83 then failwith "not linux native partition";
@@ -185,24 +197,23 @@ let superblock partition =
 	}
 
 let block_group_descriptor_table p s =
-	(* located on the first block following the superblock *)
-	(* superblock at 1024 bytes from partition start *)
-	let block_size = 1024 lsl s.s_log_block_size in
-	let superblock_block = 1024 / block_size in
-	(* if blocksize = 1024, then = 1, else 0 *)
-	(* => bgd at 2 (third block), else 1 (second block) *)
-	let table_block = superblock_block + 1 in
-	(* block group descriptor is 32 bytes *)
-	(* num block groups = s_inodes_count / s_inodes_per_group *)
+	(* located on the first block following the superblock: 1 or 2 *)
+	let sector_start =
+		if s.s_log_block_size = 0 then
+			(* block size is 1024, superblock at block 1 *)
+			to_sector s 2
+		else
+			(* block size is > 1024, superblock inside block 0 *)
+			to_sector s 1
+	in
+	(* num groups gives us the number of entries *)
 	let num_groups = s.s_inodes_count / s.s_inodes_per_group in
-	let length = num_groups * 32 in
-	let num_sectors = ((length + 511) / 512) in
-	let table_raw = String.create (512 * num_sectors) in
-	let sector_start = ((table_block * block_size) / 512) in
-	Vt100.printf "reading %d sectors, starting at offset %d\n"
-		num_sectors sector_start;
-	(* lifted this out in an attempt to work around IDE problems; no such luck! =/ *)
-	for i = 0 to num_sectors - 1 do
+	(* size of an entry is fixed at 32 bytes => number of sectors needed to read *)
+	let table_raw = String.create (512 * 32 * num_groups) in
+	(*let sector_start = ((table_block * block_size) / 512) in*)
+	Vt100.printf "reading sectors starting at offset %d\n" sector_start;
+	(* lifted this out in an attempt to work around IDE problems... *)
+	for i = 0 to num_groups / 16 do
 		Vt100.printf "sector %d...\n" (sector_start + i);
 		let sector = p.read (sector_start + i) 1 in
 		String.blit
@@ -210,9 +221,7 @@ let block_group_descriptor_table p s =
 			table_raw (i * 512)
 			512;
 	done;
-	
-	(* assume descriptors are all one after another, no padding/gaps *)
-	(*let table_raw = p.read ((table_block * block_size) / 512) ((length + 511) / 512) in*)
+	(* get out IO stream *)
 	let i = IO.input_string table_raw in
 	(* Array.init works in the expected order *)
 	Array.init num_groups begin fun group ->
@@ -293,24 +302,44 @@ let inode p s t x =
 	}
 
 let readdir p s t inode =
-	let buffer = String.make inode.i_size '\000' in
 	let block_size = 1024 lsr s.s_log_block_size in
 	(* copy the data into the buffer *)
-	for i = 0 to (inode.i_size / block_size) - 1 do
+	let buffer = p.read (to_sector s inode.i_block.(0)) (2 lsl s.s_log_block_size) in
+	(*for i = 0 to (inode.i_size / block_size) - 1 do
 		(* get the block from i_block *)
-		if i < 13 then begin
-			let block = inode.i_block.(i) in
-			if block <> 0 then begin
-				(* got a block number *)
-				()
-			end
-			(* do nothing for 'sparse' blocks *)
-		end else begin
-			(* for 13 and above, we need to use indirection blocks... *)
-			failwith "can't do indirect blocks yet"
+		let block = inode.i_block.(i) in
+		if block <> 0 then begin
+			(* got a block number *)
+			let sector = p.read (to_sector s block) (2 lsl s.s_log_block_size) in
+			String.blit
+				sector 0
+				buffer (i * block_size)
+				block_size;
 		end
-	done;
-	()
+		(* do nothing for 'sparse' blocks *)
+	done;*)
+	(* we might've left off the tail of the buffer... fix later :P *)
+	let i = IO.input_string buffer in
+	let rec loop acc =
+		let entry = {
+			inode = read_i32 i;
+			rec_len = read_i16 i;
+			name_len = read_byte i;
+			file_type = read_byte i;
+			name = "";
+		} in
+		let entry = { entry with name = ExtString.String.implode (List.map Char.chr (read_bytes i entry.name_len)) } in
+		Vt100.printf "dir_entry: inode = %d, rec_len = %d, name_len = %d, file_type = %d, name = %s\n"
+			entry.inode entry.rec_len entry.name_len entry.file_type entry.name;
+		if entry.rec_len - 8 - String.length entry.name >= 4 then
+			(* it pointing to the next block; let's just stop *)
+			List.rev (entry :: acc)
+		else begin
+			(* need to actually read the padding... *)
+			ignore (read_bytes i (4 - (String.length entry.name mod 4)));
+			loop (entry :: acc)
+		end
+	in loop []
 
 let init p =
 	(* read the superblock, it's 2 sectors worth *)
@@ -358,7 +387,12 @@ let init p =
 	Vt100.printf "root dir inode: %s, size = %d, flags = %lx, uid = %d, gid = %d\n"
 		(of_imode root_dir_inode.i_mode)
 		root_dir_inode.i_size root_dir_inode.i_flags
-		root_dir_inode.i_uid root_dir_inode.i_gid
+		root_dir_inode.i_uid root_dir_inode.i_gid;
+	let root_dir_list = readdir p s t root_dir_inode in
+	Vt100.printf "Directory listing for /:\n";
+	List.iter begin fun entry ->
+		Vt100.printf "%s\n" entry.name
+	end root_dir_list;
 		with Failure "not linux native partition" -> ()
 		| ex -> Vt100.printf "error: %s" (Printexc.to_string ex)
 	end
