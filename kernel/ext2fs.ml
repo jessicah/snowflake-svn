@@ -208,23 +208,9 @@ let block_group_descriptor_table p s =
 	in
 	(* num groups gives us the number of entries *)
 	let num_groups = s.s_inodes_count / s.s_inodes_per_group in
-	(* size of an entry is fixed at 32 bytes => number of sectors needed to read *)
-	let table_raw = String.create (512 * 32 * num_groups) in
-	(*let sector_start = ((table_block * block_size) / 512) in*)
-	(*Vt100.printf "reading sectors starting at offset %d\n" sector_start;*)
-	(* lifted this out in an attempt to work around IDE problems... *)
-	for i = 0 to num_groups / 16 do
-		(*Vt100.printf "sector %d...\n" (sector_start + i);*)
-		let sector = p.read (sector_start + i) 1 in
-		String.blit
-			sector 0
-			table_raw (i * 512)
-			512;
-	done;
-	(* get out IO stream *)
-	let i = IO.input_string table_raw in
 	(* Array.init works in the expected order *)
 	Array.init num_groups begin fun group ->
+		let i = IO.input_string (p.read (sector_start + group) 1) in
 		{
 			bg_block_bitmap = read_i32 i;
 			bg_inode_bitmap = read_i32 i;
@@ -354,9 +340,13 @@ type t = {
 }
 
 let make p =
+	Vt100.printf "Parsing superblock...\n";
 	let s = superblock p in
+	Vt100.printf "Parsing block group descriptors...\n";
 	let t = block_group_descriptor_table p s in
+	Vt100.printf "Parsing root directory inode...\n";
 	let i = inode p s t 2l in
+	Vt100.printf "Parsed ext2fs data structures...\n";
 	{
 		superblock = s;
 		block_table = t;
