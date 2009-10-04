@@ -261,12 +261,13 @@ let inode p s t x =
 	(* bg_inode_table is the first block of the inode table *)
 	let sector = descr.bg_inode_table lsl (s.s_log_block_size + 1) in
 	let sector = sector + ((inode_index * inode_size) / 512) in
-	(*Vt100.printf "inode %d located at offset %d, block group = %d, inode index = %d\n" x sector block_group inode_index;
-	Vt100.printf "inode table = %x, block size = %d (log = %d), inode_size = %d\n" descr.bg_inode_table (1024 lsl s.s_log_block_size) s.s_log_block_size inode_size;*)
+	Vt100.printf "inode %d located at offset %d, block group = %d, inode index = %d\n" x sector block_group inode_index;
+	Vt100.printf "inode table = %x, block size = %d (log = %d), inode_size = %d\n" descr.bg_inode_table (1024 lsl s.s_log_block_size) s.s_log_block_size inode_size;
 	(* an inode always fits within a sector, so it works okay *)
 	let sector = p.read sector 1 in
 	let offset = (inode_index * inode_size) mod 512 in
 	let i = IO.input_string sector in
+	let read_i32 x = Vt100.printf "x"; read_i32 x in
 	ignore (read_bytes i offset);
 	{
 		i_mode = to_imode (read_i16 i);
@@ -281,7 +282,7 @@ let inode p s t x =
 		i_blocks = read_i32 i;
 		i_flags = read_real_i32 i;
 		i_osd1 = read_real_i32 i;
-		i_block = Array.init 15 (fun _ -> read_i32 i);
+		i_block = Array.init 15 (fun _ -> let x = read_real_i32 i in Vt100.printf "%ld\n" x; Int32.to_int x); (* ls cdrom: fails here *)
 		i_generation = read_real_i32 i;
 		i_file_acl = read_real_i32 i;
 		i_dir_acl = read_real_i32 i;
@@ -291,9 +292,9 @@ let inode p s t x =
 
 let readdir p s t inode =
 	let block_size = 1024 lsl s.s_log_block_size in (* not using this as yet *)
-	(*let inode_size = ref inode.i_size in
+	let inode_size = ref inode.i_size in
 	Vt100.printf "block size: %d, inode size: %d, iterations: %d\n"
-		block_size !inode_size (!inode_size / block_size);*)
+		block_size !inode_size (!inode_size / block_size);
 	(* copy the data into the buffer *)
 	let buffer = p.read (to_sector s inode.i_block.(0)) (2 lsl s.s_log_block_size) in
 	let i, o = IO.pipe () in
@@ -311,8 +312,8 @@ let readdir p s t inode =
 		} in
 		total_length := !total_length + entry.rec_len;
 		let entry = { entry with name = ExtString.String.implode (List.map Char.chr (read_bytes i entry.name_len)) } in
-		(*Vt100.printf "dir_entry: inode = %d, rec_len = %d, name_len = %d, file_type = %d, name = %s\n"
-			entry.inode entry.rec_len entry.name_len entry.file_type entry.name;*)
+		Vt100.printf "dir_entry: inode = %ld, rec_len = %d, name_len = %d, file_type = %d, name = %s\n"
+			entry.inode entry.rec_len entry.name_len entry.file_type entry.name;
 		if !total_length >= block_size then begin
 			(* this record is pointing to the next block *)
 			(*if inode.i_block.(!n) = 0 then begin
@@ -328,6 +329,8 @@ let readdir p s t inode =
 			end*)List.rev (entry :: acc)
 		end else begin
 			(* need to actually read the padding... *)
+			Vt100.printf "skipping %dbytes of padding...\n"
+				(entry.rec_len - 8 - String.length entry.name);
 			ignore (read_bytes i (entry.rec_len - 8 - String.length entry.name));
 			loop (entry :: acc)
 		end

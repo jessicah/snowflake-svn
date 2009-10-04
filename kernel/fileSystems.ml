@@ -19,7 +19,7 @@ let init () =
 			begin try
 				let inode = fs.read_inode begin
 					(List.find begin fun entry ->
-							entry.name = name
+							entry.name = name && entry.file_type = 2
 						end !dirs).inode
 					end in
 				dirs := fs.read_dir inode;
@@ -28,7 +28,7 @@ let init () =
 						Vt100.printf " %s\n" entry.name
 					end !dirs
 			with Not_found ->
-				Vt100.printf "directory not found\n"
+				Vt100.printf "directory not found, or not a directory\n"
 			end;
 			did_it := true
 		in
