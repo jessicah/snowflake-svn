@@ -48,7 +48,19 @@ let () =
 				[]
 		end
 	in
-	List.iter Ext2fs.init partitions;
+	let rec loop = function
+		| [] -> ()
+		| x :: xs ->
+			begin try
+				let fs = Ext2fs.create x in
+				(* add the FS to something... *)
+				Vt100.printf "added a file system\n";
+				FileSystems.set_fs fs;
+				FileSystems.init ();
+			with Not_found -> loop xs
+			end
+	in loop partitions;
+	(*List.iter Ext2fs.init partitions;*)
 	
 	(* finished, so launch the shell *)
 	Shell.init ()

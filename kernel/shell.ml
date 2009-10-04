@@ -3,11 +3,11 @@
 
 let commands = Hashtbl.create 7
 
-let add_command name f specs =
-	Hashtbl.add commands name (f, Arg.align specs)
-
 let no_anon arg =
 	raise (Arg.Bad (Printf.sprintf "unknown argument (%s)" arg))
+
+let add_command name f ?(anon = no_anon) specs =
+	Hashtbl.add commands name (f, Arg.align specs, anon)
 
 let read_line ic =
 	let line = IO.read_line ic in
@@ -62,9 +62,9 @@ let shell () =
 		| [] -> ()
 		| x :: rest ->
 			begin try
-				let f, spec_list = Hashtbl.find commands x in
+				let f, spec_list, anon = Hashtbl.find commands x in
 				begin try
-					Arg.parse_argv ~current (Array.of_list parts) spec_list no_anon "";
+					Arg.parse_argv ~current (Array.of_list parts) spec_list anon "";
 					f ()
 				with Arg.Help msg | Arg.Bad msg ->
 					Vt100.printf "%s" msg

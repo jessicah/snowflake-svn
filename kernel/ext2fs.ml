@@ -88,10 +88,10 @@ and i_format
 
 type inode = {
 	i_osd2 : int list;
-	i_faddr : int;
-	i_dir_acl : int;
-	i_file_acl : int;
-	i_generation : int;
+	i_faddr : int32;
+	i_dir_acl : int32;
+	i_file_acl : int32;
+	i_generation : int32;
 	i_block : int array;
 	i_osd1 : int32;
 	i_flags : int32;
@@ -112,7 +112,7 @@ type dir_entry = {
 	file_type : int; (* i_format *)
 	name_len : int;
 	rec_len : int;
-	inode : int;
+	inode : int32;
 }
 
 (* IO helper function *)
@@ -211,10 +211,10 @@ let block_group_descriptor_table p s =
 	(* size of an entry is fixed at 32 bytes => number of sectors needed to read *)
 	let table_raw = String.create (512 * 32 * num_groups) in
 	(*let sector_start = ((table_block * block_size) / 512) in*)
-	Vt100.printf "reading sectors starting at offset %d\n" sector_start;
+	(*Vt100.printf "reading sectors starting at offset %d\n" sector_start;*)
 	(* lifted this out in an attempt to work around IDE problems... *)
 	for i = 0 to num_groups / 16 do
-		Vt100.printf "sector %d...\n" (sector_start + i);
+		(*Vt100.printf "sector %d...\n" (sector_start + i);*)
 		let sector = p.read (sector_start + i) 1 in
 		String.blit
 			sector 0
@@ -264,6 +264,7 @@ let of_imode (format, rights) =
 	Printf.sprintf "kind: %s, rights: %03o" f rights
 
 let inode p s t x =
+	let x = Int32.to_int x in (* maybe it doesn't have to be an int32 afterall... *)
 	let block_group = (x - 1) / s.s_inodes_per_group in
 	let inode_index = (x - 1) mod s.s_inodes_per_group in
 	let descr = t.(block_group) in
@@ -272,12 +273,13 @@ let inode p s t x =
 		then s.s_inode_size
 		else 128 in
 	(* bg_inode_table is the first block of the inode table *)
-	let pos = (descr.bg_inode_table * (1024 lsl s.s_log_block_size)) + (inode_index * inode_size) in
-	Vt100.printf "inode %d located at offset %d, block group = %d, inode index = %d\n" x pos block_group inode_index;
-	Vt100.printf "inode table = %x, block size = %d (log = %d), inode_size = %d\n" descr.bg_inode_table (1024 lsl s.s_log_block_size) s.s_log_block_size inode_size;
+	let sector = descr.bg_inode_table lsl (s.s_log_block_size + 1) in
+	let sector = sector + ((inode_index * inode_size) / 512) in
+	(*Vt100.printf "inode %d located at offset %d, block group = %d, inode index = %d\n" x sector block_group inode_index;
+	Vt100.printf "inode table = %x, block size = %d (log = %d), inode_size = %d\n" descr.bg_inode_table (1024 lsl s.s_log_block_size) s.s_log_block_size inode_size;*)
 	(* an inode always fits within a sector, so it works okay *)
-	let sector = p.read (pos / 512) 1 in
-	let offset = pos mod 512 in
+	let sector = p.read sector 1 in
+	let offset = (inode_index * inode_size) mod 512 in
 	let i = IO.input_string sector in
 	ignore (read_bytes i offset);
 	{
@@ -294,15 +296,15 @@ let inode p s t x =
 		i_flags = read_real_i32 i;
 		i_osd1 = read_real_i32 i;
 		i_block = Array.init 15 (fun _ -> read_i32 i);
-		i_generation = read_i32 i;
-		i_file_acl = read_i32 i;
-		i_dir_acl = read_i32 i;
-		i_faddr = read_i32 i;
+		i_generation = read_real_i32 i;
+		i_file_acl = read_real_i32 i;
+		i_dir_acl = read_real_i32 i;
+		i_faddr = read_real_i32 i;
 		i_osd2 = read_bytes i 12;
 	}
 
 let readdir p s t inode =
-	let block_size = 1024 lsr s.s_log_block_size in
+	(*let block_size = 1024 lsr s.s_log_block_size in*) (* not using this as yet *)
 	(* copy the data into the buffer *)
 	let buffer = p.read (to_sector s inode.i_block.(0)) (2 lsl s.s_log_block_size) in
 	(*for i = 0 to (inode.i_size / block_size) - 1 do
@@ -322,25 +324,57 @@ let readdir p s t inode =
 	let i = IO.input_string buffer in
 	let rec loop acc =
 		let entry = {
-			inode = read_i32 i;
+			inode = read_real_i32 i;
 			rec_len = read_i16 i;
 			name_len = read_byte i;
 			file_type = read_byte i;
 			name = "";
 		} in
 		let entry = { entry with name = ExtString.String.implode (List.map Char.chr (read_bytes i entry.name_len)) } in
-		Vt100.printf "dir_entry: inode = %d, rec_len = %d, name_len = %d, file_type = %d, name = %s\n"
-			entry.inode entry.rec_len entry.name_len entry.file_type entry.name;
+		(*Vt100.printf "dir_entry: inode = %d, rec_len = %d, name_len = %d, file_type = %d, name = %s\n"
+			entry.inode entry.rec_len entry.name_len entry.file_type entry.name;*)
 		if entry.rec_len - 8 - String.length entry.name >= 4 then
 			(* it pointing to the next block; let's just stop *)
 			List.rev (entry :: acc)
 		else begin
 			(* need to actually read the padding... *)
-			ignore (read_bytes i (4 - (String.length entry.name mod 4)));
+			let rem = String.length entry.name mod 4 in
+			if rem <> 0 then
+				ignore (read_bytes i (4 - rem));
 			loop (entry :: acc)
 		end
 	in loop []
 
+type t = {
+	superblock : superblock;
+	block_table : block_group_descriptor array;
+	root : inode;
+}
+
+let make p =
+	let s = superblock p in
+	let t = block_group_descriptor_table p s in
+	let i = inode p s t 2l in
+	{
+		superblock = s;
+		block_table = t;
+		root = i;
+	}
+
+type fs = {
+	metadata : t;
+	read_dir : inode -> dir_entry list;
+	read_inode : int32 -> inode;
+}
+
+let create p =
+	let m = make p in
+	{
+		metadata = m;
+		read_dir = readdir p m.superblock m.block_table;
+		read_inode = inode p m.superblock m.block_table;
+	}
+		
 let init p =
 	(* read the superblock, it's 2 sectors worth *)
 	begin
@@ -383,7 +417,7 @@ let init p =
 		d.bg_block_bitmap d.bg_inode_bitmap d.bg_inode_table;
 	Vt100.printf "free blocks: %d; free inodes: %d; used dirs: %d\n"
 		d.bg_free_blocks_count d.bg_free_inodes_count d.bg_used_dirs_count;
-	let root_dir_inode = inode p s t 2 in
+	let root_dir_inode = inode p s t 2l in
 	Vt100.printf "root dir inode: %s, size = %d, flags = %lx, uid = %d, gid = %d\n"
 		(of_imode root_dir_inode.i_mode)
 		root_dir_inode.i_size root_dir_inode.i_flags
