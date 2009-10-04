@@ -304,24 +304,17 @@ let inode p s t x =
 	}
 
 let readdir p s t inode =
-	(*let block_size = 1024 lsr s.s_log_block_size in*) (* not using this as yet *)
+	let block_size = 1024 lsl s.s_log_block_size in (* not using this as yet *)
+	(*let inode_size = ref inode.i_size in
+	Vt100.printf "block size: %d, inode size: %d, iterations: %d\n"
+		block_size !inode_size (!inode_size / block_size);*)
 	(* copy the data into the buffer *)
 	let buffer = p.read (to_sector s inode.i_block.(0)) (2 lsl s.s_log_block_size) in
-	(*for i = 0 to (inode.i_size / block_size) - 1 do
-		(* get the block from i_block *)
-		let block = inode.i_block.(i) in
-		if block <> 0 then begin
-			(* got a block number *)
-			let sector = p.read (to_sector s block) (2 lsl s.s_log_block_size) in
-			String.blit
-				sector 0
-				buffer (i * block_size)
-				block_size;
-		end
-		(* do nothing for 'sparse' blocks *)
-	done;*)
-	(* we might've left off the tail of the buffer... fix later :P *)
-	let i = IO.input_string buffer in
+	let i, o = IO.pipe () in
+	(*let n = ref 1 in (* unused *)*)
+	(* fill buffer *)
+	IO.write_string o buffer;
+	let total_length = ref 0 in
 	let rec loop acc =
 		let entry = {
 			inode = read_real_i32 i;
@@ -330,17 +323,26 @@ let readdir p s t inode =
 			file_type = read_byte i;
 			name = "";
 		} in
+		total_length := !total_length + entry.rec_len;
 		let entry = { entry with name = ExtString.String.implode (List.map Char.chr (read_bytes i entry.name_len)) } in
 		(*Vt100.printf "dir_entry: inode = %d, rec_len = %d, name_len = %d, file_type = %d, name = %s\n"
 			entry.inode entry.rec_len entry.name_len entry.file_type entry.name;*)
-		if entry.rec_len - 8 - String.length entry.name >= 4 then
-			(* it pointing to the next block; let's just stop *)
-			List.rev (entry :: acc)
-		else begin
+		if !total_length >= block_size then begin
+			(* this record is pointing to the next block *)
+			(*if inode.i_block.(!n) = 0 then begin
+				(* we're finished *)
+				List.rev (entry :: acc)
+			end else begin
+				(* we have another block to read *)
+				total_length := 0;
+				ignore (IO.read_all i); (* consume remaining input we can discard *)
+				IO.write_string o (p.read (to_sector s inode.i_block.(!n)) (2 lsl s.s_log_block_size));
+				incr n;
+				loop (entry :: acc)
+			end*)List.rev (entry :: acc)
+		end else begin
 			(* need to actually read the padding... *)
-			let rem = String.length entry.name mod 4 in
-			if rem <> 0 then
-				ignore (read_bytes i (4 - rem));
+			ignore (read_bytes i (entry.rec_len - 8 - String.length entry.name));
 			loop (entry :: acc)
 		end
 	in loop []
