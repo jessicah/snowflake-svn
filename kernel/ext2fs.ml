@@ -341,6 +341,18 @@ let readdir p s t inode =
 		end
 	in loop []
 
+let readfile p s t inode =
+	(* just read the first 8 blocks *)
+	let o = IO.output_string () in
+	for i = 0 to 7 do
+		if inode.i_block.(i) <> 0 then begin
+			(* we have some data! *)
+			IO.nwrite o (p.read (to_sector s inode.i_block.(i)) (2 lsl s.s_log_block_size));
+		end;
+	done;
+	let s = IO.close_out o in
+	String.sub s 0 inode.i_size
+
 type t = {
 	superblock : superblock;
 	block_table : block_group_descriptor array;
@@ -361,6 +373,7 @@ type fs = {
 	metadata : t;
 	read_dir : inode -> dir_entry list;
 	read_inode : int32 -> inode;
+	read_file : inode -> string
 }
 
 let create p =
@@ -369,6 +382,7 @@ let create p =
 		metadata = m;
 		read_dir = readdir p m.superblock m.block_table;
 		read_inode = inode p m.superblock m.block_table;
+		read_file = readfile p m.superblock m.block_table;
 	}
 		
 let init p =
