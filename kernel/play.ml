@@ -17,9 +17,10 @@ let init () =
 							entry.name = name && entry.file_type = 1
 						end !FileSystems.dirs).inode
 					end in
-				let contents = fs.read_file inode in
+				(*let contents = fs.read_file inode in
 				let ba = Array1.create int8_unsigned c_layout (String.length contents) in
-				Array1.blit_from_string contents ba;
+				Array1.blit_from_string contents ba;*)
+				let ba = fs.read_file_ba inode in
 				Vt100.printf "play: trying to play %s...\n" name;
 				AudioMixer.play begin
 					AudioMixer.Wave.read begin

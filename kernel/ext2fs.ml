@@ -384,6 +384,61 @@ let readfile p s t inode =
 	Vt100.printf "ext2fs: read %d bytes from disk\n" (String.length s);
 	String.sub s 0 (min inode.i_size (String.length s))
 
+let readfile_ba p s t inode =
+	let indirect_entries = (1024 lsl s.s_log_block_size) / 4 in
+	let num_sectors = 2 lsl s.s_log_block_size in
+	let block_size = 1024 lsl s.s_log_block_size in
+	let read ofs = p.read (to_sector s ofs) num_sectors in
+	let ba = Bigarray.Array1.create Bigarray.int8_unsigned Bigarray.c_layout inode.i_size in
+	let pos = ref 0 in
+	let write ofs =
+		let s = read ofs in
+		let len = if inode.i_size - !pos < block_size
+			then inode.i_size - !pos
+			else block_size
+		in
+		begin try
+			Bigarray.Array1.blit_from_string
+				(if len = block_size then s else String.sub s 0 len)
+				(Bigarray.Array1.sub ba !pos len);
+		with exn ->
+			Vt100.printf "ext2fs fail: pos = %d, block size = %d, len = %d, total len = %d\n"
+				!pos block_size len inode.i_size;
+			raise exn;
+		end;
+		pos := !pos + len;
+	in
+	(* read indirect block data into the bigarray *)
+	let rec read_indirect indirect_block levels =
+		let inp = IO.input_string (read indirect_block) in
+		if levels = 0 then begin
+			(* the int32 values point to blocks of data *)
+			for i = 0 to indirect_entries - 1 do
+				let block = IO.read_i32 inp in
+				if block <> 0 then begin
+					write block
+				end
+			done
+		end else begin
+			for i = 0 to indirect_entries - 1 do
+				let indirect_block = IO.read_i32 inp in
+				if indirect_block <> 0 then
+					read_indirect indirect_block (levels - 1)
+			done
+		end
+	in
+	for i = 0 to 11 do
+		if inode.i_block.(i) <> 0 then begin
+			(* we have some data! *)
+			write inode.i_block.(i);
+		end;
+	done;
+	if inode.i_block.(12) <> 0 then read_indirect inode.i_block.(12) 0;
+	if inode.i_block.(13) <> 0 then read_indirect inode.i_block.(13) 1;
+	if inode.i_block.(14) <> 0 then read_indirect inode.i_block.(14) 2;
+	(* return the bigarray result *)
+	ba
+
 type t = {
 	superblock : superblock;
 	block_table : block_group_descriptor array;
@@ -404,7 +459,8 @@ type fs = {
 	metadata : t;
 	read_dir : inode -> dir_entry list;
 	read_inode : int32 -> inode;
-	read_file : inode -> string
+	read_file : inode -> string;
+	read_file_ba : inode -> (int, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t;
 }
 
 let create p =
@@ -414,6 +470,7 @@ let create p =
 		read_dir = readdir p m.superblock m.block_table;
 		read_inode = inode p m.superblock m.block_table;
 		read_file = readfile p m.superblock m.block_table;
+		read_file_ba = readfile_ba p m.superblock m.block_table;
 	}
 		
 let init p =
