@@ -57,6 +57,7 @@ let () =
 				Vt100.printf "added a file system\n";
 				FileSystems.set_fs fs;
 				FileSystems.init ();
+				Play.init ();
 			with Not_found -> loop xs
 			end
 	in loop partitions;

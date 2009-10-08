@@ -344,14 +344,14 @@ let readdir p s t inode =
 let readfile p s t inode =
 	(* just read the first 8 blocks *)
 	let o = IO.output_string () in
-	for i = 0 to 7 do
+	for i = 0 to 12 do
 		if inode.i_block.(i) <> 0 then begin
 			(* we have some data! *)
 			IO.nwrite o (p.read (to_sector s inode.i_block.(i)) (2 lsl s.s_log_block_size));
 		end;
 	done;
 	let s = IO.close_out o in
-	String.sub s 0 inode.i_size
+	String.sub s 0 (min inode.i_size (String.length s))
 
 type t = {
 	superblock : superblock;
