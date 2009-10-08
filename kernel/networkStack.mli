@@ -12,6 +12,7 @@ type net_device = {
 val register_device : net_device -> unit
 
 (* this is all kind of random being here... *)
+val nic : unit -> net_device
 val send : string -> unit
 val recv : unit -> PacketParsing.t
 val get_hw_addr : unit -> NetworkProtocolStack.Ethernet.addr
@@ -48,3 +49,12 @@ val bind_tcp : int -> (PacketParsing.t -> int -> unit) -> unit
 val unbind_tcp : int -> unit
 
 val init : unit -> unit
+
+type settings = {
+	mutable ip : NetworkProtocolStack.IPv4.addr;
+	mutable dns : NetworkProtocolStack.IPv4.addr;
+	mutable netmask : NetworkProtocolStack.IPv4.addr;
+	mutable gateway : NetworkProtocolStack.IPv4.addr;
+}
+
+val settings : settings

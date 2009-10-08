@@ -14,7 +14,7 @@ module U = UDP
 
 type client = {
 	send : string -> unit;
-	recv : unit -> string;
+	recv : unit -> PacketParsing.t;
 	addr : E.addr;
 	mutable ip : I.addr;
 }
@@ -55,7 +55,7 @@ let rec parse_options bits acc = bitmatch bits with
 
 let parse bits =
 	bitmatch bits with
-	| { _ : 32; t_id : 32; _ (* econds elapsed *) : 16; flags : 16;
+	| { _ : 32; t_id : 32; _ (* seconds elapsed *) : 16; flags : 16;
 		(* client ip : my ip : next server ip : relay agent ip *)
 		client_addr : 32 : bitstring;
 		my_addr : 32 : bitstring;
@@ -134,6 +134,8 @@ let recv client =
 let find_option kind packet =
 	List.find (fun opt -> opt.kind = kind) packet.options
 
+exception Error of string
+
 let register client =
 	Vt100.printf "Sending DHCP Discover...\r\n";
 	send client ({ kind = 0x35; data = [ 0x01 ] } :: standard_options);
@@ -161,36 +163,38 @@ let register client =
 				(* Apply the new IP settings *)
 				client.ip <- reply.my_addr;
 				Vt100.printf "Applied IP settings from DHCP server\r\n";
-				Vt100.printf "Client IP: %a\n" I.addr_printer client.ip
+				Vt100.printf "Client IP: %a\n" I.addr_printer client.ip;
+				client.ip
 			| _ ->
 				(* A response we don't know what to do with *)
-				Vt100.printf "Error: expected DHCP acknowledge\n"
+				Vt100.printf "Error: expected DHCP acknowledge\n";
+				raise (Error "expected DHCP acknowledge")
 			end
 		| _ ->
 			(* A response we don't know what to do with *)
-			Vt100.printf "Error: expected DHCP offer\n"
+			Vt100.printf "Error: expected DHCP offer\n";
+			raise (Error "expected DHCP offer")
 		end
 	with Not_found ->
 		(* server sent an option we don't understand *)
-		Vt100.printf "Error: received invalid DHCP response\n"
+		Vt100.printf "Error: received invalid DHCP response\n";
+		raise (Error "received invalid DHCP response")
 	end
-	
-	(*(* Assuming we received reply [0x02] :P *)
-	
-	let IPv4.Addr (a,b,c,d) = ip in
-	let ip' = [a;b;c;d] in
-	let IPv4.Addr (a,b,c,d) = reply.Ethernet.content.IPv4.content.UDP.content.DHCP.server in
-	let server' = [a;b;c;d] in
-	
-	Vt100.printf "Requesting DHCP Lease...\r\n";
-	let p = make_packet client ([0x35;0x01;0x03] @ [0x36;4] @ server' @ [0x32;4] @ ip') in
-	client.send (ExtString.String.implode (Obj.magic p : char list));
-	let reply = Parser.parse_packet parser (as_packet (client.recv ())) in
-	
-	(* Assuming we received acknowledge [0x05] :P *)
-	
-	(* Got it! *)
-	Vt100.printf "Received DHCP Lease!\r\n";
-	(* option 3 = route, option 6 = dns, option 1 = subnet *)
-	client.ip <- ip';
-	print_dhcp reply.Ethernet.content.IPv4.content.UDP.content*)
+
+open Arg
+open Shell
+
+let init () = 
+	(* dhclient: auto-get IP (doesn't get rest at present =/ *)
+	let run () =
+		let nic = NetworkStack.nic () in
+		let client = create nic in
+		begin try
+			let ip = register client in
+			NetworkStack.settings.ip <- ip;
+			Vt100.printf "dhclient: got IP\n"
+		with Error e ->
+			Vt100.printf "dhclient: %s\n" e
+		end
+	in
+	add_command "dhclient" run []

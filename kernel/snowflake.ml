@@ -10,8 +10,8 @@ let () =
 	IDE.init ();
 	RealTek8139.init ();
 	E1000.init ();
-	(*NetworkStack.init ();
-	MusicPlayer.init ();
+	NetworkStack.init ();
+	(*MusicPlayer.init ();
 	TarFileSystem.init ();*)
 	IRC.init ();
 	

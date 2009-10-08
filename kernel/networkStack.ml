@@ -32,6 +32,11 @@ let register_device dev = match !devices with
 	
 (* really, we shouldn't expose these! *)
 
+let nic () = match !devices with
+	| [] ->
+		failwith "netstack: no nic"
+	| x :: _ -> x
+
 let send data = match !devices with
 	| [] -> 
 		Vt100.printf "netstack: no nic to send on!";
