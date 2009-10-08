@@ -343,14 +343,45 @@ let readdir p s t inode =
 
 let readfile p s t inode =
 	(* just read the first 8 blocks *)
+	let indirect_entries = (1024 lsl s.s_log_block_size) / 4 in
+	let num_sectors = 2 lsl s.s_log_block_size in
+	let read ofs = p.read (to_sector s ofs) num_sectors in
 	let o = IO.output_string () in
-	for i = 0 to 12 do
+	for i = 0 to 11 do
 		if inode.i_block.(i) <> 0 then begin
 			(* we have some data! *)
-			IO.nwrite o (p.read (to_sector s inode.i_block.(i)) (2 lsl s.s_log_block_size));
+			IO.nwrite o (read inode.i_block.(i));
 		end;
 	done;
+	if inode.i_block.(12) <> 0 then begin
+		(* need to start reading data from indirect blocks... *)
+		let i2 = IO.input_string (read inode.i_block.(12)) in
+		for i = 0 to (1024 lsl s.s_log_block_size) / 4 - 1 do
+			let x = IO.read_i32 i2 in
+			if x <> 0 then begin
+				IO.nwrite o (read x);
+			end
+		done;
+	end;
+	if inode.i_block.(13) <> 0 then begin
+		(* need to read doubly-indirect blocks... fun... *)
+		let i3 = IO.input_string (read inode.i_block.(13)) in
+		(* just do first one *)
+		for i = 0 to indirect_entries / 8 - 1 do
+			let x = IO.read_i32 i3 in
+			if x <> 0 then begin
+				let i4 = IO.input_string (read x) in
+				for i = 0 to indirect_entries - 1 do
+					let y = IO.read_i32 i4 in
+					if y <> 0 then begin
+						IO.nwrite o (read y);
+					end;
+				done;
+			end;
+		done;
+	end;
 	let s = IO.close_out o in
+	Vt100.printf "ext2fs: read %d bytes from disk\n" (String.length s);
 	String.sub s 0 (min inode.i_size (String.length s))
 
 type t = {
