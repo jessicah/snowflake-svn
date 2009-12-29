@@ -61,4 +61,4 @@ let init () =
 		];*) dirlist_def [] ~anon:dirlist;
 		add_command "cat" cat_def [] ~anon:catfile;
 		(* init dirs *)
-		dirs := fs.read_dir fs.metadata.root
+		dirs := fs.read_dir fs.metadata.r
