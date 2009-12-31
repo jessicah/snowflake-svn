@@ -16,4 +16,6 @@ val block_read : input -> int -> t
 
 val blit : input -> t -> unit
 
+val blit_from_string : string -> input -> unit
+
 val make_io : input -> IO.input

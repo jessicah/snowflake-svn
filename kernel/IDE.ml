@@ -5,6 +5,8 @@ exception Timeout
 
 type t = int
 
+type disk = { sink : KernelBuffer.sink; source : KernelBuffer.source }
+
 module R = struct
 	let data     = 0x00
 	let error    = 0x01
@@ -107,6 +109,63 @@ type device_t = {
 	write : int -> int -> string -> unit;
 }
 
+(* KernelBuffer type stuff *)
+
+open KernelBuffer
+
+let mk_source disk_id =
+	let rec src = {
+		position = 0;
+		length = max_int;
+		units = 512;
+		offset = 0;
+		fill = begin fun buf ofs len ->
+				let s = read_disk disk_id src.position ((len + src.units - 1) / src.units) in
+				(* blit from string into bigarray buffer *)
+				BlockIO.blit_from_string s buf;
+				len (* how much we wrote *)
+			end;
+		}
+	in src
+
+let kb_disks =
+	let invalid = { sink = null_sink; source = null_source } in
+	[| invalid; invalid; invalid; invalid |]
+
+let init () =
+	(* look for an ata controller *)
+	Asm.out8 (pri+R.seccount) 0xEC;
+	if Asm.in8 (pri+R.seccount) <> 0xEC then begin
+		Vt100.printf "ide: no controller found\n"
+	end else begin
+	
+	(* get status of disks *)
+	write R.dev_head 0x00;
+	write R.command C.diagnostic;
+	let masterStatus = read R.error in
+	write R.dev_head 0x10;
+	write R.command C.diagnostic;
+	let slaveStatus = read R.error in
+	
+	(* master present if masterStatus = 1 *)
+	(* slave present if slaveStatus < 0x80 *)
+		if masterStatus land 0x01 = 0x01 then begin
+			Vt100.printf "ide: found primary master\n";
+			present_disks.(0) <- true;
+		end else begin
+			Vt100.printf "ide: can't find primary master\n";
+		end;
+		if slaveStatus land 0x01 = 0x01 then begin
+			Vt100.printf "ide: found primary slave\n";
+			present_disks.(1) <- true;
+		end else begin
+			Vt100.printf "ide: can't find primary slave\n";
+		end;
+	end;
+	Array.iteri (fun i d ->
+		if present_disks.(i) then
+			kb_disks.(i) <- { kb_disks.(i) with source = mk_source i }) kb_disks
+			
 let disks =
 	let invalid = {
 		read = (fun _ _ -> raise Not_found);
@@ -146,7 +205,8 @@ let init () =
 	end;
 	Array.iteri (fun i d ->
 		if present_disks.(i) then
-			disks.(i) <- { disks.(i) with read = read_disk i }) disks
+			disks.(i) <- { disks.(i) with read = read_disk i }) disks;
+	init ()
 
 let get c d =
 	let id = disk_to_id c d in

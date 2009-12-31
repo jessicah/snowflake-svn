@@ -19,3 +19,9 @@ type device_t = {
 }
 
 val disks : device_t array
+
+(* an attempt to use the KernelBuffer stuff *)
+
+type disk = { sink : KernelBuffer.sink; source : KernelBuffer.source }
+
+val kb_disks : disk array

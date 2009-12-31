@@ -53,6 +53,16 @@ let blit input output =
 		(Array1.sub input.data pos size)
 		output
 
+let blit_from_string str input =
+	let size = String.length str in
+	if Array1.dim input.data - input.pos < size then
+		failwith "blit_from_string: string too big";
+	let pos = input.pos in
+	input.pos <- input.pos + size;
+	Array1.blit_from_string
+		str
+		(Array1.sub input.data pos size)
+
 let make_io input = IO.from_in_chars (object
 		method get () =
 			input.pos <- input.pos + 1;

@@ -120,6 +120,7 @@ type t = {
 	s : superblock;
 	t : block_group_descriptor array;
 	r : inode;
+	bs : int;
 }
 
 type fs = {
@@ -478,13 +479,21 @@ let readfile_ba fs inode =
 module KB = KernelBuffer
 
 let read_file fs inode src buffer ofs len =
-	0 (* no more to read :P *)
+	(* pos_ofs + pos is the block to start at *)
+	let pos_ofs = (ofs + src.KB.offset) / src.KB.units in
+	(* num_blocks is how many blocks we need to read *)
+	let num_blocks = len / src.KB.units + 1 in
+	(* then the tricky part: get list of blocks to read, prolly sort them *)
+	(* then using the sort, can figure out which sectors to read, could prolly be optimised *)
+	
+	0 (* don't do any work *)
 
 let open_file fs inode =
 	let rec src = {
 		KB.position = 0;
-		KB.length = inode.i_size;
-		KB.units = 1024 lsl fs.s.s_log_block_size;
+		KB.length = inode.i_size; (* this is in bytes, not blocks *)
+		KB.units = fs.bs;
+		KB.offset = 0;
 		KB.fill = begin fun buffer ofs len ->
 				read_file fs inode src buffer ofs len
 			end;
@@ -493,12 +502,14 @@ let open_file fs inode =
 let make p =
 	let s = superblock p in
 	let t = block_group_descriptor_table p s in
-	let i = inode { p = p; s = s; t = t; r = null_inode } 2l in
+	let bs = 1024 lsl s.s_log_block_size in
+	let i = inode { p = p; s = s; t = t; r = null_inode; bs = bs } 2l in
 	{
 		p = p;
 		s = s;
 		t = t;
 		r = i;
+		bs = bs (* sick of perpetually calculating this *)
 	}
 
 let create p =
@@ -553,7 +564,7 @@ let init p =
 		d.bg_block_bitmap d.bg_inode_bitmap d.bg_inode_table;
 	Vt100.printf "free blocks: %d; free inodes: %d; used dirs: %d\n"
 		d.bg_free_blocks_count d.bg_free_inodes_count d.bg_used_dirs_count;
-	let fs = { p = p; s = s; t = t; r = null_inode } in
+	let fs = { p = p; s = s; t = t; r = null_inode; bs = 1024 lsl s.s_log_block_size } in
 	let root_dir_inode = inode fs 2l in
 	let fs = { fs with r = root_dir_inode } in
 	Vt100.printf "root dir inode: %s, size = %d, flags = %lx, uid = %d, gid = %d\n"
