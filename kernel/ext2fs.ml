@@ -421,6 +421,10 @@ let readfile fs inode =
 	Vt100.printf "ext2fs: read %d bytes from disk\n" (String.length s);
 	String.sub s 0 (min inode.i_size (String.length s))
 
+let loop_until limit f =
+	let rec loop n = if n = limit then () else begin f n; loop (n+1) end
+	in loop 0
+
 let readfile_ba fs inode =
 	let indirect_entries = (1024 lsl fs.s.s_log_block_size) / 4 in
 	let num_sectors = 2 lsl fs.s.s_log_block_size in
@@ -450,26 +454,23 @@ let readfile_ba fs inode =
 		let inp = IO.input_string (read indirect_block) in
 		if levels = 0 then begin
 			(* the int32 values point to blocks of data *)
-			for i = 0 to indirect_entries - 1 do
+			loop_until indirect_entries (fun _ ->
 				let block = IO.read_i32 inp in
 				if block <> 0 then begin
-					write block
-				end
-			done
+					write block; true
+				end else false)
 		end else begin
-			for i = 0 to indirect_entries - 1 do
+			loop_until indirect_entries (fun _ ->
 				let indirect_block = IO.read_i32 inp in
-				if indirect_block <> 0 then
-					read_indirect indirect_block (levels - 1)
-			done
+				if indirect_block <> 0 then begin
+					read_indirect indirect_block (levels - 1); true
+				end else false)
 		end
 	in
-	for i = 0 to 11 do
+	loop_until 12 (fun i ->
 		if inode.i_block.(i) <> 0 then begin
-			(* we have some data! *)
-			write inode.i_block.(i);
-		end;
-	done;
+			write inode.i_block.(i); true
+		end else false);
 	if inode.i_block.(12) <> 0 then read_indirect inode.i_block.(12) 0;
 	if inode.i_block.(13) <> 0 then read_indirect inode.i_block.(13) 1;
 	if inode.i_block.(14) <> 0 then read_indirect inode.i_block.(14) 2;
