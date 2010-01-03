@@ -129,6 +129,7 @@ type fs = {
 	read_inode : int32 -> inode;
 	read_file : inode -> string;
 	read_file_ba : inode -> (int, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t;
+	read_file_range_ba : inode -> int -> int -> (int, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t;
 }
 
 (* IO helper function *)
@@ -595,25 +596,6 @@ let readfile_ba fs inode =
 	(* return the bigarray result *)
 	ba
 
-(* override readfile_ba with a version that reads the file in chunks *)
-
-let readfile_ba fs inode =
-	let chunksize = 4096 in
-	let ba = Bigarray.Array1.create Bigarray.int8_unsigned Bigarray.c_layout inode.i_size in
-	let rec loop pos =
-		if pos = inode.i_size then ()
-		else begin
-			let subba = read_file_range_ba fs inode pos chunksize in
-			let len = Bigarray.Array1.dim subba in
-			Bigarray.Array1.blit
-				subba
-				(Bigarray.Array1.sub ba pos len);
-			loop (pos + len)
-		end
-	in loop 0;
-	(* return the bigarray result *)
-	ba
-
 module KB = KernelBuffer
 
 let read_file fs inode src buffer ofs len =
@@ -658,6 +640,7 @@ let create p =
 		read_inode = inode m;
 		read_file = readfile m;
 		read_file_ba = readfile_ba m;
+		read_file_range_ba = read_file_range_ba m;
 	}
 		
 let init p =
