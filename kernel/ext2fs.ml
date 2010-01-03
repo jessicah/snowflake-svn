@@ -422,8 +422,126 @@ let readfile fs inode =
 	String.sub s 0 (min inode.i_size (String.length s))
 
 let loop_until limit f =
-	let rec loop n = if n = limit then () else begin f n; loop (n+1) end
+	let rec loop n =
+		if n = limit then
+			()
+		else begin
+			if f n then loop (n+1) else ()
+		end
 	in loop 0
+
+type blockIndex
+	= Direct of int
+	| Indirect of int
+	| DoubleIndirect of int * int
+	| TripleIndirect of int * int * int
+
+let divmod x y = (x / y, x mod y)
+
+let read_file_range_ba fs inode ofs len =
+	(* trim len to inode.i_size *)
+	let len = min (inode.i_size - ofs) len in
+	(* some "constants", should be already calculated .... *)
+	let indirect_entries = (1024 lsl fs.s.s_log_block_size) / 4 in
+	let num_sectors = 2 lsl fs.s.s_log_block_size in
+	let block_size = 1024 lsl fs.s.s_log_block_size in
+	(* read a "block" from disk *)
+	let read ofs = fs.p.read (to_sector fs.s ofs) num_sectors in
+	(* the bigarray "buffer", note padding added; we'll extract sub-array at the end *)
+	let ba = Bigarray.Array1.create Bigarray.int8_unsigned Bigarray.c_layout (len + block_size + block_size) in
+	(* writing function and bookkeeping *)
+	let pos = ref 0 in
+	let write ofs =
+		(* get the disk data *)
+		let data = read ofs in
+		let len = if inode.i_size - !pos < block_size
+			then inode.i_size - !pos
+			else block_size
+		in
+		begin try
+			Bigarray.Array1.blit_from_string
+				(if len = block_size then data else String.sub data 0 len)
+				(Bigarray.Array1.sub ba !pos len);
+		with exn ->
+			(* print a debugging message for why we failed *)
+			Vt100.printf "ext2fs fail: pos = %d, block size = %d, len = %d, total len = %d\n"
+				!pos block_size len inode.i_size;
+			raise exn;
+		end;
+		(* update bookkeeping *)
+		pos := !pos + len;
+	in
+	(* calculate the block ranges (in bytes) *)
+	let direct_range = block_size * 12 in
+	let indirect_range = block_size * block_size / 4 in
+	let doubly_indirect_range = block_size * block_size * block_size / 16 in
+	let triply_indirect_range = block_size * block_size * block_size * block_size / 64 in
+	(* and map a block into an index *)
+	let block_to_block_indices = function
+		| n when n < 12 ->
+			n, Direct n
+		| n when (n - 12) < (block_size / 4) ->
+			n, Indirect (n - 12)
+		| n when (n - 12 - block_size / 4) < (block_size * block_size / 16) ->
+			let n1, n2 = divmod (n - 12 - block_size / 4) (block_size / 4) in
+			n, DoubleIndirect (n1, n2)
+		| n when (n - 12) < (block_size / 64 * block_size) ->
+			let n1, r = divmod (n - 12) (block_size / 4) in
+			let n2, n3 = divmod r (block_size / 4) in
+			n, TripleIndirect (n1, n2, n3)
+		| n ->
+			Vt100.printf "byte_to_block_indices: n = %d (%d, %d, %d, %d)\n" n
+				direct_range indirect_range doubly_indirect_range triply_indirect_range;
+			failwith "ext2fs: file too big"
+	in
+	(* find the start and end block indices *)
+	let start = block_to_block_indices (ofs / block_size) in
+	let finish = block_to_block_indices ((ofs + len + block_size) / block_size) in
+	(* now we need a reading loop (and probably a cache) *)
+	let rec read_loop = function
+		| _, blk when blk = snd finish -> (* we're done I guess *) ()
+		| x, Direct n ->
+			if inode.i_block.(n) <> 0 then begin
+				write inode.i_block.(n);
+				read_loop (block_to_block_indices (x + 1))
+			end
+		| x, Indirect n ->
+			(* now what...? :P *)
+			let s = read inode.i_block.(12) in (* the indirect block *)
+			let inp = IO.input_string (String.sub s (n * 4) 4) in (* only the block we want *)
+			let block = IO.read_i32 inp in
+			if block <> 0 then begin
+				write block;
+				read_loop (block_to_block_indices (x + 1))
+			end
+		| x, DoubleIndirect (n, o) ->
+			let s1 = read inode.i_block.(13) in (* the first indirect block *)
+			let inp = IO.input_string (String.sub s1 (n * 4) 4) in
+			let s2 = read (IO.read_i32 inp) in
+			let inp = IO.input_string (String.sub s2 (o * 4) 4) in
+			let block = IO.read_i32 inp in
+			if block <> 0 then begin
+				write block;
+				read_loop (block_to_block_indices (x + 1))
+			end
+		| x, TripleIndirect (n, o, p) ->
+			let s1 = read inode.i_block.(14) in (* first indirect block *)
+			let inp = IO.input_string (String.sub s1 (n * 4) 4) in
+			let s2 = read (IO.read_i32 inp) in (* second indirect block *)
+			let inp = IO.input_string (String.sub s2 (o * 4) 4) in
+			let s3 = read (IO.read_i32 inp) in (* third indirect block *)
+			let inp = IO.input_string (String.sub s3 (p * 4) 4) in
+			let block = IO.read_i32 inp in
+			if block <> 0 then begin
+				write block;
+				read_loop (block_to_block_indices (x + 1))
+			end
+		| _ -> failwith "ext2fs: reading loop failed"
+	in
+	(* do the reading... *)
+	read_loop start;
+	(* return the trimmed bigarray result *)
+	Bigarray.Array1.sub ba (ofs mod block_size) len
 
 let readfile_ba fs inode =
 	let indirect_entries = (1024 lsl fs.s.s_log_block_size) / 4 in
@@ -474,6 +592,25 @@ let readfile_ba fs inode =
 	if inode.i_block.(12) <> 0 then read_indirect inode.i_block.(12) 0;
 	if inode.i_block.(13) <> 0 then read_indirect inode.i_block.(13) 1;
 	if inode.i_block.(14) <> 0 then read_indirect inode.i_block.(14) 2;
+	(* return the bigarray result *)
+	ba
+
+(* override readfile_ba with a version that reads the file in chunks *)
+
+let readfile_ba fs inode =
+	let chunksize = 4096 in
+	let ba = Bigarray.Array1.create Bigarray.int8_unsigned Bigarray.c_layout inode.i_size in
+	let rec loop pos =
+		if pos = inode.i_size then ()
+		else begin
+			let subba = read_file_range_ba fs inode pos chunksize in
+			let len = Bigarray.Array1.dim subba in
+			Bigarray.Array1.blit
+				subba
+				(Bigarray.Array1.sub ba pos len);
+			loop (pos + len)
+		end
+	in loop 0;
 	(* return the bigarray result *)
 	ba
 
