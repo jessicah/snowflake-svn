@@ -4,6 +4,9 @@ open BlockIO
 open FileSystems
 open Ext2fs
 
+(* provide a static buffer size of 65536 bytes *)
+let ba = Array1.create int8_unsigned c_layout 65536
+
 let init () =
 	match !FileSystems.fs with
 	| None -> ()
@@ -17,22 +20,14 @@ let init () =
 							entry.name = name && entry.file_type = 1
 						end !FileSystems.dirs).inode
 					end in
-				(*let contents = fs.read_file inode in
-				let ba = Array1.create int8_unsigned c_layout (String.length contents) in
-				Array1.blit_from_string contents ba;*)
-				(*let ba = fs.read_file_ba inode in
-				Vt100.printf "play: trying to play %s...\n" name;
-				AudioMixer.play begin
-					AudioMixer.Wave.read begin
-						BlockIO.make ba
-					end
-				end;*)
-				Vt100.printf "play: trying to play %s....\n" name;
-				(* use a buffer size of 65536 bytes *)
+				Vt100.printf "play: file %s....\n" name;
 				let limit = inode.i_size in
 				let rec loop pos =
 					if pos = limit then () else begin
-						let ba = fs.read_file_range_ba inode pos 262144 in
+						let len = fs.read_file_range_with_buffer inode ba pos in
+						let ba = if len <> Array1.dim ba
+							then Array1.sub ba 0 len
+							else ba in
 						if pos = 0 then begin
 							AudioMixer.play begin
 								AudioMixer.Wave.read begin
