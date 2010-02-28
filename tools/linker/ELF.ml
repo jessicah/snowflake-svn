@@ -21,7 +21,7 @@ module T = struct
 	and section_header = {
 		st_name : int;
 		st_type : section_type;
-		st_flags : int;
+		st_flags : section_flag list;
 		st_addr : int;
 		st_offset : int;
 		st_size : int;
@@ -34,6 +34,8 @@ module T = struct
 		= Null | Progbits | Symtab | Strtab | Rela
 		| Hash | Dynamic | Note | Nobits | Rel
 		| Shlib | Dynsym | Other of int
+	and section_flag
+		= Write | Alloc | Execute (* don't care about other types *)
 	
 	type elf = { header : header; data : Bitstring.bitstring }
 	
@@ -90,6 +92,13 @@ module P = struct
 	
 	(*** PARSING SECTION HEADERS ***)
 	
+	let parse_flags flags =
+		let masks = [ Write, 0x01; Alloc, 0x02; Execute, 0x04 ] in
+		let flags = List.filter begin fun pair ->
+				snd pair land flags <> 0
+			end masks in
+		List.map fst flags
+	
 	let parse_section_header bits =
 		bitmatch bits with
 		| { s_name      : 32 : littleendian;
@@ -108,7 +117,7 @@ module P = struct
 				begin let n = to_int s_type in
 					if n < 12 then Obj.magic n else Other n
 				end;
-			st_flags = to_int s_flags;
+			st_flags = parse_flags (to_int s_flags);
 			st_addr = to_int s_addr;
 			st_offset = to_int s_offset;
 			st_size = to_int s_size;
@@ -264,7 +273,7 @@ module P = struct
 end
 
 type t
-	= Object of T.elf
+	= Object of (string * T.elf)
 	| Archive of (string * T.elf) list
 
 open T
@@ -277,7 +286,7 @@ let parse filename =
 	let bits = Bitstring.bitstring_of_string buf in
 	begin
 		try
-			Object (P.parse_elf bits)
+			Object (filename, P.parse_elf bits)
 		with Failure _ -> begin
 		try
 			Archive (P.parse_archive bits)
@@ -308,11 +317,20 @@ let truncate len s =
 	if String.length s <= len then s
 	else String.sub s 0 len
 
+let flags_to_string flags =
+	let strings = List.map begin function
+		| Write -> "W"
+		| Alloc -> "A"
+		| Execute -> "X"
+	end flags in
+	String.concat "" strings
+
 let print_section_header strtab i h =
-	Printf.printf " [%2d] %-16s  %a   %08x %06x %06x                 \n"
+	Printf.printf "  [%2d] %-16s  %a    %08x %06x %06x %02x %3s %2d %3d %2d\n"
 		i (truncate 16 (get_string strtab h.st_name))
 		print_section_type h.st_type h.st_addr
 		h.st_offset h.st_size
+		h.st_entsize (flags_to_string h.st_flags) h.st_link h.st_info h.st_addralign
 
 let print_type oc = function
 	| Relative -> Printf.fprintf oc "relocatable"
@@ -322,29 +340,79 @@ let print_type oc = function
 let print_header h =
 	let h = h.header in
 	Printf.printf "ELF Header:\n";
-	Printf.printf " Type: %a\n Entry point address: 0x%x\n Start of program headers: %d (bytes into file)\n Start of section headers: %d (bytes into file)\n"
+	Printf.printf "  Type: %a\n Entry point address: 0x%x\n Start of program headers: %d (bytes into file)\n Start of section headers: %d (bytes into file)\n"
 		print_type h.file_type h.entry h.phoff h.shoff;
 	Printf.printf " Flags: 0x%x\n Size of this header: %d (bytes)\n Size of program headers: %d (bytes)\n Number of program headers: %d\n Size of section headers: %d (bytes)\n Number of sections headers: %d\n Section header string table index: %d\n"
 		h.header_flags h.ehsize h.phentsize h.phnum h.shentsize h.shnum h.shstrndx;
 	Printf.printf "Section Headers:\n";
-	Printf.printf " [Nr] Name              Type           Addr     Off    Size   ES Flg Lk Inf Al\n";
+	Printf.printf "  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al\n";
 	Array.iteri (print_section_header h.strtab) h.section_headers
 
 
 let print = function
-	| Object elf -> print_header elf
+	| Object (filename, elf) ->
+		Printf.printf "Object: %s\n" filename;
+		print_header elf
 	| Archive list ->
 		Printf.printf "Archive:\n";
 		List.iter (fun (n,e) ->
 			Printf.printf "Member: %s\n" n;
 			print_header e) list
 
-let () =
-	(*Array.iter begin fun filename ->
-		let obj = parse filename in
+let elf_files = Array.map parse LinkerTest.input_files
+
+let sections = ref []
+
+let collect_sections elf =
+	let test i section =
+		match section.st_type with
+		| Progbits (* and alloc *) -> true
+		| Symtab -> true
+		| Strtab when elf.header.shstrndx <> i -> true
+		| Rel -> true
+		| Nobits (* and alloc *) -> true
+		| _ -> false
+	in
+	Array.iteri begin fun i s ->
+		if test i s then sections := (elf.header, s) :: !sections
+	end elf.header.section_headers
+
+let () = Array.iter begin fun obj ->
 		print obj
-	end LinkerTest.input_files*)
-	print (parse "../../_build/libraries/kernel/stage1.o")
+		(*match obj with
+			| Object (_,elf) -> collect_sections elf
+			| Archive elves -> List.iter collect_sections (List.map snd elves)*)
+	end elf_files
+
+let () = Array.iteri begin fun i (eh,sh) ->
+		print_section_header eh.strtab i sh
+	end (Array.of_list !sections)
+
+(*
+
+BASICALLY HOW TO LINK snowflake.native FROM OUR LDSCRIPT
+
+location start (a.k.a. offset) = 0x00400000 + SIZEOF_HEADERS (say 0x100)
+
+.mb_header : { *(.mb_header) LONG(0) } (* add 0x00000000 after .mb_header *)
+
+(* skip dynamic stuff for now... *)
+
+.text : { *(.text .text.* .gnu.linkonce.t.* ) }
+PROVIDE (_etext = .); (* define symbol _etext if not defined *)
+.rodata : { *(.rodata .rodata.* .gnu.linkonce.r.* ) }
+.data : { *(.data .data.* .gnu.linkonce.d.* ) }
+_edata = .; PROVIDE (edata = .); (* define symbol edata if not defined *)
+. = ALIGN(0x1000); (* updates location *)
+__bss_start = .;
+.bss : { *(.bss.pagealigned) *(.bss .bss.* .gnu.linkonce.b.* ) *(COMMON) }
+_end = .; PROVIDE (end = .); (* define symbol end if not defined *)
+
+(* skip stabs debugging sections *)
+
+(* and also dwarf stuff *)
+
+*)
 
 (*module LinkKernel = struct
 
