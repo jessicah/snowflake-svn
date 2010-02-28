@@ -484,7 +484,7 @@ foreach(section in sections) {
 			let data = Multiboot.open_module () in
 			let str = String.create (Bigarray.Array1.dim data) in
 			for i = 0 to String.length str - 1 do
-				str.[i] <- data.{i}
+				str.[i] <- char_of_int data.{i}
 			done;
 			TarFile.open_tar_file str
 		end

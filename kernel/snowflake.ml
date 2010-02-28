@@ -63,5 +63,7 @@ let () =
 	in loop partitions;
 	(*List.iter Ext2fs.init partitions;*)
 	
+	ELF.LinkKernel.link ();
+	
 	(* finished, so launch the shell *)
 	Shell.init ()
