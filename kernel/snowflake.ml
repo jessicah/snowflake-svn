@@ -63,9 +63,7 @@ let () =
 	in loop partitions;
 	(*List.iter Ext2fs.init partitions;*)*)
 	
-	Vt100.printf "Linking kernel... :P\r\n";
-	ELF.LinkKernel.link ();
-	()
+	Vt100.printf "Hello!\r\n"
 	
 	(*(* finished, so launch the shell *)
 	Shell.init ()*)
