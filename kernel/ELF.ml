@@ -1,24 +1,267 @@
 
-(* ELF -- The Executable and Linking Format *)
-
-(*
-	Linking View:
-		ELF Header
-		Program Header Table (optional)
-		Section 1
-		...
-		Section n
-		...
-		Section Header Table
+module T = struct
+	type header = {
+		version : int;
+		file_type : file_type;
+		entry : int;
+		phoff : int;
+		shoff : int;
+		header_flags : int;
+		ehsize : int;
+		phentsize : int;
+		phnum : int;
+		shentsize : int;
+		shnum : int;
+		section_headers : section_header array;
+		shstrndx : int;
+		strtab : string;
+	}
+	and file_type
+		= Relative | Executable | Shared
+	and section_header = {
+		st_name : int;
+		st_type : section_type;
+		st_flags : int;
+		st_addr : int;
+		st_offset : int;
+		st_size : int;
+		st_link : int;
+		st_info : int;
+		st_addralign : int;
+		st_entsize : int;
+	}
+	and section_type
+		= Null | Progbits | Symtab | Strtab | Rela
+		| Hash | Dynamic | Note | Nobits | Rel
+		| Shlib | Dynsym | Other of int
 	
-	Execution View:
-		ELF Header
-		Program Header Table
-		Segment 1
-		Segment 2
-		....
-		Section Header Table (optional)
-*)
+	type t = { header : header; data : Bitstring.bitstring }
+	
+	type symtab_entry = {
+		sm_name : int;
+		sm_value : int;
+		sm_size : int;
+		sm_info : int;
+		sm_other : int;
+		sm_shndx : int;
+	}
+	
+	type rel = {
+		r_offset : int;
+		r_info : int;
+	}
+	
+	type rela = {
+		ra_offset : int;
+		ra_info : int;
+		ra_addend : int;
+	}
+end
+
+module P = struct
+	open T
+	
+	let copy i = Int32.add Int32.zero i
+	let to_int = Int32.to_int
+	
+	(*** PARSING SYMTAB ***)
+	
+	let rec parse_symtab acc bits =
+		if Bitstring.bitstring_length bits = 0 then
+			Array.of_list (List.rev acc)
+		else
+			bitmatch bits with
+			| { name  : 32 : littleendian;
+				value : 32 : littleendian;
+				size  : 32 : littleendian;
+				info  : 8 : littleendian;
+				other : 8 : littleendian;
+				shndx : 16 : littleendian;
+				rest  : -1 : bitstring } ->
+			parse_symtab ({
+				sm_name = to_int name;
+				sm_value = to_int value;
+				sm_size = to_int size;
+				sm_info = info;
+				sm_other = other;
+				sm_shndx = shndx } :: acc) rest
+	
+	let parse_symtab bits = parse_symtab [] bits
+	
+	(*** PARSING SECTION HEADERS ***)
+	
+	let parse_section_header bits =
+		bitmatch bits with
+		| { s_name      : 32 : littleendian;
+			s_type      : 32 : littleendian;
+			s_flags     : 32 : littleendian;
+			s_addr      : 32 : littleendian;
+			s_offset    : 32 : littleendian;
+			s_size      : 32 : littleendian;
+			s_link      : 32 : littleendian;
+			s_info      : 32 : littleendian;
+			s_addralign : 32 : littleendian;
+			s_entsize   : 32 : littleendian } ->
+		{
+			st_name = to_int s_name;
+			st_type =
+				begin let n = to_int s_type in
+					if n < 12 then Obj.magic n else Other n
+				end;
+			st_flags = to_int s_flags;
+			st_addr = to_int s_addr;
+			st_offset = to_int s_offset;
+			st_size = to_int s_size;
+			st_link = to_int s_link;
+			st_info = to_int s_info;
+			st_addralign = to_int s_addralign;
+			st_entsize = to_int s_entsize;
+		}
+	
+	let rec parse_section_headers acc num size bits =
+		if num = 0 then Array.of_list (List.rev acc)
+		else
+			bitmatch bits with
+			| { data : size * 8 : bitstring; rest : -1 : bitstring } ->
+				parse_section_headers
+					(parse_section_header data :: acc) (num - 1) size rest
+			| { _ } -> Array.of_list (List.rev acc)
+	
+	(*** PARSING ELF HEADER ***)
+	
+	let parse_elf bits =
+		bitmatch bits with
+		| { "\x7FELF\x01\x01" : 6 * 8 : string;
+			_ : 10 * 8 : bitstring;
+			elf_type : 16 : littleendian;
+			machine : 16 : littleendian;
+			version : 32 : littleendian;
+			entry : 32 : littleendian;
+			phoff : 32 : littleendian;
+			shoff : 32 : littleendian;
+			flags : 32 : littleendian;
+			ehsize : 16 : littleendian;
+			phentsize : 16 : littleendian;
+			phnum : 16 : littleendian;
+			shentsize : 16 : littleendian;
+			shnum : 16 : littleendian;
+			shstrndx : 16 : littleendian } ->
+		let section_headers =
+			parse_section_headers [] shnum shentsize
+				(Bitstring.subbitstring bits
+					(to_int shoff * 8)
+					(shentsize * shnum * 8))
+		in
+		let strtab =
+			Bitstring.string_of_bitstring
+				(Bitstring.subbitstring bits
+					(section_headers.(shstrndx).st_offset * 8)
+					(section_headers.(shstrndx).st_size * 8))
+		in
+		{
+			data = bits;
+			header = {
+				version = to_int version;
+				file_type =
+					begin match elf_type with
+						| 1 -> Relative
+						| 2 -> Executable
+						| 3 -> Shared
+						| _ -> failwith "Unsupported ELF file type"
+					end;
+				entry = to_int entry;
+				phoff = to_int phoff;
+				shoff = to_int shoff;
+				header_flags = to_int flags;
+				ehsize = ehsize;
+				phentsize = phentsize;
+				phnum = phnum;
+				shentsize = shentsize;
+				shnum = shnum;
+				section_headers = section_headers;
+				shstrndx = shstrndx;
+				strtab = strtab;
+			}
+		}
+	| { _ } -> failwith "Not an ELF file"
+	
+	(*** PARSING ARCHIVES ***)
+	
+	let index_from s o c =
+		try Some (String.index_from s o c)
+		with Not_found -> None
+	
+	let rec build_lookup_table ht s off len =
+		if off >= len then ()
+		else
+			match index_from s off '\n' with
+			| Some i ->
+				if i = off then ()
+				else begin
+					let sub = String.sub s off (i-1-off) in
+					Hashtbl.add ht off (sub ^ "/");
+					build_lookup_table ht s (i+1) len
+				end
+			| None -> ()
+	
+	let build_lookup_table ht s =
+		build_lookup_table ht s 0 (String.length s)
+	
+	let fix_name name =
+		String.sub name 0 (String.index name '/')
+	
+	let rec parse_archive_members acc ht bits =
+		if Bitstring.bitstring_length bits = 0 then acc
+		else
+			bitmatch bits with
+			| { name : 16 * 8 : string;
+				_ : 12 * 8 : bitstring; (* date *)
+				_ : 6 * 8 : bitstring; (* uid *)
+				_ : 6 * 8 : bitstring; (* gid *)
+				_ : 8 * 8 : bitstring; (* mode *)
+				size : 10 * 8 : string;
+				0x600A : 2 * 8;
+				filedata :
+					(Scanf.sscanf size "%d" (fun x -> x)) * 8 : bitstring;
+				rest : -1 : bitstring } ->
+			begin match name with
+			| "/               " ->
+				parse_archive_members acc ht rest
+			| "//              " ->
+				(* build the lookup table *)
+				build_lookup_table ht
+					(Bitstring.string_of_bitstring filedata);
+				parse_archive_members acc ht rest
+			| name when name.[0] = '/' ->
+				(* need to do a lookup *)
+				let name = fix_name
+					(Hashtbl.find ht
+						(Scanf.sscanf name "/%d" (fun x -> x)))
+				in
+				begin try
+					let member = (name, parse_elf filedata) in
+					parse_archive_members (member :: acc) ht rest
+				with Failure _ ->
+					parse_archive_members acc ht rest
+				end
+			| name ->
+				begin try
+					let member = (fix_name name, parse_elf filedata) in
+					parse_archive_members (member :: acc) ht rest
+				with Failure _ ->
+					parse_archive_members acc ht rest
+				end
+			end
+		| { 0x0A : 8; rest : -1 : bitstring } ->
+			parse_archive_members acc ht rest
+	
+	let parse_archive bits =
+		bitmatch bits with
+		| { "!<arch>\n" : 8 * 8 : string;
+			rest : -1 : bitstring } ->
+				parse_archive_members [] (Hashtbl.create 7) rest
+		| { _ } -> failwith "Not an archive"
+end
 
 type header = {
 	version : int;
@@ -522,14 +765,14 @@ foreach(section in sections) {
 	
 	let add_symbols u d =
 		Hashtbl.iter begin fun n e ->
-			Vt100.printf "Symbol (d) %s: %a\n" n print_symbol e;
+			(*Vt100.printf "Symbol (d) %s: %a\n" n print_symbol e;*)
 			if Hashtbl.mem defined_symbols n = false then begin
 				Hashtbl.add defined_symbols n e;
 				Hashtbl.remove undefined_symbols n
 			end
 		end d;
 		Hashtbl.iter begin fun n e ->
-			Vt100.printf "Symbol (u) %s: %a\n" n print_symbol e;
+			(*Vt100.printf "Symbol (u) %s: %a\n" n print_symbol e;*)
 			if Hashtbl.mem defined_symbols n = false
 				&& Hashtbl.mem undefined_symbols n = false
 			then Hashtbl.add undefined_symbols n e

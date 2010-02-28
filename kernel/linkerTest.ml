@@ -6,17 +6,17 @@
 let input_files = [|
 		"kernel/snowflake.native.startup.o";
 		"kernel/snowflake.o";
-		"kernel/vga.o";
+		(*"kernel/vga.o";*)
 		"kernel/tarFile.o";
 		"kernel/trie.o";
-		"kernel/keyboard.o";
+		(*"kernel/keyboard.o";*)
 		"kernel/interrupts.o";
-		"kernel/PCI.o";
-		"kernel/deviceManager.o";
+		(*"kernel/PCI.o";
+		"kernel/deviceManager.o";*)
 		"kernel/ELF.o";
 		"kernel/vt100.o";
 		"kernel/linkerTest.o";
-		"kernel/audioMixer.o";
+		(*"kernel/audioMixer.o";
 		"kernel/blockIO.o";
 		"kernel/e1000.o";
 		"kernel/ext2fs.o";
@@ -35,7 +35,7 @@ let input_files = [|
 		"kernel/ringBuffer.o";
 		"kernel/shell.o";
 		"kernel/IDE.o";
-		"kernel/TCP.o";
+		"kernel/TCP.o";*)
 		"libraries/bigarray/bigarray.o";
 		"libraries/bitstring/bitstring.a";
 		"libraries/extlib/extlib.a";
