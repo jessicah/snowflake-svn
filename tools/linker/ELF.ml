@@ -373,19 +373,57 @@ let objects, libraries =
 		List.map begin function Archive a -> a | _ -> assert false end a
 
 let rec sections_by_name obj name acc = function
-	| [] -> acc
+	| [] -> List.rev acc
 	| section :: rest ->
 		if Printing.get_string obj.strtab section.st_name = name
-			then sections_by_name obj name (section :: acc) rest
+			then sections_by_name obj name ((obj, section) :: acc) rest
 			else sections_by_name obj name acc rest
+
+let sections_by_names obj names sections =
+	let rec inner_loop name acc = function
+		| [] -> List.rev acc
+		| section :: rest ->
+			let section_name = Printing.get_string obj.strtab section.st_name in
+			if String.contains name '*' then (* check it starts with name-1 *)
+			begin
+				acc
+			end else if section_name = name
+				then inner_loop name ((obj, section) :: acc) rest
+				else inner_loop name acc rest
+	and outer_loop acc = function
+		| [] -> List.rev acc
+		| name :: names ->
+			outer_loop ((inner_loop name [] sections) :: acc) names
+	in
+	List.flatten (outer_loop [] names)
 	
 let multiboot_headers =
 	List.flatten (List.map begin fun obj ->
 		sections_by_name obj ".mb_header" [] (Array.to_list obj.section_headers)
 	end objects)
 
+let text_headers =
+	List.flatten (List.map begin fun obj ->
+		sections_by_names obj [".text"; ".text.*"; ".gnu.linkonce.t.*"] (Array.to_list obj.section_headers)
+	end objects)
+
+type storage = {
+	mutable offset : int;
+	section : section_header;
+	elf : elf;
+}
+
+let location = ref 0x00400100
+
+let storage_allocation = ref []
+
 let () =
-	Printf.printf "Found %d section(s) named .mb_header\n" (List.length multiboot_headers)
+	List.iter begin fun (obj,section) ->
+		let storage = { offset = !location; section = section; elf = obj; } in
+		location := !location + section.st_size;
+		storage_allocation := storage :: !storage_allocation
+	end multiboot_headers;
+	Printf.printf "location now at %x\n" !location
 
 (*
 

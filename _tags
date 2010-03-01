@@ -40,3 +40,5 @@ true: -byte, native, nostdlib
 <{test1.o,test2.o,test.out}>: precious
 
 <kernel/elfParsing.ml>: use_bitstring
+
+<tools/linker/**>: -traverse

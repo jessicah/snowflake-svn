@@ -7,8 +7,8 @@ let input_files = [
 		"../../_build/kernel/snowflake.native.startup.o";
 		"../../_build/kernel/snowflake.o";
 		(*"kernel/vga.o";*)
-		"../../_build/kernel/tarFile.o";
-		"../../_build/kernel/trie.o";
+		(*"../../_build/kernel/tarFile.o";
+		"../../_build/kernel/trie.o";*)
 		(*"kernel/keyboard.o";*)
 		"../../_build/kernel/interrupts.o";
 		(*"kernel/PCI.o";
