@@ -386,7 +386,9 @@ let sections_by_names obj names sections =
 			let section_name = Printing.get_string obj.strtab section.st_name in
 			if String.contains name '*' then (* check it starts with name-1 *)
 			begin
-				acc
+				if ExtString.String.starts_with section_name (ExtString.String.rchop name)
+					then inner_loop name ((obj, section) :: acc) rest
+					else inner_loop name acc rest
 			end else if section_name = name
 				then inner_loop name ((obj, section) :: acc) rest
 				else inner_loop name acc rest
