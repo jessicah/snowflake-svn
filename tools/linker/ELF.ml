@@ -372,6 +372,8 @@ let objects, libraries =
 		List.map begin function Object o -> o | _ -> assert false end o,
 		List.map begin function Archive a -> a | _ -> assert false end a
 
+(*let objects = objects @ List.flatten libraries*)
+
 let rec sections_by_name obj name acc = function
 	| [] -> List.rev acc
 	| section :: rest ->
