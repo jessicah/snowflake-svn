@@ -1,6 +1,7 @@
 
 module T = struct
-	type header = {
+	type elf = {
+		filename: string; (* instead of annoying tuple *)
 		version : int;
 		file_type : file_type;
 		entry : int;
@@ -15,6 +16,7 @@ module T = struct
 		section_headers : section_header array;
 		shstrndx : int;
 		strtab : string;
+		data : Bitstring.bitstring; (* the raw file including parsed header *)
 	}
 	and file_type
 		= Relative | Executable | Shared
@@ -37,8 +39,6 @@ module T = struct
 	and section_flag
 		= Write | Alloc | Execute (* don't care about other types *)
 	
-	type elf = { header : header; data : Bitstring.bitstring }
-	
 	type symtab_entry = {
 		sm_name : int;
 		sm_value : int;
@@ -60,8 +60,8 @@ module T = struct
 	}
 	
 	type t
-		= Object of (string * elf)
-		| Archive of (string * elf) list
+		= Object of elf
+		| Archive of elf list
 end
 
 module P = struct
@@ -142,7 +142,7 @@ module P = struct
 	
 	(*** PARSING ELF HEADER ***)
 	
-	let parse_elf bits =
+	let parse_elf bits filename =
 		bitmatch bits with
 		| { "\x7FELF\x01\x01" : 6 * 8 : string;
 			_ : 10 * 8 : bitstring;
@@ -172,29 +172,28 @@ module P = struct
 					(section_headers.(shstrndx).st_size * 8))
 		in
 		{
+			filename = filename;
+			version = to_int version;
+			file_type =
+				begin match elf_type with
+					| 1 -> Relative
+					| 2 -> Executable
+					| 3 -> Shared
+					| _ -> failwith "Unsupported ELF file type"
+				end;
+			entry = to_int entry;
+			phoff = to_int phoff;
+			shoff = to_int shoff;
+			header_flags = to_int flags;
+			ehsize = ehsize;
+			phentsize = phentsize;
+			phnum = phnum;
+			shentsize = shentsize;
+			shnum = shnum;
+			section_headers = section_headers;
+			shstrndx = shstrndx;
+			strtab = strtab;
 			data = bits;
-			header = {
-				version = to_int version;
-				file_type =
-					begin match elf_type with
-						| 1 -> Relative
-						| 2 -> Executable
-						| 3 -> Shared
-						| _ -> failwith "Unsupported ELF file type"
-					end;
-				entry = to_int entry;
-				phoff = to_int phoff;
-				shoff = to_int shoff;
-				header_flags = to_int flags;
-				ehsize = ehsize;
-				phentsize = phentsize;
-				phnum = phnum;
-				shentsize = shentsize;
-				shnum = shnum;
-				section_headers = section_headers;
-				shstrndx = shstrndx;
-				strtab = strtab;
-			}
 		}
 	| { _ } -> failwith "Not an ELF file"
 	
@@ -252,14 +251,14 @@ module P = struct
 						(Scanf.sscanf name "/%d" (fun x -> x)))
 				in
 				begin try
-					let member = (name, parse_elf filedata) in
+					let member = (parse_elf filedata name) in
 					parse_archive_members (member :: acc) ht rest
 				with Failure _ ->
 					parse_archive_members acc ht rest
 				end
 			| name ->
 				begin try
-					let member = (fix_name name, parse_elf filedata) in
+					let member = (parse_elf filedata (fix_name name)) in
 					parse_archive_members (member :: acc) ht rest
 				with Failure _ ->
 					parse_archive_members acc ht rest
@@ -283,7 +282,7 @@ module P = struct
 		let bits = Bitstring.bitstring_of_string buf in
 		begin
 			try
-				Object (filename, parse_elf bits)
+				Object (parse_elf bits filename)
 			with Failure _ -> begin
 			try
 				Archive (parse_archive bits)
@@ -339,7 +338,6 @@ module Printing = struct
 		| Shared -> Printf.fprintf oc "shared"
 
 	let print_header h =
-		let h = h.header in
 		Printf.printf "ELF Header:\n";
 		Printf.printf "  Type: %a\n Entry point address: 0x%x\n Start of program headers: %d (bytes into file)\n Start of section headers: %d (bytes into file)\n"
 			print_type h.file_type h.entry h.phoff h.shoff;
@@ -353,14 +351,14 @@ module Printing = struct
 
 
 	let print = function
-		| Object (filename, elf) ->
-			Printf.printf "Object: %s\n" filename;
+		| Object elf ->
+			Printf.printf "Object: %s\n" elf.filename;
 			print_header elf
 		| Archive list ->
 			Printf.printf "Archive:\n";
-			List.iter (fun (n,e) ->
-				Printf.printf "Member: %s\n" n;
-				print_header e) list
+			List.iter (fun elf ->
+				Printf.printf "Member: %s\n" elf.filename;
+				print_header elf) list
 end
 
 open T
@@ -383,7 +381,6 @@ let rec sections_by_name obj name acc = function
 	
 let multiboot_headers =
 	List.flatten (List.map begin fun obj ->
-		let obj = (snd obj).header in
 		sections_by_name obj ".mb_header" [] (Array.to_list obj.section_headers)
 	end objects)
 
