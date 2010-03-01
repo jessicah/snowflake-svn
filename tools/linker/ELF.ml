@@ -138,7 +138,7 @@ module P = struct
 			| { data : size * 8 : bitstring; rest : -1 : bitstring } ->
 				parse_section_headers
 					(parse_section_header data :: acc) (num - 1) size rest
-			| { _ } -> Array.of_list (List.rev acc)
+			| { _ : -1 : bitstring } -> Array.of_list (List.rev acc)
 	
 	(*** PARSING ELF HEADER ***)
 	
@@ -195,7 +195,7 @@ module P = struct
 			strtab = strtab;
 			data = bits;
 		}
-	| { _ } -> failwith "Not an ELF file"
+	| { _ : -1 : bitstring } -> failwith "Not an ELF file"
 	
 	(*** PARSING ARCHIVES ***)
 	
@@ -272,7 +272,7 @@ module P = struct
 		| { "!<arch>\n" : 8 * 8 : string;
 			rest : -1 : bitstring } ->
 				parse_archive_members [] (Hashtbl.create 7) rest
-		| { _ } -> failwith "Not an archive"
+		| { _ : -1 : bitstring } -> failwith "Not an archive"
 	
 	let parse filename =
 		let ic = open_in_bin filename in
