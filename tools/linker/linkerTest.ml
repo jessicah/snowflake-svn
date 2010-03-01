@@ -3,7 +3,7 @@
 
 (* -T kernel/kernel.ldscript -L . -L libraries/stdlib -L libraries/threads -L libraries/extlib -L libraries/bitstring *)
 
-let input_files = [|
+let input_files = [
 		"../../_build/kernel/snowflake.native.startup.o";
 		"../../_build/kernel/snowflake.o";
 		(*"kernel/vga.o";*)
@@ -55,4 +55,4 @@ let input_files = [|
 		"libbigarray.a";
 		"libthreads.a";
 		"libbitstring.a";*)
-	|]
+	]

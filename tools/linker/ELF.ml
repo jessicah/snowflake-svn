@@ -58,6 +58,10 @@ module T = struct
 		ra_info : int;
 		ra_addend : int;
 	}
+	
+	type t
+		= Object of (string * elf)
+		| Archive of (string * elf) list
 end
 
 module P = struct
@@ -270,123 +274,121 @@ module P = struct
 			rest : -1 : bitstring } ->
 				parse_archive_members [] (Hashtbl.create 7) rest
 		| { _ } -> failwith "Not an archive"
+	
+	let parse filename =
+		let ic = open_in_bin filename in
+		let len = in_channel_length ic in
+		let buf = String.create len in
+		really_input ic buf 0 len;
+		let bits = Bitstring.bitstring_of_string buf in
+		begin
+			try
+				Object (filename, parse_elf bits)
+			with Failure _ -> begin
+			try
+				Archive (parse_archive bits)
+			with Failure _ ->
+				failwith "Unable to parse as ELF or Archive"
+			end
+		end
 end
 
-type t
-	= Object of (string * T.elf)
-	| Archive of (string * T.elf) list
+module Printing = struct
+	open T
+	
+	let print_section_type oc = function
+		| Null -> Printf.fprintf oc "%-12s" "NULL"
+		| Progbits -> Printf.fprintf oc "%-12s" "PROGBITS"
+		| Symtab -> Printf.fprintf oc "%-12s" "SYMTAB"
+		| Strtab -> Printf.fprintf oc "%-12s" "STRTAB"
+		| Rela -> Printf.fprintf oc "%-12s" "RELA"
+		| Hash -> Printf.fprintf oc "%-12s" "HASH"
+		| Dynamic -> Printf.fprintf oc "%-12s" "DYNAMIC"
+		| Note -> Printf.fprintf oc "%-12s" "NOTE"
+		| Nobits -> Printf.fprintf oc "%-12s" "NOBITS"
+		| Rel -> Printf.fprintf oc "%-12s" "REL"
+		| Shlib -> Printf.fprintf oc "%-12s" "SHLIB"
+		| Dynsym -> Printf.fprintf oc "%-12s" "DYNSYM"
+		| Other x -> Printf.fprintf oc "unknown <%d>" x
+
+	let get_string strtab off =
+		String.sub strtab off (String.index_from strtab off '\000' - off)
+
+	let truncate len s =
+		if String.length s <= len then s
+		else String.sub s 0 len
+
+	let flags_to_string flags =
+		let strings = List.map begin function
+			| Write -> "W"
+			| Alloc -> "A"
+			| Execute -> "X"
+		end flags in
+		String.concat "" strings
+
+	let print_section_header strtab i h =
+		Printf.printf "  [%2d] %-16s  %a    %08x %06x %06x %02x %3s %2d %3d %2d\n"
+			i (truncate 16 (get_string strtab h.st_name))
+			print_section_type h.st_type h.st_addr
+			h.st_offset h.st_size
+			h.st_entsize (flags_to_string h.st_flags) h.st_link h.st_info h.st_addralign
+
+	let print_type oc = function
+		| Relative -> Printf.fprintf oc "relocatable"
+		| Executable -> Printf.fprintf oc "executable"
+		| Shared -> Printf.fprintf oc "shared"
+
+	let print_header h =
+		let h = h.header in
+		Printf.printf "ELF Header:\n";
+		Printf.printf "  Type: %a\n Entry point address: 0x%x\n Start of program headers: %d (bytes into file)\n Start of section headers: %d (bytes into file)\n"
+			print_type h.file_type h.entry h.phoff h.shoff;
+		Printf.printf " Flags: 0x%x\n Size of this header: %d (bytes)\n Size of program headers: %d (bytes)\n Number of program headers: %d\n Size of section headers: %d (bytes)\n Number of sections headers: %d\n Section header string table index: %d\n"
+			h.header_flags h.ehsize h.phentsize h.phnum h.shentsize h.shnum h.shstrndx;
+		Printf.printf "There are %d section headers, starting at offset 0x%x:\n\n"
+			(Array.length h.section_headers) h.shoff;
+		Printf.printf "Section Headers:\n";
+		Printf.printf "  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al\n";
+		Array.iteri (print_section_header h.strtab) h.section_headers
+
+
+	let print = function
+		| Object (filename, elf) ->
+			Printf.printf "Object: %s\n" filename;
+			print_header elf
+		| Archive list ->
+			Printf.printf "Archive:\n";
+			List.iter (fun (n,e) ->
+				Printf.printf "Member: %s\n" n;
+				print_header e) list
+end
 
 open T
 
-let parse filename =
-	let ic = open_in_bin filename in
-	let len = in_channel_length ic in
-	let buf = String.create len in
-	really_input ic buf 0 len;
-	let bits = Bitstring.bitstring_of_string buf in
-	begin
-		try
-			Object (filename, P.parse_elf bits)
-		with Failure _ -> begin
-		try
-			Archive (P.parse_archive bits)
-		with Failure _ ->
-			failwith "Unable to parse as ELF or Archive"
-		end
-	end
-
-let print_section_type oc = function
-	| Null -> Printf.fprintf oc "%-12s" "NULL"
-	| Progbits -> Printf.fprintf oc "%-12s" "PROGBITS"
-	| Symtab -> Printf.fprintf oc "%-12s" "SYMTAB"
-	| Strtab -> Printf.fprintf oc "%-12s" "STRTAB"
-	| Rela -> Printf.fprintf oc "%-12s" "RELA"
-	| Hash -> Printf.fprintf oc "%-12s" "HASH"
-	| Dynamic -> Printf.fprintf oc "%-12s" "DYNAMIC"
-	| Note -> Printf.fprintf oc "%-12s" "NOTE"
-	| Nobits -> Printf.fprintf oc "%-12s" "NOBITS"
-	| Rel -> Printf.fprintf oc "%-12s" "REL"
-	| Shlib -> Printf.fprintf oc "%-12s" "SHLIB"
-	| Dynsym -> Printf.fprintf oc "%-12s" "DYNSYM"
-	| Other x -> Printf.fprintf oc "unknown <%d>" x
-
-let get_string strtab off =
-	String.sub strtab off (String.index_from strtab off '\000' - off)
-
-let truncate len s =
-	if String.length s <= len then s
-	else String.sub s 0 len
-
-let flags_to_string flags =
-	let strings = List.map begin function
-		| Write -> "W"
-		| Alloc -> "A"
-		| Execute -> "X"
-	end flags in
-	String.concat "" strings
-
-let print_section_header strtab i h =
-	Printf.printf "  [%2d] %-16s  %a    %08x %06x %06x %02x %3s %2d %3d %2d\n"
-		i (truncate 16 (get_string strtab h.st_name))
-		print_section_type h.st_type h.st_addr
-		h.st_offset h.st_size
-		h.st_entsize (flags_to_string h.st_flags) h.st_link h.st_info h.st_addralign
-
-let print_type oc = function
-	| Relative -> Printf.fprintf oc "relocatable"
-	| Executable -> Printf.fprintf oc "executable"
-	| Shared -> Printf.fprintf oc "shared"
-
-let print_header h =
-	let h = h.header in
-	Printf.printf "ELF Header:\n";
-	Printf.printf "  Type: %a\n Entry point address: 0x%x\n Start of program headers: %d (bytes into file)\n Start of section headers: %d (bytes into file)\n"
-		print_type h.file_type h.entry h.phoff h.shoff;
-	Printf.printf " Flags: 0x%x\n Size of this header: %d (bytes)\n Size of program headers: %d (bytes)\n Number of program headers: %d\n Size of section headers: %d (bytes)\n Number of sections headers: %d\n Section header string table index: %d\n"
-		h.header_flags h.ehsize h.phentsize h.phnum h.shentsize h.shnum h.shstrndx;
-	Printf.printf "Section Headers:\n";
-	Printf.printf "  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al\n";
-	Array.iteri (print_section_header h.strtab) h.section_headers
-
-
-let print = function
-	| Object (filename, elf) ->
-		Printf.printf "Object: %s\n" filename;
-		print_header elf
-	| Archive list ->
-		Printf.printf "Archive:\n";
-		List.iter (fun (n,e) ->
-			Printf.printf "Member: %s\n" n;
-			print_header e) list
-
-let elf_files = Array.map parse LinkerTest.input_files
-
-let sections = ref []
-
-let collect_sections elf =
-	let test i section =
-		match section.st_type with
-		| Progbits (* and alloc *) -> true
-		| Symtab -> true
-		| Strtab when elf.header.shstrndx <> i -> true
-		| Rel -> true
-		| Nobits (* and alloc *) -> true
-		| _ -> false
+let objects, libraries =
+	let o, a = List.partition begin function
+			| Object _ -> true
+			| _ -> false
+		end (List.map P.parse LinkerTest.input_files)
 	in
-	Array.iteri begin fun i s ->
-		if test i s then sections := (elf.header, s) :: !sections
-	end elf.header.section_headers
+		List.map begin function Object o -> o | _ -> assert false end o,
+		List.map begin function Archive a -> a | _ -> assert false end a
 
-let () = Array.iter begin fun obj ->
-		print obj
-		(*match obj with
-			| Object (_,elf) -> collect_sections elf
-			| Archive elves -> List.iter collect_sections (List.map snd elves)*)
-	end elf_files
+let rec sections_by_name obj name acc = function
+	| [] -> acc
+	| section :: rest ->
+		if Printing.get_string obj.strtab section.st_name = name
+			then sections_by_name obj name (section :: acc) rest
+			else sections_by_name obj name acc rest
+	
+let multiboot_headers =
+	List.flatten (List.map begin fun obj ->
+		let obj = (snd obj).header in
+		sections_by_name obj ".mb_header" [] (Array.to_list obj.section_headers)
+	end objects)
 
-let () = Array.iteri begin fun i (eh,sh) ->
-		print_section_header eh.strtab i sh
-	end (Array.of_list !sections)
+let () =
+	Printf.printf "Found %d section(s) named .mb_header\n" (List.length multiboot_headers)
 
 (*
 

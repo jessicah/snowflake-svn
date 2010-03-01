@@ -1,2 +1,2 @@
 
-val input_files : string array
+val input_files : string list
