@@ -409,6 +409,28 @@ let text_headers =
 		sections_by_names obj [".text"; ".text.*"; ".gnu.linkonce.t.*"] (Array.to_list obj.section_headers)
 	end objects)
 
+let rodata_headers =
+	List.flatten (List.map begin fun obj ->
+		sections_by_names obj [".rodata"; ".rodata.*"; ".gnu.linkonce.r.*"] (Array.to_list obj.section_headers)
+	end objects)
+
+let data_headers =
+	List.flatten (List.map begin fun obj ->
+		sections_by_names obj [".data"; ".data.*"; ".gnu.linkonce.d.*"] (Array.to_list obj.section_headers)
+	end objects)
+
+let bss_headers =
+	let b1 = List.flatten (List.map begin fun obj ->
+			sections_by_name obj ".bss.pagealigned" [] (Array.to_list obj.section_headers)
+		end objects)
+	and b2 = List.flatten (List.map begin fun obj ->
+			sections_by_names obj [".bss"; ".bss.*"; ".gnu.linkonce.b.*"] (Array.to_list obj.section_headers)
+		end objects)
+	and b3 = List.flatten (List.map begin fun obj ->
+			sections_by_name obj "COMMON" [] (Array.to_list obj.section_headers)
+		end objects)
+	in List.concat [b1; b2; b3]
+
 type storage = {
 	mutable offset : int;
 	section : section_header;
@@ -419,13 +441,31 @@ let location = ref 0x00400100
 
 let storage_allocation = ref []
 
+let allocate_storage (obj, section) =
+	let storage = { offset = !location; section = section; elf = obj } in
+	location := !location + section.st_size;
+	storage_allocation := storage :: !storage_allocation
+
 let () =
-	List.iter begin fun (obj,section) ->
-		let storage = { offset = !location; section = section; elf = obj; } in
-		location := !location + section.st_size;
-		storage_allocation := storage :: !storage_allocation
-	end multiboot_headers;
-	Printf.printf "location now at %x\n" !location
+	(*** begin storage allocation ***)
+	List.iter allocate_storage multiboot_headers;
+	List.iter allocate_storage text_headers;
+	(* provide _etext = !location *)
+	List.iter allocate_storage rodata_headers;
+	List.iter allocate_storage data_headers;
+	(* _edata = !location; provide edata = !location *)
+	let _edata = !location in
+	(* align to 0x1000 *)
+	location := (!location asr 12) lsl 12;
+	if !location < _edata then location := !location + 0x1000;
+	(* __bss_start = !location *)
+	let __bss_start = !location in
+	List.iter allocate_storage bss_headers;
+	(* _end = !location; provide end = !location *)
+	let _end = !location in
+	(*** finish storage allocation ***)
+	Printf.printf "Storage allocation done.\n_edata      @ 0x%08x\n__bss_start @ 0x%08x\n_end        @ 0x%08x\n"
+		_edata __bss_start _end
 
 (*
 

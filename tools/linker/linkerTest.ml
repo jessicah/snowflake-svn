@@ -10,7 +10,7 @@ let input_files = [
 		(*"../../_build/kernel/tarFile.o";
 		"../../_build/kernel/trie.o";*)
 		(*"kernel/keyboard.o";*)
-		"../../_build/kernel/interrupts.o";
+		(*"../../_build/kernel/interrupts.o";*)
 		(*"kernel/PCI.o";
 		"kernel/deviceManager.o";*)
 		"../../_build/kernel/vt100.o";
