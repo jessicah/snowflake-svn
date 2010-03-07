@@ -6,7 +6,7 @@ open IrcTypes
 open ExtString
 
 (* freenode: 216.165.191.52, or a list of many, many others... :P *)
-let freenode = NetworkProtocolStack.IPv4.Addr (216, 165, 191, 52)
+let freenode = NetworkProtocolStack.IPv4.Addr (216, 155, 130, 130)
 
 let run server port nick channel =
 	Vt100.printf "Connecting to server...";
@@ -22,11 +22,13 @@ let run server port nick channel =
 	in
 	
 	(* send IRC initiation stuff *)
-	writef "PASS %s" "snowflake";
+	writef "PASS :%s %s" "snowflake-os" "snowflake";
 	writef "USER %s %s@snowflake-os.googlecode.com %s :%s" nick nick
 		(NetworkProtocolStack.IPv4.to_string server)
 		"Snowflake IRC Client";
 	writef "NICK %s" nick;
+	
+	Vt100.printf "Sent user registration, waiting for response...\n";
 	
 	ignore (Thread.create begin fun () ->
 		while true do
@@ -40,9 +42,10 @@ let run server port nick channel =
 	
 	while true do
 		let line = IO.read_line reader in
+		Vt100.printf "%s\n" line;
 		try match IrcParser.args IrcLexer.message (Lexing.from_string line) with
 			(* Numeric commands *)
-			| _, Numeric 001, _ -> writef "JOIN %s" channel
+			| _, Numeric 001, _ -> writef "JOIN %s" channel; Vt100.printf "Joining channel %s\n" channel
 			| _, Numeric _, _ -> ()
 			
 			(* Channel commands *)
@@ -62,7 +65,7 @@ let run server port nick channel =
 			
 			(* Misc. commands *)
 			| None, Ping, data :: [] ->
-					writef "PONG: %s" data
+					writef "PONG :%s" data
 			| _ -> ()
 		with ex ->
 			Vt100.printf "Error: %s (%s)\n" (Printexc.to_string ex) line

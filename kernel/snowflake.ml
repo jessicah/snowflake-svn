@@ -4,7 +4,7 @@ let () =
 	Random.self_init ();
 	
 	(* initialise a bunch of devices *)
-	(*Vga.init ();
+	Vga.init ();
 	Keyboard.init ();
 	ICH0.init ();
 	IDE.init ();
@@ -13,12 +13,12 @@ let () =
 	NetworkStack.init ();
 	(*MusicPlayer.init ();
 	TarFileSystem.init ();*)
-	IRC.init ();*)
+	IRC.init ();
 	
 	(* let interrupts run *)
 	Asm.sti ();
 	
-	(*(* probe the PCI bus and load any drivers it can find *)
+	(* probe the PCI bus and load any drivers it can find *)
 	DeviceManager.scan_pci_bus ();
 	
 	(* get the partitions for the primary master *)
@@ -61,9 +61,7 @@ let () =
 			with Not_found -> loop xs
 			end
 	in loop partitions;
-	(*List.iter Ext2fs.init partitions;*)*)
+	(*List.iter Ext2fs.init partitions;*)
 	
-	Vt100.printf "Hello!\r\n"
-	
-	(*(* finished, so launch the shell *)
-	Shell.init ()*)
+	(* finished, so launch the shell *)
+	Shell.init ()
