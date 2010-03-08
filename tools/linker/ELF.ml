@@ -1,5 +1,12 @@
 
 module T = struct
+	let sizeof_elf_header = 52
+	let sizeof_program_header = 32
+	
+	(*  this is used to figure out where to start location pointer at
+		when you have . = <someaddress> + SIZEOF_HEADERS *)
+	let sizeof_headers = sizeof_elf_header + sizeof_program_header
+	
 	type elf = {
 		filename: string; (* instead of annoying tuple *)
 		version : int;
@@ -17,7 +24,7 @@ module T = struct
 		shstrndx : int;
 		strtab : string;
 		data : Bitstring.bitstring; (* the raw file including parsed header *)
-	}
+	} (* total: 52 bytes *)
 	and file_type
 		= Relative | Executable | Shared
 	and section_header = {
@@ -39,6 +46,34 @@ module T = struct
 	and section_flag
 		= Write | Alloc | Execute (* don't care about other types *)
 	
+	type program_header = {
+		p_type : int; (* 4 *)
+		p_offset : int; (* 4 *)
+		p_vaddr : int; (* 4 *)
+		p_paddr : int; (* 4 *)
+		p_filesz : int; (* 4 *)
+		p_memsz : int; (* 4 *)
+		p_flags : int; (* 4 *) (* 0x4 PF_R, 0x2 PF_W, 0x1 PF_X *)
+		p_align: int; (* 4 *)
+	} (* total: 32 bytes *)
+	
+	(*
+		STB_LOCAL   = 0
+		STB_GLOBAL  = 1
+		STB_WEAK    = 2
+	
+		STT_NOTYPE  = 0
+		STT_OBJECT  = 1
+		STT_FUNC    = 2
+		STT_SECTION = 3
+		STT_FILE    = 4
+		STT_COMMON  = 5
+		STT_TLS     = 6
+		
+		ST_BIND(x) = ((x) >> 4)
+		ST_TYPE(x) = (((unsigned int) x) & 0xf)
+	*)
+	
 	type symtab_entry = {
 		sm_name : int;
 		sm_value : int;
@@ -47,6 +82,8 @@ module T = struct
 		sm_other : int;
 		sm_shndx : int;
 	}
+	
+	(* R_SYM(x) = ((x) >> 8), R_TYPE(x) = ((x) & 0xff) *)
 	
 	type rel = {
 		r_offset : int;
@@ -480,9 +517,41 @@ let objects, libraries = open_files ["tiny.o"]
 
 let tiny = List.hd objects
 
+let get_section obj name =
+	List.find begin function section ->
+			Printing.get_string obj.strtab section.st_name = name
+		end (Array.to_list obj.section_headers)
+
 let () =
-	Printing.print_header tiny
-	
+	Printing.print_header tiny;
+	let text = get_section tiny ".text" in
+	Printf.printf "size of .text: %d bytes\n" text.st_size;
+	(* cheating, but already know .data and .bss are empty, so won't get output *)
+	(* also cheating, as already know there are no relocations... :P *)
+	let ph = {
+		p_type = 1; (* LOAD *)
+		p_offset = 0; (* I dunno what that's for *)
+		p_vaddr = 0x08048000 + T.sizeof_headers;
+		p_paddr = 0x08048000 + T.sizeof_headers;
+		p_filesz = text.st_size + T.sizeof_headers;
+		p_memsz = text.st_size + T.sizeof_headers;
+		p_flags = 5; (* read | execute *)
+		p_align = 0x1000;
+	} in
+	Printf.printf "Program Headers:\n";
+	Printf.printf " LOAD 0x%06x 0x%08x 0x%08x 0x%05x 0x%05x R E 0x%04x\n"
+		ph.p_offset ph.p_vaddr ph.p_paddr ph.p_filesz ph.p_memsz ph.p_align;
+	let (filedata, _, _) = tiny.data in
+	let text_content = String.sub filedata text.st_offset text.st_size in
+	(* text_content is the actual instructions *)
+	Printf.printf "Hex dump of .text:\n";
+	for i = 0 to String.length text_content / 4 - 1 do
+		Printf.printf " ";
+		for j = 0 to 3 do
+			Printf.printf "%02x" (Char.code text_content.[i * 4 + j]);
+		done;
+	done;
+	Printf.printf "\n"
 
 (*
 
