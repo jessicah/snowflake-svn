@@ -101,6 +101,45 @@ module T = struct
 		| Archive of elf list
 end
 
+module O = struct
+	open T
+	open IO
+	
+	let output oc entry_point program_header content =
+		(* output an ELF header, followed by one program header,
+			followed by the content, and be done with it *)
+		let io = output_channel oc in
+		(* ELF header *)
+		(* magic 1 1 1 rest are 0s *)
+		nwrite io "\x7FELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00";
+		write_i16 io 2; (* type: executable *)
+		write_i16 io 3; (* machine:386 *)
+		write_i32 io 1; (* version: 1 just cause*)
+		write_i32 io entry_point; (* entry point *)
+		write_i32 io 52; (* program headers offset *)
+		write_i32 io 0; (* section headers offset; we'll have none for now *)
+		write_i32 io 0; (* flags *)
+		write_i16 io 52; (* size of this (elf) header *)
+		write_i16 io 32; (* size of program header *)
+		write_i16 io 1; (* number of program headers *)
+		write_i16 io 0; (* size of section header *)
+		write_i16 io 0; (* number of section headers *)
+		write_ui16 io 0; (* index of section header string table. hmm *)
+		(* program header *)
+		write_i32 io program_header.p_type;
+		write_i32 io program_header.p_offset;
+		write_i32 io program_header.p_vaddr;
+		write_i32 io program_header.p_paddr;
+		write_i32 io program_header.p_filesz;
+		write_i32 io program_header.p_memsz;
+		write_i32 io program_header.p_flags;
+		write_i32 io program_header.p_align;
+		(* content *)
+		nwrite io content;
+		flush io
+		
+end
+
 module P = struct
 	open T
 	
@@ -522,12 +561,12 @@ let get_section obj name =
 			Printing.get_string obj.strtab section.st_name = name
 		end (Array.to_list obj.section_headers)
 
+(* cheating, but already know .data and .bss are empty, so won't get output *)
+(* also cheating, as already know there are no relocations... :P *)
+(* can I also get away with having no section tables in my output? *)
 let () =
-	Printing.print_header tiny;
 	let text = get_section tiny ".text" in
 	Printf.printf "size of .text: %d bytes\n" text.st_size;
-	(* cheating, but already know .data and .bss are empty, so won't get output *)
-	(* also cheating, as already know there are no relocations... :P *)
 	let ph = {
 		p_type = 1; (* LOAD *)
 		p_offset = 0; (* I dunno what that's for *)
@@ -551,7 +590,10 @@ let () =
 			Printf.printf "%02x" (Char.code text_content.[i * 4 + j]);
 		done;
 	done;
-	Printf.printf "\n"
+	Printf.printf "\n";
+	let oc = open_out_bin "a.out" in
+	O.output oc ph.p_vaddr ph text_content;
+	close_out oc
 
 (*
 
