@@ -6,10 +6,10 @@ all: linkerTest.mli linkerTest.ml ELF.mli ELF.ml
 	as --32 $< -o $@
 
 tiny: tiny.o
-	ld -s -melf_i386 $< -o $@
+	ld -Telf_i386.x -s -melf_i386 $< -o $@
 
 tiny2: tinya.o tinyb.o
-	ld -s -melf_i386 $+ -o $@
+	ld -Telf_i386.x -s -melf_i386 $+ -o $@
 
 clean:
-	rm -f *.cm[io] *.o ELF elf_linker tiny
+	rm -f *.cm[io] *.o ELF elf_linker tiny tiny2

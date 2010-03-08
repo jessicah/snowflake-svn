@@ -363,16 +363,21 @@ end
 
 open T
 
-let objects, libraries =
+let open_files file_list =
+	let o, a = List.partition (function Object _ -> true | _ -> false)
+			(List.map P.parse file_list)
+	in
+		List.map (function Object o -> o | _ -> assert false) o,
+		List.map (function Archive a -> a | _ -> assert false) a			
+
+(*let objects, libraries =
 	let o, a = List.partition begin function
 			| Object _ -> true
 			| _ -> false
-		end (List.map P.parse LinkerTest.input_files)
+		end (List.map P.parse (List.tl (Array.to_list Sys.argv)))
 	in
 		List.map begin function Object o -> o | _ -> assert false end o,
 		List.map begin function Archive a -> a | _ -> assert false end a
-
-(*let objects = objects @ List.flatten libraries*)
 
 let rec sections_by_name obj name acc = function
 	| [] -> List.rev acc
@@ -467,7 +472,17 @@ let () =
 	let _end = !location in
 	(*** finish storage allocation ***)
 	Printf.printf "Storage allocation done.\n_edata      @ 0x%08x\n__bss_start @ 0x%08x\n_end        @ 0x%08x\n"
-		_edata __bss_start _end
+		_edata __bss_start _end*)
+
+(*** FIRST TEST, A SINGLE OBJECT FILE WITH NO RELOCATION ENTRIES ***)
+
+let objects, libraries = open_files ["tiny.o"]
+
+let tiny = List.hd objects
+
+let () =
+	Printing.print_header tiny
+	
 
 (*
 
