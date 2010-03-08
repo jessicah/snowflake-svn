@@ -117,14 +117,15 @@ module O = struct
 		write_i32 io 1; (* version: 1 just cause*)
 		write_i32 io entry_point; (* entry point *)
 		write_i32 io 52; (* program headers offset *)
-		write_i32 io 0; (* section headers offset; we'll have none for now *)
+		(* 20 is 17 (size of shstrtab rounded up to nearest word boundary *)
+		write_i32 io (52 + 32 + String.length content + 20); (* section headers offset *)
 		write_i32 io 0; (* flags *)
 		write_i16 io 52; (* size of this (elf) header *)
 		write_i16 io 32; (* size of program header *)
 		write_i16 io 1; (* number of program headers *)
-		write_i16 io 0; (* size of section header *)
-		write_i16 io 0; (* number of section headers *)
-		write_ui16 io 0; (* index of section header string table. hmm *)
+		write_i16 io 40; (* size of section header *)
+		write_i16 io 3; (* number of section headers *)
+		write_ui16 io 2; (* index of section header string table *)
 		(* program header *)
 		write_i32 io program_header.p_type;
 		write_i32 io program_header.p_offset;
@@ -136,6 +137,44 @@ module O = struct
 		write_i32 io program_header.p_align;
 		(* content *)
 		nwrite io content;
+		(* shstrtab *)
+		let shstrtab = "\000.text\000.shstrtab\000" in
+		nwrite io shstrtab; (* length = 17 *)
+		nwrite io "\000\000\000"; (* padding for word alignment *)
+		(* section headers *)
+		(*	NULL *)
+		write_i32 io 0; (* name *)
+		write_i32 io 0; (* type: null *)
+		write_i32 io 0; (* flags *)
+		write_i32 io 0; (* addr *)
+		write_i32 io 0; (* offset *)
+		write_i32 io 0; (* size *)
+		write_i32 io 0; (* link *)
+		write_i32 io 0; (* info *)
+		write_i32 io 0; (* addralign *)
+		write_i32 io 0; (* entsize *)
+		(*	.text *)
+		write_i32 io 1; (* name: .text *)
+		write_i32 io 1; (* type: progbits *)
+		write_i32 io 6; (* flags: alloc | execute *)
+		write_i32 io entry_point; (* address *)
+		write_i32 io (52 + 32); (* offset *)
+		write_i32 io (String.length content); (* size *)
+		write_i32 io 0; (* link *)
+		write_i32 io 0; (* info *)
+		write_i32 io 4; (* addralign: 4 bytes *)
+		write_i32 io 0; (* entsize *)
+		(*	.shstrtab *)
+		write_i32 io 7; (* name: .shstrtab *)
+		write_i32 io 3; (* type: strtab *)
+		write_i32 io 0; (* flags *)
+		write_i32 io 0; (* address *)
+		write_i32 io (52 + 32 + String.length content); (* offset *)
+		write_i32 io (String.length shstrtab); (* size *)
+		write_i32 io 0; (* link *)
+		write_i32 io 0; (* info *)
+		write_i32 io 1; (* addralign: 1 byte *)
+		write_i32 io 0; (* entsize *)
 		flush io
 		
 end
@@ -570,8 +609,8 @@ let () =
 	let ph = {
 		p_type = 1; (* LOAD *)
 		p_offset = 0; (* I dunno what that's for *)
-		p_vaddr = 0x08048000 + T.sizeof_headers;
-		p_paddr = 0x08048000 + T.sizeof_headers;
+		p_vaddr = 0x08048000;
+		p_paddr = 0x08048000;
 		p_filesz = text.st_size + T.sizeof_headers;
 		p_memsz = text.st_size + T.sizeof_headers;
 		p_flags = 5; (* read | execute *)
@@ -592,7 +631,7 @@ let () =
 	done;
 	Printf.printf "\n";
 	let oc = open_out_bin "a.out" in
-	O.output oc ph.p_vaddr ph text_content;
+	O.output oc (ph.p_vaddr + T.sizeof_headers) ph text_content;
 	close_out oc
 
 (*
