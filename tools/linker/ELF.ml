@@ -1,12 +1,19 @@
 
-module T = struct
+module Defaults = struct
+	(* we work with i386_elf only, so the sizes here are for that *)
+	
 	let sizeof_elf_header = 52
 	let sizeof_program_header = 32
 	
-	(*  this is used to figure out where to start location pointer at
-		when you have . = <someaddress> + SIZEOF_HEADERS *)
+	(* using the default of ONE program header *)
 	let sizeof_headers = sizeof_elf_header + sizeof_program_header
 	
+	let start_location = 0x08048000
+	
+	let entry_point = start_location + sizeof_headers
+end
+
+module T = struct
 	type elf = {
 		filename: string; (* instead of annoying tuple *)
 		version : int;
@@ -105,6 +112,39 @@ module O = struct
 	open T
 	open IO
 	
+	let output_program_header io program_header =
+		write_i32 io program_header.p_type;
+		write_i32 io program_header.p_offset;
+		write_i32 io program_header.p_vaddr;
+		write_i32 io program_header.p_paddr;
+		write_i32 io program_header.p_filesz;
+		write_i32 io program_header.p_memsz;
+		write_i32 io program_header.p_flags;
+		write_i32 io program_header.p_align
+	
+	let section_type_to_int = function
+		| Other x -> x
+		| t -> Obj.magic t
+	
+	let section_flags_to_int flags =
+		let masks = [ Write, 0x1; Alloc, 0x2; Execute, 0x4 ] in
+		let flags = List.filter begin fun p ->
+				List.exists (fun flag -> fst p = flag) flags
+			end masks in
+		List.fold_left (+) 0 (List.map snd flags)
+	
+	let output_section_header io section_header =
+		write_i32 io section_header.st_name;
+		write_i32 io (section_type_to_int section_header.st_type);
+		write_i32 io (section_flags_to_int section_header.st_flags);
+		write_i32 io section_header.st_addr;
+		write_i32 io section_header.st_offset;
+		write_i32 io section_header.st_size;
+		write_i32 io section_header.st_link;
+		write_i32 io section_header.st_info;
+		write_i32 io section_header.st_addralign;
+		write_i32 io section_header.st_entsize
+	
 	let output oc entry_point program_header content =
 		(* output an ELF header, followed by one program header,
 			followed by the content, and be done with it *)
@@ -118,7 +158,7 @@ module O = struct
 		write_i32 io entry_point; (* entry point *)
 		write_i32 io 52; (* program headers offset *)
 		(* 20 is 17 (size of shstrtab rounded up to nearest word boundary *)
-		write_i32 io (52 + 32 + String.length content + 20); (* section headers offset *)
+		write_i32 io (Defaults.sizeof_headers + String.length content + 20); (* section headers offset *)
 		write_i32 io 0; (* flags *)
 		write_i16 io 52; (* size of this (elf) header *)
 		write_i16 io 32; (* size of program header *)
@@ -127,14 +167,7 @@ module O = struct
 		write_i16 io 3; (* number of section headers *)
 		write_ui16 io 2; (* index of section header string table *)
 		(* program header *)
-		write_i32 io program_header.p_type;
-		write_i32 io program_header.p_offset;
-		write_i32 io program_header.p_vaddr;
-		write_i32 io program_header.p_paddr;
-		write_i32 io program_header.p_filesz;
-		write_i32 io program_header.p_memsz;
-		write_i32 io program_header.p_flags;
-		write_i32 io program_header.p_align;
+		output_program_header io program_header;
 		(* content *)
 		nwrite io content;
 		(* shstrtab *)
@@ -142,39 +175,45 @@ module O = struct
 		nwrite io shstrtab; (* length = 17 *)
 		nwrite io "\000\000\000"; (* padding for word alignment *)
 		(* section headers *)
-		(*	NULL *)
-		write_i32 io 0; (* name *)
-		write_i32 io 0; (* type: null *)
-		write_i32 io 0; (* flags *)
-		write_i32 io 0; (* addr *)
-		write_i32 io 0; (* offset *)
-		write_i32 io 0; (* size *)
-		write_i32 io 0; (* link *)
-		write_i32 io 0; (* info *)
-		write_i32 io 0; (* addralign *)
-		write_i32 io 0; (* entsize *)
-		(*	.text *)
-		write_i32 io 1; (* name: .text *)
-		write_i32 io 1; (* type: progbits *)
-		write_i32 io 6; (* flags: alloc | execute *)
-		write_i32 io entry_point; (* address *)
-		write_i32 io (52 + 32); (* offset *)
-		write_i32 io (String.length content); (* size *)
-		write_i32 io 0; (* link *)
-		write_i32 io 0; (* info *)
-		write_i32 io 4; (* addralign: 4 bytes *)
-		write_i32 io 0; (* entsize *)
-		(*	.shstrtab *)
-		write_i32 io 7; (* name: .shstrtab *)
-		write_i32 io 3; (* type: strtab *)
-		write_i32 io 0; (* flags *)
-		write_i32 io 0; (* address *)
-		write_i32 io (52 + 32 + String.length content); (* offset *)
-		write_i32 io (String.length shstrtab); (* size *)
-		write_i32 io 0; (* link *)
-		write_i32 io 0; (* info *)
-		write_i32 io 1; (* addralign: 1 byte *)
-		write_i32 io 0; (* entsize *)
+		let section_headers = [
+			{ (* NULL *)
+				st_name      = 0;
+				st_type      = Null;
+				st_flags     = [];
+				st_addr      = 0;
+				st_offset    = 0;
+				st_size      = 0;
+				st_link      = 0;
+				st_info      = 0;
+				st_addralign = 0;
+				st_entsize   = 0;
+			};
+			{ (* .text *)
+				st_name      = 1;
+				st_type      = Progbits;
+				st_flags     = [Alloc; Execute];
+				st_addr      = entry_point;
+				st_offset    = Defaults.sizeof_headers;
+				st_size      = String.length content;
+				st_link      = 0;
+				st_info      = 0;
+				st_addralign = 4; (* word size *)
+				st_entsize   = 0;
+			};
+			{ (* .shstrtab *)
+				st_name      = 7;
+				st_type      = Strtab;
+				st_flags     = [];
+				st_addr      = 0;
+				st_offset    = Defaults.sizeof_headers + String.length content;
+				st_size      = String.length shstrtab;
+				st_link      = 0;
+				st_info      = 0;
+				st_addralign = 1; (* byte aligned *)
+				st_entsize   = 0;
+			};
+		] in
+		List.iter (output_section_header io) section_headers;
 		flush io
 		
 end
@@ -609,10 +648,10 @@ let () =
 	let ph = {
 		p_type = 1; (* LOAD *)
 		p_offset = 0; (* I dunno what that's for *)
-		p_vaddr = 0x08048000;
-		p_paddr = 0x08048000;
-		p_filesz = text.st_size + T.sizeof_headers;
-		p_memsz = text.st_size + T.sizeof_headers;
+		p_vaddr = Defaults.start_location;
+		p_paddr = Defaults.start_location;
+		p_filesz = text.st_size + Defaults.sizeof_headers;
+		p_memsz = text.st_size + Defaults.sizeof_headers;
 		p_flags = 5; (* read | execute *)
 		p_align = 0x1000;
 	} in
@@ -631,7 +670,7 @@ let () =
 	done;
 	Printf.printf "\n";
 	let oc = open_out_bin "a.out" in
-	O.output oc (ph.p_vaddr + T.sizeof_headers) ph text_content;
+	O.output oc Defaults.entry_point ph text_content;
 	close_out oc
 
 (*
