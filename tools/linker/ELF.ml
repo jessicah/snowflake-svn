@@ -4,6 +4,7 @@ module Defaults = struct
 	
 	let sizeof_elf_header = 52
 	let sizeof_program_header = 32
+	let sizeof_section_header = 40
 	
 	(* using the default of ONE program header *)
 	let sizeof_headers = sizeof_elf_header + sizeof_program_header
@@ -25,6 +26,7 @@ module T = struct
 		ehsize : int;
 		phentsize : int;
 		phnum : int;
+		program_headers : program_header array;
 		shentsize : int;
 		shnum : int;
 		section_headers : section_header array;
@@ -52,8 +54,7 @@ module T = struct
 		| Shlib | Dynsym | Other of int
 	and section_flag
 		= Write | Alloc | Execute (* don't care about other types *)
-	
-	type program_header = {
+	and program_header = {
 		p_type : int; (* 4 *)
 		p_offset : int; (* 4 *)
 		p_vaddr : int; (* 4 *)
@@ -150,31 +151,7 @@ module O = struct
 			followed by the content, and be done with it *)
 		let io = output_channel oc in
 		(* ELF header *)
-		(* magic 1 1 1 rest are 0s *)
-		nwrite io "\x7FELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00";
-		write_i16 io 2; (* type: executable *)
-		write_i16 io 3; (* machine:386 *)
-		write_i32 io 1; (* version: 1 just cause*)
-		write_i32 io entry_point; (* entry point *)
-		write_i32 io 52; (* program headers offset *)
-		(* 20 is 17 (size of shstrtab rounded up to nearest word boundary *)
-		write_i32 io (Defaults.sizeof_headers + String.length content + 20); (* section headers offset *)
-		write_i32 io 0; (* flags *)
-		write_i16 io 52; (* size of this (elf) header *)
-		write_i16 io 32; (* size of program header *)
-		write_i16 io 1; (* number of program headers *)
-		write_i16 io 40; (* size of section header *)
-		write_i16 io 3; (* number of section headers *)
-		write_ui16 io 2; (* index of section header string table *)
-		(* program header *)
-		output_program_header io program_header;
-		(* content *)
-		nwrite io content;
-		(* shstrtab *)
 		let shstrtab = "\000.text\000.shstrtab\000" in
-		nwrite io shstrtab; (* length = 17 *)
-		nwrite io "\000\000\000"; (* padding for word alignment *)
-		(* section headers *)
 		let section_headers = [
 			{ (* NULL *)
 				st_name      = 0;
@@ -213,7 +190,53 @@ module O = struct
 				st_entsize   = 0;
 			};
 		] in
-		List.iter (output_section_header io) section_headers;
+		let header = {
+			(* we don't store machine atm, we only deal with i386 :P *)
+			filename = "a.out";
+			version = 1;
+			file_type = Executable;
+			entry = entry_point;
+			(* Program Headers follow the ELF Header *)
+			phoff = Defaults.sizeof_elf_header;
+			(* Section Headers follow the ELF Header, Program Headers, sections, and shstrtab *)
+			shoff = Defaults.sizeof_headers + String.length content + 20;
+			header_flags = 0;
+			ehsize = Defaults.sizeof_elf_header;
+			phentsize = Defaults.sizeof_program_header;
+			phnum = 1;
+			program_headers = [| program_header |];
+			shentsize = Defaults.sizeof_section_header;
+			shnum = List.length section_headers;
+			section_headers = Array.of_list section_headers;
+			shstrndx = 2;
+			strtab = shstrtab;
+			data = Bitstring.empty_bitstring;
+		} in
+		(* magic 1 1 1 rest are 0s *)
+		nwrite io "\x7FELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00";
+		write_i16 io 2; (* type: executable *)
+		write_i16 io 3; (* machine:386 *)
+		write_i32 io header.version;
+		write_i32 io header.entry;
+		write_i32 io header.phoff;
+		(* 20 is 17 (size of shstrtab rounded up to nearest word boundary *)
+		write_i32 io header.shoff;
+		write_i32 io header.header_flags;
+		write_i16 io header.ehsize;
+		write_i16 io header.phentsize;
+		write_i16 io header.phnum;
+		write_i16 io header.shentsize;
+		write_i16 io header.shnum;
+		write_i16 io header.shstrndx;
+		(* program header *)
+		output_program_header io header.program_headers.(0);
+		(* content *)
+		nwrite io content;
+		(* shstrtab *)
+		nwrite io header.strtab; (* length = 17 *)
+		nwrite io "\000\000\000"; (* padding for word alignment *)
+		(* section headers *)
+		Array.iter (output_section_header io) header.section_headers;
 		flush io
 		
 end
@@ -342,6 +365,7 @@ module P = struct
 			ehsize = ehsize;
 			phentsize = phentsize;
 			phnum = phnum;
+			program_headers = [| |]; (* objects don't have program headers *)
 			shentsize = shentsize;
 			shnum = shnum;
 			section_headers = section_headers;
