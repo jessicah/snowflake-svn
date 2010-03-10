@@ -654,47 +654,67 @@ let () =
 
 (*** FIRST TEST, A SINGLE OBJECT FILE WITH NO RELOCATION ENTRIES ***)
 
-let objects, libraries = open_files ["tiny.o"]
-
-let tiny = List.hd objects
+let objects, libraries = open_files (List.tl (Array.to_list Sys.argv))
 
 let get_section obj name =
 	List.find begin function section ->
 			Printing.get_string obj.strtab section.st_name = name
 		end (Array.to_list obj.section_headers)
 
+
+(* builds a string table *)
+let names = [ ""; ".text"; ".shstrtab" ]
+
+let build_string_table names =
+	let len = List.fold_left begin fun acc name ->
+			acc + String.length name + 1
+		end 0 names in
+	let buf = String.make len '\000' in
+	let indices =
+		List.fold_left begin fun ixs name ->
+			let len = String.length name in
+			let ix = List.hd ixs in
+			String.blit name 0 buf ix len;
+			ix + len + 1 :: ixs
+		end [0] names
+	in
+	(* strtab, indices, length *)
+	buf, List.rev (List.tl indices), List.hd indices
+
+let align4 x = ((x + 3) lsr 2) lsl 2
+
 (* cheating, but already know .data and .bss are empty, so won't get output *)
 (* also cheating, as already know there are no relocations... :P *)
-(* can I also get away with having no section tables in my output? *)
 let () =
-	let text = get_section tiny ".text" in
-	Printf.printf "size of .text: %d bytes\n" text.st_size;
+	(* result of contents is reverse order to objects on command line *)
+	let contents = List.fold_left begin fun acc obj ->
+			let text = get_section obj ".text" in
+			let aligned_size = align4 text.st_size in 
+			let buf = String.make aligned_size '\x90' in
+			let (filedata, _, _) = obj.data in
+			String.blit filedata text.st_offset buf 0 text.st_size;
+			(buf, text.st_size) :: acc
+	end [] objects in
+	(* use the last one to truncate to actual size (no padding for last one) *)
+	let last = List.hd contents in
+	let size = snd last + List.fold_left begin fun sz (str,_) ->
+			sz + String.length str
+		end 0 (List.tl contents) in
+	(* then concatenate and truncate *)
+	let contents = String.concat "" (List.rev_map fst contents) in
+	let contents = String.sub contents 0 size in
 	let ph = {
 		p_type = 1; (* LOAD *)
 		p_offset = 0; (* I dunno what that's for *)
 		p_vaddr = Defaults.start_location;
 		p_paddr = Defaults.start_location;
-		p_filesz = text.st_size + Defaults.sizeof_headers;
-		p_memsz = text.st_size + Defaults.sizeof_headers;
+		p_filesz = size + Defaults.sizeof_headers;
+		p_memsz = size + Defaults.sizeof_headers;
 		p_flags = 5; (* read | execute *)
 		p_align = 0x1000;
 	} in
-	Printf.printf "Program Headers:\n";
-	Printf.printf " LOAD 0x%06x 0x%08x 0x%08x 0x%05x 0x%05x R E 0x%04x\n"
-		ph.p_offset ph.p_vaddr ph.p_paddr ph.p_filesz ph.p_memsz ph.p_align;
-	let (filedata, _, _) = tiny.data in
-	let text_content = String.sub filedata text.st_offset text.st_size in
-	(* text_content is the actual instructions *)
-	Printf.printf "Hex dump of .text:\n";
-	for i = 0 to String.length text_content / 4 - 1 do
-		Printf.printf " ";
-		for j = 0 to 3 do
-			Printf.printf "%02x" (Char.code text_content.[i * 4 + j]);
-		done;
-	done;
-	Printf.printf "\n";
 	let oc = open_out_bin "a.out" in
-	O.output oc Defaults.entry_point ph text_content;
+	O.output oc Defaults.entry_point ph contents;
 	close_out oc
 
 (*
