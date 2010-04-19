@@ -9,3 +9,5 @@ let printf fmt = printf begin from_out_chars (object
 		method close_out () = ()
 		end)
 	end fmt
+
+let log name = printf "[%Ld] %s\n" (Asm.rdtsc ()) name

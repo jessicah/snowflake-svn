@@ -63,8 +63,11 @@ void caml_process_pending_signals(void)
        in caml_garbage_collection
 */
 
+extern unsigned long long get_ticks();
+
 void caml_record_signal(int signal_number)
 {
+	if (signal_number==11)dprintf ("[%u] irq 11: record signal\n", get_ticks());
   caml_pending_signals[signal_number] = 1;
   caml_signals_are_pending = 1;
 #ifndef NATIVE_CODE
@@ -138,6 +141,7 @@ void caml_execute_signal(int signal_number, int in_signal_handler)
   sigaddset(&sigs, signal_number);
   sigprocmask(SIG_BLOCK, &sigs, &sigs);
 #endif
+	if (signal_number==11)dprintf ("[%u] irq 11: execute signal\n", get_ticks());
   res = caml_callback_exn(
            Field(caml_signal_handlers, signal_number),
            Val_int((signal_number)));
@@ -151,6 +155,7 @@ void caml_execute_signal(int signal_number, int in_signal_handler)
     sigprocmask(SIG_SETMASK, &sigs, NULL);
   }
 #endif
+  if (signal_number==11)dprintf ("[%u] irq 11: completed signal\n", get_ticks());
   if (Is_exception_result(res)) caml_raise(Extract_exception(res));
 }
 

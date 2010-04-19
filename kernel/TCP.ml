@@ -32,7 +32,7 @@ type t = {
 	dst_ip : NetworkProtocolStack.IPv4.addr;
 	(* function called by the network stack when we've received a TCP packet
 	   that matches the port we're bound to -- not port defined above *)
-	mutable on_input : PacketParsing.t -> int -> unit;
+	mutable on_input : PacketLists.TCP.packet -> int -> unit;
 	(* function called (indirectly) by the application layer to send data to
 	   the end-point. do_output invokes the network stack to send packet(s) *)
 	mutable do_output : string -> unit;
@@ -43,6 +43,8 @@ type t = {
 	cv : Condition.t;
 	(* buffer for received (reassembled) packets *)
 	rb : RingBuffer.t;
+	(* receive packet queue *)
+	rxq : (PacketLists.TCP.packet * int) MVar.t;
 }
 
 let used_ports = ref []
@@ -74,16 +76,19 @@ let one = Int32.one
 
 let empty = ""
 
-module PP = PacketParsing.TCP
+module L = PacketLists
 
-let on_input cookie packet packet_length =
-	let has_flag f = List.mem f (to_flags (PP.flags packet)) in
+(* modified to be a thread instead *)
+let input_thread cookie =
+		while cookie.status.mode <> Closed do
+	let (packet, packet_length) = MVar.get cookie.rxq in
+	let has_flag f = List.mem f (to_flags (packet.L.TCP.flags)) in
 	begin match cookie.status.mode with
 		| Syn_sent when (*has_flag Syn &&*) has_flag Ack ->
 			(* establishing connection *)
-			if PP.ack packet <> cookie.status.s_next then begin
+			if packet.L.TCP.ack <> cookie.status.s_next then begin
 				Vt100.printf "tcp: ack# (%lx) not equal next seq# (%lx), reset connection\n"
-					(PP.ack packet) cookie.status.s_next;
+					packet.L.TCP.ack cookie.status.s_next;
 				(* should close the connection now *)
 				NetworkStack.unbind_tcp cookie.src_port;
 				RingBuffer.close cookie.rb;
@@ -91,25 +96,24 @@ let on_input cookie packet packet_length =
 			end else begin
 				(*Vt100.printf "tcp: connection established\n";*)
 				cookie.status.mode <- Established;
-				cookie.status.r_next <- PP.seq packet ++ one;
+				cookie.status.r_next <- packet.L.TCP.seq ++ one;
 				(* signal cv to say connection established *)
 				Mutex.lock cookie.m;
 				Condition.signal cookie.cv;
 				Mutex.unlock cookie.m;
 				(* send ACK to complete handshake *)
-				send cookie (PP.ack packet) cookie.status.r_next [Ack] empty
+				send cookie packet.L.TCP.ack cookie.status.r_next [Ack] empty
 			end
 		| Established ->
-			if PP.seq packet <> cookie.status.r_next then begin
+			if packet.L.TCP.seq <> cookie.status.r_next then begin
 				(*Vt100.printf "tcp: seq# not equal r_next\n";*)
 				(* ignore it *)
 				()
 			end else begin
 				(* we have some packet data *)
-				let (ba,ofs) = PP.content packet in
+				let intlist = packet.L.TCP.content in
 				let packet_data =
-					Bigarray.Array1.to_string
-						(Bigarray.Array1.sub ba ofs (PP.content_length packet packet_length))
+					String.sub (ExtString.String.implode (List.map char_of_int intlist)) 0 (packet_length - 20)
 				in
 				let len = String.length packet_data in
 				(* update r_next to next sequence #, current + data length *)
@@ -121,7 +125,7 @@ let on_input cookie packet packet_length =
 					send cookie cookie.status.s_next cookie.status.r_next [Ack;Finish] empty;
 				end else begin
 					(* send ACK *)
-					if PP.window packet > 0 then
+					if packet.L.TCP.window > 0 then
 						send cookie cookie.status.s_next cookie.status.r_next [Ack] empty;
 				end;
 				if (len < cookie.status.window_size && len > 0) || has_flag Push then begin
@@ -153,6 +157,11 @@ let on_input cookie packet packet_length =
 			send cookie Int32.zero Int32.zero [Reset] empty;
 			NetworkStack.unbind_tcp cookie.src_port
 	end
+		done (* thread terminates when mode = Closed *)
+
+let on_input cookie packet packet_length =
+	(* this should queue the packet and let it know there something ready for it *)
+	MVar.put (packet, packet_length) cookie.rxq
 
 let rec do_output cookie app_data =
 	match String.length app_data with
@@ -197,10 +206,12 @@ let connect ip port =
 			m = Mutex.create ();
 			cv = Condition.create ();
 			rb = RingBuffer.create ();
+			rxq = MVar.create ();
 		}
 	in
 	
 	t.on_input <- on_input t;
+	ignore (Thread.create input_thread t "a tcp receive thread");
 	
 	(* bind to the network stack first *)
 	NetworkStack.bind_tcp t.src_port t.on_input;
@@ -282,7 +293,8 @@ let open_channel ip port =
 			incr pos;
 			ch
 		end*)
-	t.do_output, RingBuffer.mk_input t.rb
+	(*t.do_output, RingBuffer.mk_input t.rb*)
+	t.do_output, RingBuffer.read_line t.rb
 
 (* this is close, but not quite what we want *)
 type segment = (int * int * string) list

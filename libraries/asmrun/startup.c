@@ -67,7 +67,7 @@ static void init_atoms(void)
 
 static uintnat percent_free_init = Percent_free_def;
 static uintnat max_percent_free_init = Max_percent_free_def;
-static uintnat minor_heap_init = Minor_heap_def;
+static uintnat minor_heap_init = /*Minor_heap_def;*/ 1048576;
 static uintnat heap_chunk_init = Heap_chunk_def;
 static uintnat heap_size_init = Init_heap_def;
 #if 0

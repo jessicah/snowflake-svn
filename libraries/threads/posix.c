@@ -404,7 +404,7 @@ value caml_thread_new(value clos, value name)          /* ML */
     curr_thread->next = th;
     /* Fork the new thread */
     thread_create(&th->pthread, caml_thread_start, (void *) th);
-	dprintf("ocaml thread: %d = %s\n", Int_val(Ident(th->descr)), String_val(name));
+	//dprintf("ocaml thread: %d = %s\n", Int_val(Ident(th->descr)), String_val(name));
   End_roots();
   return descr;
 }

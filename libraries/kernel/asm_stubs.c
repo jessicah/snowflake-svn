@@ -150,7 +150,7 @@ unsigned long snowflake_random_seed() {
 CAMLprim value snowflake_rdtsc(value unit) {
 	tick_t tick;
 	ticks(tick);
-	return caml_copy_int64(tick.tick);
+	return caml_copy_int64(tick.tick >> 16);
 }
 
 CAMLprim value caml_sys_random_seed (value unit)
@@ -162,7 +162,7 @@ unsigned long long get_ticks()
 {
 	tick_t tick;
 	ticks(tick);
-	return (tick.tick / 1000ULL);
+	return (tick.tick >> 16);
 }
 
 /*

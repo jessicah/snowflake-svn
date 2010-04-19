@@ -57,7 +57,7 @@ void __startup(multiboot_info_t *multiboot, int magic)
 	extern char end;
 	char * argv[1] = { 0 };
 	
-	dprintf("Welcome to Snowflake Serial Debugging!\r\n");
+	//dprintf("Welcome to Snowflake Serial Debugging!\r\n");
 	
 	mem_start = (unsigned long)&end;
 	
@@ -82,7 +82,7 @@ void __startup(multiboot_info_t *multiboot, int magic)
 	caml_enter_blocking_section();
 	
 	// caml_startup has finished initialising the OS
-	dprintf("INFO: Startup completed. Exiting startup thread...\r\n");
+	//dprintf("INFO: Startup completed. Exiting startup thread...\r\n");
 }
 
 // simplistic handing out of memory to malloc()

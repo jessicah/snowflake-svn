@@ -8,9 +8,17 @@ open ExtString
 (* freenode: 216.165.191.52, or a list of many, many others... :P *)
 let freenode = NetworkProtocolStack.IPv4.Addr (216, 155, 130, 130)
 
+module BufferedIO = struct
+end
+
+let clean_nick user =
+	try
+		String.sub user 0 (String.index user '!')
+	with Not_found -> user
+
 let run server port nick channel =
 	Vt100.printf "Connecting to server...";
-	let writer, reader = TCP.open_channel server port in
+	let writer, read_line = TCP.open_channel server port in
 	Vt100.printf "done!\n";
 	let sender sender = try
 			fst (String.split sender "!")
@@ -41,8 +49,7 @@ let run server port nick channel =
 	end () "irc read loop");
 	
 	while true do
-		let line = IO.read_line reader in
-		Vt100.printf "%s\n" line;
+		let line = read_line () in
 		try match IrcParser.args IrcLexer.message (Lexing.from_string line) with
 			(* Numeric commands *)
 			| _, Numeric 001, _ -> writef "JOIN %s" channel; Vt100.printf "Joining channel %s\n" channel
@@ -59,6 +66,10 @@ let run server port nick channel =
 						target
 						(sender s)
 						(String.slice ~first:8 msg)
+			| Some s, Privmsg, target :: msg :: []
+				when String.starts_with msg "\001PING " ->
+					(* CTCP Ping *)
+					writef "NOTICE %s :%s" (clean_nick s) msg
 			| Some s, Privmsg, target :: msg :: [] ->
 					(* Message *)
 					Vt100.printf "(%s) <%s> %s\n" target (sender s) msg

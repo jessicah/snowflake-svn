@@ -116,3 +116,65 @@ let mk_input t =
 				end else r
 			method close_in () = ()
 		end)
+
+(* buffered read function, cause Extlib.IO is very inefficient *)
+
+let buf' = String.make 1024 '\000'
+let len' = ref 0
+
+let safe_index s c =
+	try
+		String.index s c
+	with Not_found -> -1
+
+let read_line t () =
+	let rec loop acc cr = (* acc is a list of sub-strings *)
+		(* fill buffer if needed *)
+		if !len' = 0 then
+			len' := read t buf' 0 1024;
+		while !len' = 0 && t.closed = false do
+			(* we didn't actually get any data yet; wait for more *)
+			Mutex.lock t.m;
+			Condition.wait t.cv t.m;
+			Mutex.unlock t.m;
+			len' := read t buf' 0 1024;
+		done;
+		(* up to len' characters valid in buf' *)
+		if not cr then begin
+			match safe_index buf' '\r' with
+			| ix when ix < 0 || ix >= !len' ->
+				(* couldn't find '\r' in the valid range *)
+				let s = String.sub buf' 0 !len' in
+				len' := 0;
+				loop (s :: acc) cr
+			| ix when ix = !len' - 1 ->
+				(* found '\r' at the end of the valid range; need more input to test *)
+				let s = String.sub buf' 0 !len' in
+				len' := 0;
+				loop (s :: acc) true
+			| ix when buf'.[ix+1] = '\n' ->
+				(* found the end *)
+				let s = String.sub buf' 0 ix in
+				len' := !len' - (ix+2);
+				String.blit buf' (ix+2) buf' 0 !len';
+				String.concat "" (List.rev (s :: acc))
+			| ix ->
+				(* found '\r' but no '\n' *)
+				let s = String.sub buf' 0 !len' in
+				len' := 0;
+				loop (s :: acc) cr
+		end else begin
+			if buf'.[0] = '\n' then begin
+				(* got the '\n' we needed to complete the line *)
+				len' := !len' - 1;
+				String.blit buf' 1 buf' 0 !len';
+				let h::t = acc in
+				String.concat "" (List.rev (String.sub h 0 (String.length h - 1) :: t))
+			end else begin
+				(* didn't start with an '\n'... *)
+				let s = String.sub buf' 0 !len' in
+				len' := 0;
+				loop (s :: acc) false
+			end
+		end
+	in loop [] false

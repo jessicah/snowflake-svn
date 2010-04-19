@@ -8,11 +8,11 @@
    2. Register itself with the network stack using the identifier above
 *)
 
-type rx_channel = PacketParsing.t Event.channel
+type rx_channel = int list Event.channel
 
 type net_device = {
 	send : string -> unit;
-	recv : unit -> PacketParsing.t;
+	recv : unit -> PacketLists.packet;
 	hw_addr : NetworkProtocolStack.Ethernet.addr
 }
 
@@ -56,7 +56,7 @@ let get_hw_addr () = match !devices with
 	| x :: _ -> x.hw_addr
 
 module P = NetworkProtocolStack
-module PP = PacketParsing
+module L = PacketLists
 
 type settings = {
 	mutable ip : P.IPv4.addr;
@@ -126,26 +126,27 @@ module ARP = struct
 		lookup ip
 	
 	let process packet =
-		if PP.ARP.is_ipv4_over_ethernet packet then begin
+		begin try
+			let pkt = PacketLists.ARP.parse packet in
 			let self = get_hw_addr () in
-			let target_eth = PP.to_eth_addr (PP.ARP.target_eth packet) in
-			let sender_eth = PP.to_eth_addr (PP.ARP.sender_eth packet) in
-			let sender_ip = PP.to_ipv4_addr (PP.ARP.sender_ip packet) in
-			if PP.ARP.opcode packet = 1 && target_eth = self then begin
+			if pkt.L.ARP.opcode = 1 && pkt.L.ARP.targetEth = self then begin
 				(* send reply to request for our address *)
-				Vt100.printf "Got an ARP request\n";
-				send_eth sender_eth 0x0806 (BITSTRING {
+				Vt100.printf "ARP.process: request for our address\n";
+				send_eth pkt.L.ARP.senderEth 0x0806 (BITSTRING {
 					1 : 16; 0x0800 : 16; 6 : 8; 4 : 8; 2 : 16;
 					P.Ethernet.unparse_addr self : 48 : bitstring;
 					P.IPv4.unparse_addr settings.ip : 32 : bitstring;
-					P.Ethernet.unparse_addr sender_eth : 48 : bitstring;
-					P.IPv4.unparse_addr sender_ip : 32 : bitstring
+					P.Ethernet.unparse_addr pkt.L.ARP.senderEth : 48 : bitstring;
+					P.IPv4.unparse_addr pkt.L.ARP.senderAddr : 32 : bitstring
 				})
+			end else begin
+				Vt100.printf "ARP.process: opcode: %d, target: %a\n"
+					pkt.L.ARP.opcode P.Ethernet.addr_printer pkt.L.ARP.targetEth
 			end;
 			(* update the table if we already have the IP, or it's a reply to us *)
 			(*if sender_ip <> P.IPv4.invalid && (Hashtbl.mem table sender_ip || target_eth = self) then begin*)
-			if PP.ARP.opcode packet = 2 then begin
-				Hashtbl.replace table sender_ip sender_eth;
+			if pkt.L.ARP.opcode = 2 then begin
+				Hashtbl.replace table pkt.L.ARP.senderAddr pkt.L.ARP.senderEth;
 				(*Vt100.printf "added ARP mapping: %s has mac %s\n"
 					(P.IPv4.to_string sender_ip) (P.Ethernet.to_string sender_eth);*)
 			end;
@@ -153,8 +154,8 @@ module ARP = struct
 			Mutex.lock m;
 			Condition.signal cv;
 			Mutex.unlock m
-		end else begin
-			Vt100.printf "unknown ARP kind: %04x:%04x\n" (PP.ARP.hw_type packet) (PP.ARP.proto_type packet)
+		with _ ->
+			Vt100.printf "ARP.process: unknown ARP\n"
 		end
 end
 
@@ -222,20 +223,20 @@ let init () =
 		(* this is a blocking call until data ready *)
 		while true do
 		begin try
-			let packet = recv () in
-			match PP.Ethernet.protocol packet with
+			let eth = L.Ethernet.parse (recv ()) in
+			match eth.L.Ethernet.protocol with
 				| 0x0806 ->
-					ARP.process (PP.Ethernet.content packet)
+					ARP.process eth.L.Ethernet.content
 				| 0x0800 ->
-					let packet = PP.Ethernet.content packet in
-					begin match PP.IPv4.protocol packet with
-						| 6 ->
-							let packet_length = PP.IPv4.content_length packet in
-							let packet = PP.IPv4.content packet in
-							let port = PP.TCP.dst packet in
+					let ipv4 = L.IPv4.parse eth.L.Ethernet.content in
+					begin match ipv4.L.IPv4.protocol with
+						| 6 -> (* TCP/IP *)
+							let packet_length = ipv4.L.IPv4.contentLength in
+							let tcp = L.TCP.parse ipv4.L.IPv4.content in
+							let port = tcp.L.TCP.dst in
 							begin try
 								let f = Hashtbl.find tcp_bindings port in
-								f packet packet_length
+								f tcp packet_length
 							with Not_found ->
 								(*Vt100.printf "No handler for TCP port %d\n" port*)
 								()
@@ -276,7 +277,7 @@ module type ETHERNET = sig
 
 module EthernetDriver : functor (Driver : ETHERNET) -> sig
 		val init : int -> Driver.t
-		val read : unit -> PacketParsing.t
+		val read : unit -> PacketLists.packet
 		val write: Driver.t -> string -> unit
 		val address: Driver.t -> NetworkProtocolStack.Ethernet.addr
 	end = functor (Driver : ETHERNET) -> struct
@@ -284,7 +285,7 @@ module EthernetDriver : functor (Driver : ETHERNET) -> sig
 		
 		let init irq = 
 			let t = Driver.init () in
-			Interrupts.create irq (Driver.isr t rx_buffer);
+			Interrupts.create_i irq (Driver.isr t rx_buffer);
 			t
 		let read () = Event.sync (Event.receive rx_buffer)
 		let write t packet = Driver.send t packet
