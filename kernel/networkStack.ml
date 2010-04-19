@@ -113,6 +113,23 @@ module ARP = struct
 			lookup ip
 		end
 	
+	let rec lookup2 ip =
+			(* need to send an ARP request, and hope we get a reply :P *)
+			let content = BITSTRING {
+					0x0001 : 16; (* type = ethernet *)
+					0x0800 : 16; (* protocol = IPv4 *)
+					6 : 8; (* ehternet address 6 octets *)
+					4 : 8; (* ipv4 address 4 octets *)
+					0x0001 : 16; (* opcode = request *)
+					P.Ethernet.unparse_addr (get_hw_addr ()) : 48 : bitstring; (* sender mac addr *)
+					P.IPv4.unparse_addr settings.ip : 32 : bitstring; (* sender ip addr *)
+					P.Ethernet.unparse_addr P.Ethernet.invalid : 48 : bitstring; (* dest mac addr *)
+					P.IPv4.unparse_addr ip : 32 : bitstring (* dest ip addr *)
+				}
+			in
+			(* send the packet! *)
+			send_eth P.Ethernet.invalid 0x0806 content
+	
 	let resolve ip =
 		(* check netmask, and change ip to gateway if it doesn't match *)
 		let P.IPv4.Addr(la,lb,lc,ld) = ip in
@@ -140,8 +157,8 @@ module ARP = struct
 					P.IPv4.unparse_addr pkt.L.ARP.senderAddr : 32 : bitstring
 				})
 			end else begin
-				Vt100.printf "ARP.process: opcode: %d, target: %a\n"
-					pkt.L.ARP.opcode P.Ethernet.addr_printer pkt.L.ARP.targetEth
+				(*Vt100.printf "ARP.process: opcode: %d, target: %a\n"
+					pkt.L.ARP.opcode P.Ethernet.addr_printer pkt.L.ARP.targetEth*)
 			end;
 			(* update the table if we already have the IP, or it's a reply to us *)
 			(*if sender_ip <> P.IPv4.invalid && (Hashtbl.mem table sender_ip || target_eth = self) then begin*)
@@ -219,6 +236,18 @@ let init () =
 	(* hardcode eth addr for 130.123.131.129 cause it won't reply :( *)
 	Hashtbl.add ARP.table (P.IPv4.Addr(130,123,131,129)) (P.Ethernet.Addr(0x00,0x12,0xDA,0xF7,0x77,0xFF));
 	
+	let send_arps () =
+		while true do
+			try
+			Thread.yield ();
+			ARP.lookup2 settings.gateway;
+			for i = 0 to 10 do
+				Thread.yield ()
+			done
+			with _ -> ()
+		done
+	in
+	
 	let read_thread () =
 		(* this is a blocking call until data ready *)
 		while true do
@@ -257,7 +286,9 @@ let init () =
 		done;
 		Mutex.unlock m;
 		(* start the read thread *)
-		ignore (Thread.create read_thread () "netstack_read")
+		ignore (Thread.create read_thread () "netstack_read");
+		(* send out ARP packets lots; see what happens *)
+		ignore (Thread.create send_arps() "send_arps");
 	in
 	ignore (Thread.create thread_fun () "netstack_init")
 
