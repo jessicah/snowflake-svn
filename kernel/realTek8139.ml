@@ -232,6 +232,7 @@ let create pcii =
 			properties
 		
 		let send properties packet =
+			let start = Asm.rdtsc () in
 			(*Mutex.lock m;*)
 			while properties.writes = 4 do
 				(*Condition.wait cv m;*)
@@ -255,6 +256,7 @@ let create pcii =
 				let transmitdescription = (max (String.length packet) 60) lor 0x80000 in
 				out32 (Registers.tsd0 + (4 * transmitid)) (Int32.logand (Int32.of_int transmitdescription) (Int32.lognot (Int32.of_int TransmitDescription.own)));
 				properties.queued_packets <- properties.queued_packets + 1;
+				Debug.log "rtl-send" start (Asm.rdtsc())
 			with Break -> Vt100.printf "rtl.send error!\r\n"
 		
 		let rec read properties rx_buffer =
@@ -302,9 +304,6 @@ let create pcii =
 			try
 				let isr_contents = in16 Registers.isr in
 				if isr_contents = 0 then raise Break;
-				if isr_contents land InterruptStatusBits.receiveok <> 0 then begin
-					read properties rx_buffer;
-				end;
 				if isr_contents land InterruptStatusBits.transmitok <> 0 then begin
 					(* with cv never being signalled, if we had more than 4 calls to send above
 					   simultaneously, the driver would block *)
@@ -315,6 +314,11 @@ let create pcii =
 					properties.finished_packets <- properties.finished_packets + 1;
 					(*Condition.signal cv;
 					Mutex.unlock m;*)
+				end;
+				if isr_contents land InterruptStatusBits.receiveok <> 0 then begin
+					let start = Asm.rdtsc () in
+					read properties rx_buffer;
+					Debug.log "isr-read" start (Asm.rdtsc());
 				end;
 				out16 Registers.isr isr_contents;
 				isr properties rx_buffer (); (* maybe we should just let this return... *)

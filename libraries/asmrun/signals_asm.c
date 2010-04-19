@@ -75,7 +75,7 @@ extern unsigned long long get_ticks();
 
 DECLARE_SIGNAL_HANDLER(handle_signal)
 {
-	if (sig==11)dprintf("[%u] irq 11: handle signal\n", get_ticks());
+	//if (sig==11)dprintf("[%u] irq 11: handle signal\n", get_ticks());
 #if !defined(POSIX_SIGNALS) && !defined(BSD_SIGNALS)
   signal(sig, handle_signal);
 #endif

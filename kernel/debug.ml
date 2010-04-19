@@ -10,4 +10,4 @@ let printf fmt = printf begin from_out_chars (object
 		end)
 	end fmt
 
-let log name = printf "[%Ld] %s\n" (Asm.rdtsc ()) name
+let log name start finish = printf "%s\t%Ld\t%Ld\t%Ld\n" name start finish (Int64.sub finish start)

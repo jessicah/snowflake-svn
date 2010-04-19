@@ -19,7 +19,7 @@ let create irq cb =
 	let u () = unsafe_unlock m in
 	ignore (Sys.signal irq (Sys.Signal_handle (fun _ -> u ())))
 
-open Gc
+(*open Gc
 let print_stat () =
 	let st = stat () in
   Debug.printf "minor_words: %Ld\n" (Int64.of_float st.minor_words);
@@ -36,27 +36,27 @@ let print_stat () =
   Debug.printf "free_blocks: %d\n" st.free_blocks;
   Debug.printf "largest_free: %d\n" st.largest_free;
   Debug.printf "fragments: %d\n" st.fragments;
-  Debug.printf "compactions: %d\n" st.compactions
+  Debug.printf "compactions: %d\n" st.compactions*)
   
 let create_i irq cb =
 	let m = Mutex.create () in
+	let start = ref 0L in
 	Mutex.lock m; (* lock it so handler is blocked *)
 	let _ = Thread.create (fun () ->
 		while true do
-			Printf.kprintf Debug.log "irq %02d: waiting" irq;
 			(* acquire locked mutex *)
 			unsafe_lock m;
-			Printf.kprintf Debug.log "irq %02d: running" irq;
+			start := Asm.rdtsc ();
 			cb ();
-			Printf.kprintf Debug.log "irq %02d: finished" irq;
 			Asm.out8 0x20 0x20;
 			if irq > 7 then
 				Asm.out8 0xA0 0x20;
-			print_stat ();
+			Printf.kprintf (fun s ->
+				Debug.log s !start (Asm.rdtsc()))
+				"irq %d" irq
 		done
 	) () (Printf.sprintf "irq %02d" irq) in
 	let u () =
-		Printf.kprintf Debug.log "irq %02d: signalling" irq;
 		unsafe_unlock m
 	in
 	ignore (Sys.signal irq (Sys.Signal_handle (fun _ -> u ())))

@@ -61,6 +61,7 @@ let rec get_port () =
 
 (* utility function to send TCP packets *)
 let send t seq ack flags data =
+	let start = Asm.rdtsc () in
 	NetworkStack.send_tcp
 		t.src_port
 		t.dst_port
@@ -69,7 +70,8 @@ let send t seq ack flags data =
 		flags
 		t.status.window_size
 		t.dst_ip
-		(Bitstring.bitstring_of_string data)
+		(Bitstring.bitstring_of_string data);
+	Debug.log "tcp-send" start (Asm.rdtsc())
 
 let (++) = Int32.add (* so we have an infix operator for addition *)
 let one = Int32.one
@@ -82,6 +84,7 @@ module L = PacketLists
 let input_thread cookie =
 		while cookie.status.mode <> Closed do
 	let (packet, packet_length) = MVar.get cookie.rxq in
+	let start = Asm.rdtsc () in
 	let has_flag f = List.mem f (to_flags (packet.L.TCP.flags)) in
 	begin match cookie.status.mode with
 		| Syn_sent when (*has_flag Syn &&*) has_flag Ack ->
@@ -124,11 +127,12 @@ let input_thread cookie =
 					cookie.status.mode <- Closing;
 					send cookie cookie.status.s_next cookie.status.r_next [Ack;Finish] empty;
 				end else begin
-					(* send ACK *)
-					if packet.L.TCP.window > 0 then
+					(* send ACK if we received data; don't need to ACK ACKs *)
+					if packet.L.TCP.window > 0 && len > 0 then begin
 						send cookie cookie.status.s_next cookie.status.r_next [Ack] empty;
+					end
 				end;
-				if (len < cookie.status.window_size && len > 0) || has_flag Push then begin
+				if (*(len < cookie.status.window_size && len > 0) ||*) has_flag Push then begin
 					(* reassemble and push to application layer *)
 					RingBuffer.write cookie.rb packet_data;
 				end else if len = 0 then begin
@@ -139,7 +143,7 @@ let input_thread cookie =
 					end;
 				end else begin
 					(* add to packets to be reassembled later *)
-					RingBuffer.write cookie.rb packet_data;
+					(*RingBuffer.write cookie.rb packet_data;*)()
 				end
 			end
 		| Closing when has_flag Ack ->
@@ -148,7 +152,7 @@ let input_thread cookie =
 			RingBuffer.close cookie.rb;
 			NetworkStack.unbind_tcp cookie.src_port;
 			(*send cookie Int32.zero Int32.zero [Reset] empty;*)
-			(*Vt100.printf "tcp: connection closed\n";*)
+			Vt100.printf "tcp: connection closed\n";
 		| Closed ->
 			Vt100.printf "tcp: received data on closed connection\n";
 		| _ ->
@@ -156,7 +160,8 @@ let input_thread cookie =
 			RingBuffer.close cookie.rb;
 			send cookie Int32.zero Int32.zero [Reset] empty;
 			NetworkStack.unbind_tcp cookie.src_port
-	end
+	end;
+	Debug.log "tcp-recv" start (Asm.rdtsc());
 		done (* thread terminates when mode = Closed *)
 
 let on_input cookie packet packet_length =
