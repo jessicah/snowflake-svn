@@ -143,7 +143,7 @@ let input_thread cookie =
 					end;
 				end else begin
 					(* add to packets to be reassembled later *)
-					(*RingBuffer.write cookie.rb packet_data;*)()
+					RingBuffer.write cookie.rb packet_data;
 				end
 			end
 		| Closing when has_flag Ack ->

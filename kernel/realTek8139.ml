@@ -148,6 +148,7 @@ let create pcii =
 			mutable transmitbusy: bool array;
 			mutable queued_packets: int;
 			mutable finished_packets: int;
+			mutable start_of_packets: int64 array;
 			
 			mutable multiset: int;
 			address: int list;
@@ -216,6 +217,7 @@ let create pcii =
 				transmitbusy = [| false; false; false; false; |];
 				queued_packets = 0;
 				finished_packets = 0;
+				start_of_packets = [| 0L; 0L; 0L; 0L |];
 				
 				multiset = 0;
 				address = mac;
@@ -251,6 +253,7 @@ let create pcii =
 				(*Mutex.unlock m;*)
 				properties.writes <- properties.writes + 1;
 				properties.transmitbusy.(transmitid) <- true;
+				properties.start_of_packets.(transmitid) <- Asm.rdtsc ();
 				(* this is a very inefficient loop; we really want bigarrays throughout, not strings... *)
 				Array1.blit_from_string packet properties.transmitbuffer.(transmitid);
 				let transmitdescription = (max (String.length packet) 60) lor 0x80000 in
@@ -314,6 +317,7 @@ let create pcii =
 					properties.finished_packets <- properties.finished_packets + 1;
 					(*Condition.signal cv;
 					Mutex.unlock m;*)
+					Debug.log "pkt-send" properties.start_of_packets.(transmitid) (Asm.rdtsc());
 				end;
 				if isr_contents land InterruptStatusBits.receiveok <> 0 then begin
 					let start = Asm.rdtsc () in
