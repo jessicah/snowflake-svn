@@ -1,17 +1,55 @@
 
-OCAML = ocaml-3.10.2
+OCAML = ocaml-3.12.0+dev
 OCAMLFILE = $(OCAML).touch
 BITSTRING = ocaml-bitstring-2.0.0
 BITSTRINGFILE = $(BITSTRING).touch
 PWD = $(shell pwd)
 OCAMLCMDS = "ocamlc=$(PWD)/ocaml/bin/ocamlc.opt ocamlopt=$(PWD)/ocaml/bin/ocamlopt.opt camlp4o=$(PWD)/ocaml/bin/camlp4o"
+# linux x64:
+# ./configure -cc "gcc -m32" -as "as --32" -aspp "gcc -m32 -c"
+# mac os x 10.6:
+# ./configure -cc "gcc -m32" -as "as -arch i386" -aspp "gcc -m32 -c"
+CONFIGURE_OPTS = -cc "gcc -m32" -as "as --32" -aspp "gcc -m32 -c"
 
 ocaml: $(OCAMLFILE)
-	cd $(OCAML) && patch -Np0 -i ../ocamlbuild.snowflake.patch && ./configure -prefix $(PWD)/ocaml -no-curses -no-pthread -no-tk
-	$(MAKE) -C $(OCAML) opt.opt install
+	# can't build a 32-bit compiler yet, so this patch breaks their build system
+	#cd trunk && patch -Np0 -i ../ocaml.dev.patch
+	mv trunk $(OCAML)
+	# tarball from viewcvs doesn't include execute bits
+	cd $(OCAML) && chmod -R 777 *
+	# this should be a patch; adds an arg for compatibility with snowflake's custom compiler
+	cp $(OCAML)/driver/main_args.ml $(OCAML)/driver/main_args.ml.orig
+	cp -f main_args.ml $(OCAML)/driver/main_args.ml
+	# prepare a 32-bit configure the first time around
+	cd $(OCAML) && ./configure $(CONFIGURE_OPTS) -prefix $(PWD)/ocaml -no-curses -no-pthread -no-tk
+	# save the config somewhere...
+	cd $(OCAML) && cp -r config config.snowflake
+	# then reconfigure normally
+	cd $(OCAML) && ./configure -prefix $(PWD)/ocaml -no-curses -no-pthread -no-tk
+	cd $(OCAML) && ./build/fastworld.sh
+	cd $(OCAML) && ./build/install.sh
+	# now overwrite with the 32-bit configuration
+	cd $(OCAML) && cp -rf config.snowflake/* config/
+	cp -f $(OCAML)/driver/main_args.ml.orig $(OCAML)/driver/main_args.ml
+	cd $(OCAML) && patch -Np0 -i ../ocaml.dev.patch
+	# we actually need to replace some instances of amd64 with i386 for the remainder to work...
+	cd $(OCAML) && sed -e 's/ARCH=amd64/ARCH=i386/' config/Makefile | sed -e 's/SYSTEM=linux/SYSTEM=linux_elf/' > config/Makefile.new
+	cd $(OCAML) && cp -f config/Makefile.new config/Makefile
+	# update some more config files...
+	cd $(OCAML) && ./build/mkconfig.sh && ./build/mkmyocamlbuild_config.sh
+	# finally build our own ocamlopt.opt
+	cd $(OCAML) && mkdir snowflake
+	cd $(OCAML) && cp _build/ocamlopt snowflake/
+	cd $(OCAML) && cp -r boot/ snowflake/boot/
+	cd $(OCAML) && rm snowflake/boot/ocamlrun
+	cd $(OCAML) && cp -f byterun/ocamlrun snowflake/boot/ocamlrun
+	cd $(OCAML) && cp _build/boot/ocamlyacc snowflake/boot/ocamlyacc
+	cd $(OCAML) && $(PWD)/ocaml/bin/ocamlbuild -build-dir snowflake stdlib/std_exit.cmx stdlib/std_exit.cmo ocamlopt.opt
+	# and copy it to the tools directory
+	cp $(OCAML)/snowflake/ocamlopt.opt ./ocamlopt.opt
 
 $(OCAMLFILE):
-	tar xjf $(OCAML).tar.bz2
+	tar zxf $(OCAML).tar.gz
 	touch $(OCAMLFILE)
 
 bitstring: $(BITSTRINGFILE) ocaml
@@ -25,7 +63,7 @@ $(BITSTRINGFILE):
 	touch $(BITSTRINGFILE)
 
 clean:
-	rm -rf ocaml $(OCAML) $(OCAMLFILE)
+	rm -rf ocaml $(OCAML) $(OCAMLFILE) trunk
 	rm -rf $(BITSTRING) $(BITSTRINGFILE) bitstring
 
 cleanbitstring:

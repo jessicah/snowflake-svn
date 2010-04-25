@@ -24,7 +24,7 @@ val argv : string array
 val executable_name : string
 (** The name of the file containing the executable currently running. *)
 
-external file_exists : string -> bool = "caml_sys_file_exists"
+(*external file_exists : string -> bool = "caml_sys_file_exists"
 (** Test if a file with the given name exists. *)
 
 external is_directory : string -> bool = "caml_sys_is_directory"
@@ -65,7 +65,7 @@ external readdir : string -> string array = "caml_sys_read_directory"
    result is a file name rather than a complete path.  There is no
    guarantee that the name strings in the resulting array will appear
    in any specific order; they are not, in particular, guaranteed to
-   appear in alphabetical order. *)
+   appear in alphabetical order. *)*)
 
 val interactive : bool ref
 (** This reference is initially set to [false] in standalone

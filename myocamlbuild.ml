@@ -6,7 +6,7 @@ open Outcome;;
 
 module M = Myocamlbuild_config;;
 
-Options.ocamlopt := P"./ocamloptcomp.byte";;
+Options.ocamlopt := P"./ocamlopt.opt";;
 Options.nostdlib := true;;
 
 flag ["ocaml"; "compile"; "snowflake"] & S[A"-nostdlib"; A"-freestanding"; A"-g"];;
@@ -16,7 +16,7 @@ flag ["c"; "compile"; "snowflake"] & S[A"-m32"; A"-g"; A"-fno-stack-protector"];
 flag ["S"; "compile"; "snowflake"] & S[A"-m32"; A"-g"];;
 
 dep ["ocaml"; "compile"; "snowflake"] ["ocamlopt.opt"];;
-dep ["ocaml"; "custom_ocaml"] ["ocamloptcomp.byte"];;
+dep ["ocaml"; "custom_ocaml"] ["ocaml ../ocamloptcomp.ml"];;
 
 flag ["ocamldep"] (A"-native");;
 
@@ -491,9 +491,9 @@ let mk_stlib ?(copy = true) stlib =
 (*** snowflake.native ***)
 
     flag ["ocaml"; "native"; "program"; "snowflake"] (S[
-            P"libraries/kernel/stage1.o";
-            P"libraries/kernel/stage2.o";
-            A"-freestanding";
+            (*P"libraries/kernel/stage1.o";
+            P"libraries/kernel/stage2.o";*)
+            (*A"-freestanding";*)
             A"-use-runtime"; P"libkernel.a";
             A"-ccopt"; A"-static";
             A"-cc"; A(M._ld);
@@ -506,13 +506,14 @@ let mk_stlib ?(copy = true) stlib =
 			A"-clibrary"; A"-lthreads";
 			A"-clibrary"; A"-lbitstring";
 			(*A"-verbose";*) A"-dstartup";
+			A"-nostdlib";
         ]);;
 	
 	dep ["file:kernel/snowflake.native"] ["libkernel.a"; "libm.a"; "libc.a"; "libgcc.a"; "libbigarray.a"; "libthreads.a"; "libbitstring.a"];;
 
 (*** ocamlopt.opt ***)
 
-    module C = struct
+    (*module C = struct
         let arch = "i386"
     end;;
 
@@ -568,5 +569,12 @@ let mk_stlib ?(copy = true) stlib =
             begin fun _ _ ->
                 Cmd(S[P cvt_emit; Sh "<"; P emit_mlp;
                     Sh ">"; Px "tools/ocamlopt/asmcomp/emit.ml"])
-            end;;
+            end;;*)
+		
+		rule "ocamlopt.opt"
+			~prod:"ocamlopt.opt"
+			begin fun _ _ ->
+				Cmd(S[Sh "cp ../tools/ocamlopt.opt"; Px "ocamlopt.opt"; Sh "; chmod a+x ocamlopt.opt"])
+			end;;
+		(*copy_rule' "tools/ocamlopt.opt" "ocamlopt.opt"*)
 
