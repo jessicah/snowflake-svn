@@ -16,7 +16,6 @@ flag ["c"; "compile"; "snowflake"] & S[A"-m32"; A"-g"; A"-fno-stack-protector"];
 flag ["S"; "compile"; "snowflake"] & S[A"-m32"; A"-g"];;
 
 dep ["ocaml"; "compile"; "snowflake"] ["ocamlopt.opt"];;
-dep ["ocaml"; "custom_ocaml"] ["ocaml ../ocamloptcomp.ml"];;
 
 flag ["ocamldep"] (A"-native");;
 
@@ -136,6 +135,44 @@ let mk_stlib ?(copy = true) stlib =
 		(stlib.path / stlib.name -.- !Options.ext_lib)
 		(stlib.name -.- !Options.ext_lib);;
 
+let caml_headers = [
+		"libraries/include/caml/alloc.h";
+		"libraries/include/caml/callback.h";
+		"libraries/include/caml/compact.h";
+		"libraries/include/caml/config.h";
+		"libraries/include/caml/custom.h";
+		"libraries/include/caml/fail.h";
+		"libraries/include/caml/finalise.h";
+		"libraries/include/caml/freelist.h";
+		"libraries/include/caml/gc.h";
+		"libraries/include/caml/gc_ctrl.h";
+		"libraries/include/caml/globroots.h";
+		"libraries/include/caml/int64_native.h";
+		"libraries/include/caml/intext.h";
+		"libraries/include/caml/m.h";
+		"libraries/include/caml/major_gc.h";
+		"libraries/include/caml/md5.h";
+		"libraries/include/caml/memory.h";
+		"libraries/include/caml/minor_gc.h";
+		"libraries/include/caml/misc.h";
+		"libraries/include/caml/mlvalues.h";
+		"libraries/include/caml/natdynlink.h";
+		"libraries/include/caml/osdeps.h";
+		"libraries/include/caml/prims.h";
+		"libraries/include/caml/printexc.h";
+		"libraries/include/caml/reverse.h";
+		"libraries/include/caml/roots.h";
+		"libraries/include/caml/s.h";
+		"libraries/include/caml/signals.h";
+		"libraries/include/caml/signals_machdep.h";
+		"libraries/include/caml/signals_osdep.h";
+		"libraries/include/caml/stack.h";
+		"libraries/include/caml/stacks.h";
+		"libraries/include/caml/startup.h";
+		"libraries/include/caml/sys.h";
+		"libraries/include/caml/weak.h";
+	];;
+
 (*** libm.a ***)
 
     mk_stlib {
@@ -207,43 +244,7 @@ let mk_stlib ?(copy = true) stlib =
                 "libraries/include/ctype.h";
                 "libraries/include/asm.h";
                 "libraries/include/threads.h";
-                (* and then all the ocaml headers... :P *)
-                "libraries/include/caml/alloc.h";
-                "libraries/include/caml/callback.h";
-                "libraries/include/caml/compact.h";
-                "libraries/include/caml/config.h";
-                "libraries/include/caml/custom.h";
-                "libraries/include/caml/fail.h";
-                "libraries/include/caml/finalise.h";
-                "libraries/include/caml/freelist.h";
-                "libraries/include/caml/gc.h";
-                "libraries/include/caml/gc_ctrl.h";
-                "libraries/include/caml/globroots.h";
-                "libraries/include/caml/int64_native.h";
-                "libraries/include/caml/intext.h";
-                "libraries/include/caml/m.h";
-                "libraries/include/caml/major_gc.h";
-                "libraries/include/caml/md5.h";
-                "libraries/include/caml/memory.h";
-                "libraries/include/caml/minor_gc.h";
-                "libraries/include/caml/misc.h";
-                "libraries/include/caml/mlvalues.h";
-                "libraries/include/caml/natdynlink.h";
-                "libraries/include/caml/osdeps.h";
-                "libraries/include/caml/prims.h";
-                "libraries/include/caml/printexc.h";
-                "libraries/include/caml/reverse.h";
-                "libraries/include/caml/roots.h";
-                "libraries/include/caml/s.h";
-                "libraries/include/caml/signals.h";
-                "libraries/include/caml/signals_machdep.h";
-                "libraries/include/caml/signals_osdep.h";
-                "libraries/include/caml/stack.h";
-                "libraries/include/caml/stacks.h";
-                "libraries/include/caml/startup.h";
-                "libraries/include/caml/sys.h";
-                "libraries/include/caml/weak.h";
-            ]
+							] @ caml_headers;
         };;
 
 (*** libbigarray.a ***)
@@ -271,43 +272,7 @@ let mk_stlib ?(copy = true) stlib =
                 "libraries/include/asm.h";
                 "libraries/include/threads.h";
                 "libraries/include/caml/bigarray.h";
-                (* and then all the ocaml headers... :P *)
-                "libraries/include/caml/alloc.h";
-                "libraries/include/caml/callback.h";
-                "libraries/include/caml/compact.h";
-                "libraries/include/caml/config.h";
-                "libraries/include/caml/custom.h";
-                "libraries/include/caml/fail.h";
-                "libraries/include/caml/finalise.h";
-                "libraries/include/caml/freelist.h";
-                "libraries/include/caml/gc.h";
-                "libraries/include/caml/gc_ctrl.h";
-                "libraries/include/caml/globroots.h";
-                "libraries/include/caml/int64_native.h";
-                "libraries/include/caml/intext.h";
-                "libraries/include/caml/m.h";
-                "libraries/include/caml/major_gc.h";
-                "libraries/include/caml/md5.h";
-                "libraries/include/caml/memory.h";
-                "libraries/include/caml/minor_gc.h";
-                "libraries/include/caml/misc.h";
-                "libraries/include/caml/mlvalues.h";
-                "libraries/include/caml/natdynlink.h";
-                "libraries/include/caml/osdeps.h";
-                "libraries/include/caml/prims.h";
-                "libraries/include/caml/printexc.h";
-                "libraries/include/caml/reverse.h";
-                "libraries/include/caml/roots.h";
-                "libraries/include/caml/s.h";
-                "libraries/include/caml/signals.h";
-                "libraries/include/caml/signals_machdep.h";
-                "libraries/include/caml/signals_osdep.h";
-                "libraries/include/caml/stack.h";
-                "libraries/include/caml/stacks.h";
-                "libraries/include/caml/startup.h";
-                "libraries/include/caml/sys.h";
-                "libraries/include/caml/weak.h";
-            ]
+							] @ caml_headers;
         };;
 
 (*** libbitstring.a ***)
@@ -337,43 +302,7 @@ let mk_stlib ?(copy = true) stlib =
                 "libraries/include/asm.h";
                 "libraries/include/threads.h";
                 "libraries/include/caml/bigarray.h";
-                (* and then all the ocaml headers... :P *)
-                "libraries/include/caml/alloc.h";
-                "libraries/include/caml/callback.h";
-                "libraries/include/caml/compact.h";
-                "libraries/include/caml/config.h";
-                "libraries/include/caml/custom.h";
-                "libraries/include/caml/fail.h";
-                "libraries/include/caml/finalise.h";
-                "libraries/include/caml/freelist.h";
-                "libraries/include/caml/gc.h";
-                "libraries/include/caml/gc_ctrl.h";
-                "libraries/include/caml/globroots.h";
-                "libraries/include/caml/int64_native.h";
-                "libraries/include/caml/intext.h";
-                "libraries/include/caml/m.h";
-                "libraries/include/caml/major_gc.h";
-                "libraries/include/caml/md5.h";
-                "libraries/include/caml/memory.h";
-                "libraries/include/caml/minor_gc.h";
-                "libraries/include/caml/misc.h";
-                "libraries/include/caml/mlvalues.h";
-                "libraries/include/caml/natdynlink.h";
-                "libraries/include/caml/osdeps.h";
-                "libraries/include/caml/prims.h";
-                "libraries/include/caml/printexc.h";
-                "libraries/include/caml/reverse.h";
-                "libraries/include/caml/roots.h";
-                "libraries/include/caml/s.h";
-                "libraries/include/caml/signals.h";
-                "libraries/include/caml/signals_machdep.h";
-                "libraries/include/caml/signals_osdep.h";
-                "libraries/include/caml/stack.h";
-                "libraries/include/caml/stacks.h";
-                "libraries/include/caml/startup.h";
-                "libraries/include/caml/sys.h";
-                "libraries/include/caml/weak.h";
-            ]
+							] @ caml_headers;
         };;
 
 (*** libthreads.a ***)
@@ -401,43 +330,7 @@ let mk_stlib ?(copy = true) stlib =
                 "libraries/include/asm.h";
                 "libraries/include/threads.h";
                 "libraries/include/caml/bigarray.h";
-                (* and then all the ocaml headers... :P *)
-                "libraries/include/caml/alloc.h";
-                "libraries/include/caml/callback.h";
-                "libraries/include/caml/compact.h";
-                "libraries/include/caml/config.h";
-                "libraries/include/caml/custom.h";
-                "libraries/include/caml/fail.h";
-                "libraries/include/caml/finalise.h";
-                "libraries/include/caml/freelist.h";
-                "libraries/include/caml/gc.h";
-                "libraries/include/caml/gc_ctrl.h";
-                "libraries/include/caml/globroots.h";
-                "libraries/include/caml/int64_native.h";
-                "libraries/include/caml/intext.h";
-                "libraries/include/caml/m.h";
-                "libraries/include/caml/major_gc.h";
-                "libraries/include/caml/md5.h";
-                "libraries/include/caml/memory.h";
-                "libraries/include/caml/minor_gc.h";
-                "libraries/include/caml/misc.h";
-                "libraries/include/caml/mlvalues.h";
-                "libraries/include/caml/natdynlink.h";
-                "libraries/include/caml/osdeps.h";
-                "libraries/include/caml/prims.h";
-                "libraries/include/caml/printexc.h";
-                "libraries/include/caml/reverse.h";
-                "libraries/include/caml/roots.h";
-                "libraries/include/caml/s.h";
-                "libraries/include/caml/signals.h";
-                "libraries/include/caml/signals_machdep.h";
-                "libraries/include/caml/signals_osdep.h";
-                "libraries/include/caml/stack.h";
-                "libraries/include/caml/stacks.h";
-                "libraries/include/caml/startup.h";
-                "libraries/include/caml/sys.h";
-                "libraries/include/caml/weak.h";
-            ]
+							] @ caml_headers;
         };;
 
 (*** libgcc.a ***)
@@ -491,9 +384,6 @@ let mk_stlib ?(copy = true) stlib =
 (*** snowflake.native ***)
 
     flag ["ocaml"; "native"; "program"; "snowflake"] (S[
-            (*P"libraries/kernel/stage1.o";
-            P"libraries/kernel/stage2.o";*)
-            (*A"-freestanding";*)
             A"-use-runtime"; P"libkernel.a";
             A"-ccopt"; A"-static";
             A"-cc"; A(M._ld);
@@ -503,78 +393,17 @@ let mk_stlib ?(copy = true) stlib =
             A"-clibrary"; A"-lc";
             A"-clibrary"; A"-lm";
             A"-clibrary"; A"-lbigarray";
-			A"-clibrary"; A"-lthreads";
-			A"-clibrary"; A"-lbitstring";
-			(*A"-verbose";*) A"-dstartup";
-			A"-nostdlib";
+						A"-clibrary"; A"-lthreads";
+						A"-clibrary"; A"-lbitstring";
+						A"-dstartup";	A"-nostdlib";
         ]);;
 	
 	dep ["file:kernel/snowflake.native"] ["libkernel.a"; "libm.a"; "libc.a"; "libgcc.a"; "libbigarray.a"; "libthreads.a"; "libbitstring.a"];;
 
 (*** ocamlopt.opt ***)
-
-    (*module C = struct
-        let arch = "i386"
-    end;;
-
-    let prefix = "tools/ocamlopt/";;
-
-    let define_context' path paths =
-        Pathname.define_context (prefix ^ path) (List.map ((^) prefix) paths)
-    in
-        define_context' "asmcomp" [
-            "asmcomp"; "bytecomp"; "parsing"; "typing"; "utils";
-        ];
-        define_context' "driver" [
-            "driver"; "asmcomp"; "bytecomp"; "typing"; "utils";
-            "parsing";
-        ];
-        define_context' "typing" [
-            "typing"; "parsing"; "utils";
-        ];
-        define_context' "bytecomp" [
-            "bytecomp"; "parsing"; "typing"; "utils";
-        ];
-        define_context' "parsing" [
-            "parsing"; "typing"; "utils"; "bytecomp";
-        ];;
-
-    copy_rule' "tools/ocamlopt/driver/optmain.native" "ocamlopt.opt";;
-    
-    (* Dependencies on the host C toolchain to use *)
-    
-    dep ["file:tools/ocamlopt/utils/ccomp.ml"] ["myocamlbuild_config.cmx"];;
-    dep ["file:tools/ocamlopt/utils/config.ml"] ["myocamlbuild_config.cmx"];;
-    dep [sprintf "file:tools/ocamlopt/asmcomp/%s/proc.ml" C.arch] ["myocamlbuild_config.cmx"];;
-		
-    (* Choose the right machine-dependent files *)
-
-    let mk_arch_rule ~src ~dst =
-        let prod = "tools/ocamlopt/asmcomp"/dst in
-        let dep  = "tools/ocamlopt/asmcomp"/C.arch/src in
-        rule (sprintf "arch specific files %S%%" dst) ~prod ~dep begin
-            fun env _ -> ln_s (env (C.arch/src)) (env prod)
-        end;;
-
-    List.iter (fun x -> mk_arch_rule ~src:x ~dst:x) [
-            "proc.ml"; "arch.ml"; "arch.mli"; "reload.ml"; "scheduling.ml";
-            "selection.ml";
-        ];;
-
-    let emit_mlp = "tools/ocamlopt/asmcomp"/C.arch/"emit.mlp"
-    and cvt_emit = "tools/ocamlopt/tools/cvt_emit.byte" in
-        rule "emit.mlp"
-            ~prod:"tools/ocamlopt/asmcomp/emit.ml"
-            ~deps:[emit_mlp; cvt_emit]
-            begin fun _ _ ->
-                Cmd(S[P cvt_emit; Sh "<"; P emit_mlp;
-                    Sh ">"; Px "tools/ocamlopt/asmcomp/emit.ml"])
-            end;;*)
 		
 		rule "ocamlopt.opt"
 			~prod:"ocamlopt.opt"
 			begin fun _ _ ->
 				Cmd(S[Sh "cp ../tools/ocamlopt.opt"; Px "ocamlopt.opt"; Sh "; chmod a+x ocamlopt.opt"])
 			end;;
-		(*copy_rule' "tools/ocamlopt.opt" "ocamlopt.opt"*)
-
