@@ -235,6 +235,10 @@ let connect ip port =
 	(* return function so we can test sending something... *)
 	t
 
+let open_channel_io ip port =
+	let t = connect ip port in
+	t.do_output, RingBuffer.mk_input t.rb
+
 let open_channel ip port =
 	let t = connect ip port in
 	(*let pos = ref 0 in

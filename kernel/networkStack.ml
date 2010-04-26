@@ -172,7 +172,7 @@ module ARP = struct
 			Condition.signal cv;
 			Mutex.unlock m
 		with _ ->
-			Vt100.printf "ARP.process: unknown ARP\n"
+			() (*Vt100.printf "ARP.process: unknown ARP\n"*)
 		end
 end
 
@@ -241,7 +241,7 @@ let init () =
 			try
 			Thread.yield ();
 			ARP.lookup2 settings.gateway;
-			for i = 0 to 10 do
+			for i = 0 to 1000 do
 				Thread.yield ()
 			done
 			with _ -> ()

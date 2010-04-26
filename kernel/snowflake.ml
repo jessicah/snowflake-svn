@@ -14,6 +14,7 @@ let () =
 	(*MusicPlayer.init ();
 	TarFileSystem.init ();*)
 	IRC.init ();
+	StreamingPlayer.init ();
 	
 	(* let interrupts run *)
 	Asm.sti ();
