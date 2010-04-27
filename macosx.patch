@@ -1,0 +1,42 @@
+Index: tools/Makefile
+===================================================================
+--- tools/Makefile	(revision 190)
++++ tools/Makefile	(working copy)
+@@ -9,8 +9,9 @@
+ # ./configure -cc "gcc -m32" -as "as --32" -aspp "gcc -m32 -c"
+ # mac os x 10.6:
+ # ./configure -cc "gcc -m32" -as "as -arch i386" -aspp "gcc -m32 -c"
+-CONFIGURE_OPTS = -cc "gcc -m32" -as "as --32" -aspp "gcc -m32 -c"
+-
++CONFIGURE_OPTS = -cc "gcc -m32" -as "as -arch i386" -aspp "gcc -m32 -c"
++SAFETOOLSPREFIX = $(shell echo $(TOOLSPREFIX) | sed -e 's/\//\\\//g')
++
+ ocaml: $(OCAMLFILE)
+ 	# can't build a 32-bit compiler yet, so this patch breaks their build system
+ 	#cd trunk && patch -Np0 -i ../ocaml.dev.patch
+@@ -32,9 +33,14 @@
+ 	cd $(OCAML) && cp -rf config.snowflake/* config/
+ 	cp -f $(OCAML)/driver/main_args.ml.orig $(OCAML)/driver/main_args.ml
+ 	cd $(OCAML) && patch -Np0 -i ../ocaml.dev.patch
+-	# we actually need to replace some instances of amd64 with i386 for the remainder to work...
+-	cd $(OCAML) && sed -e 's/ARCH=amd64/ARCH=i386/' config/Makefile | sed -e 's/SYSTEM=linux/SYSTEM=linux_elf/' > config/Makefile.new
+-	cd $(OCAML) && cp -f config/Makefile.new config/Makefile
++	# we actually need to replace some instances of amd64 with i386, and use our TOOLSPREFIX...
++	cd $(OCAML) && sed -i -e 's/ARCH=amd64/ARCH=i386/g' config/Makefile
++	cd $(OCAML) && sed -i -e 's/SYSTEM=macosx/SYSTEM=linux_elf/g' config/Makefile
++	cd $(OCAML) && sed -i -e 's/gcc -m32/$(SAFETOOLSPREFIX)\/i386-elf-gcc/g' config/Makefile
++	cd $(OCAML) && sed -i -e 's/as -arch i386/$(SAFETOOLSPREFIX)\/i386-elf-as/g' config/Makefile
++	cd $(OCAML) && sed -i -e 's/ar rc/$(SAFETOOLSPREFIX)\/i386-elf-ar rc/g' config/Makefile
++	cd $(OCAML) && sed -i -e 's/ld/$(SAFETOOLSPREFIX)\/i386-elf-ld/g' config/Makefile
++	cd $(OCAML) && sed -i -e 's/ranlib/$(SAFETOOLSPREFIX)\/i386-elf-ranlib/g' config/Makefile
+ 	# update some more config files...
+ 	cd $(OCAML) && ./build/mkconfig.sh && ./build/mkmyocamlbuild_config.sh
+ 	# finally build our own ocamlopt.opt
+@@ -53,7 +59,6 @@
+ 	touch $(OCAMLFILE)
+ 
+ bitstring: $(BITSTRINGFILE) ocaml
+-	
+ 	cd $(BITSTRING) && cp -f ../Makefile.in.bitstring Makefile.in && cp -f ../configure.bitstring configure && PATH=../ocaml/bin:$$PATH$$ ./configure
+ 	$(MAKE) -C $(BITSTRING) all install
+ 	touch bitstring
