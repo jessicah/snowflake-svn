@@ -16,7 +16,7 @@ let clean_nick user =
 		String.sub user 0 (String.index user '!')
 	with Not_found -> user
 
-let run server port nick channel =
+let run server port nick pass channel =
 	Vt100.printf "Connecting to server...";
 	let writer, read_line = TCP.open_channel server port in
 	Vt100.printf "done!\n";
@@ -30,7 +30,7 @@ let run server port nick channel =
 	in
 	
 	(* send IRC initiation stuff *)
-	writef "PASS :%s %s" "snowflake-os" "snowflake";
+	writef "PASS :%s %s" nick pass;
 	writef "USER %s %s@snowflake-os.googlecode.com %s :%s" nick nick
 		(NetworkProtocolStack.IPv4.to_string server)
 		"Snowflake IRC Client";
@@ -82,9 +82,19 @@ let run server port nick channel =
 			Vt100.printf "Error: %s (%s)\n" (Printexc.to_string ex) line
 	done
 
-let test () = run freenode 8000 "snowflake-os" "#AWOS"
+let nick = ref "snowflake-os"
+let pass = ref ""
+
+let test () =
+	if !nick = "snowflake-os" && !pass = "" then
+		Vt100.printf "irc: specify password for snowflake-os or use a different nick\n"
+	else run freenode 8000 !nick !pass "#AWOS"
 
 open Shell
+open Arg
 
 let init () =
-	add_command "irc" test []
+	add_command "irc" test [
+		"-nick", Set_string nick, " <nickname>";
+		"-pass", Set_string pass, " <password";
+	]
