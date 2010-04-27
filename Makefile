@@ -10,6 +10,7 @@ KERNEL = kernel/snowflake.native
 ISO = snowflake.iso
 
 all: myocamlbuild_config.ml
+	if [ ! -e tools/Makefile ] ; then cp -f tools/Makefile.in tools/Makefile; fi
 	$(MAKE) -C tools ocaml bitstring
 	$(OCAMLBUILD) libraries/stdlib/stdlib.cmxa libraries/extlib/extlib.cmxa libraries/threads/threads.cmxa libraries/bitstring/bitstring.cmxa $(KERNEL)
 	rm -rf cdrom/iso_prep
@@ -32,6 +33,10 @@ all: myocamlbuild_config.ml
 
 myocamlbuild_config.ml: myocamlbuild_config.ml.in
 	sed -e 's/@TOOLSPREFIX@/$(subst /,\/,$(TOOLSPREFIX))/' $< > $@
+
+prep-osx:
+	cp -f tools/Makefile.in tools/Makefile
+	cd tools && patch -i ../macosx.patch
 
 qemu:
 	qemu -serial stdio -boot d -hda fake_hd.tar -cdrom snowflake.iso -soundhw all -net nic,model=rtl8139,macaddr=00:15:60:9E:28:0A -net tap -m 512 -no-kqemu
