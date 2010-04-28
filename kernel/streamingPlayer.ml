@@ -44,6 +44,12 @@ open Bigarray
 
 let playsong database filename =
 	try
+	let filename = ExtString.String.replace_chars begin function
+		| ' ' -> "%20"
+		| c -> String.make 1 c
+	end filename in
+	Vt100.printf "requesting: /databases/%d/items/%s?session-id=%ld\n"
+		database filename config.session_id;
 	let stream = kprintf req_stream "/databases/%d/items/%s?session-id=%ld"
 		database filename config.session_id
 	in
