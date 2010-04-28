@@ -42,9 +42,30 @@ let run server port nick pass channel =
 		while true do
 			(* shell does line buffering for us :) *)
 			let line = Shell.read_line Shell.input in
-			(* just send it to the channel *)
-			(* only problem is that input and output will be interspersed... *)
-			writef "PRIVMSG %s :%s" channel line;
+			(* Let's make Snowflake a better IRC client! *)
+			match String.sub line 0 3 with
+				  "/me" ->	(* CTCP action *)
+					writef "PRIVMSG %s :\001ACTION %s \001" channel (String.slice ~first:4 line)
+				| "/n " ->	(* Change nickname *)
+					writef "NICK %s" (String.slice ~first:3 line)
+				| "/j " -> 	(* Join channel *)
+					writef "JOIN %s" (String.slice ~first:3 line)
+				| "/p " ->	(* Part channel *)
+					writef "PART %s" (String.slice ~first:3 line)
+				| "/m " ->	(* Channel mode *)
+					writef "MODE %s" (String.slice ~first:3 line)
+				| "/um" ->	(* User mode *)
+					(* need the current nickname which might have changed
+						writef ":MODE %s %s" nick (String.slice ~first:4 line)
+					*)
+					Vt100.printf "Not implemented"
+				| "/q " ->	(* Quit IRC *)
+					writef "QUIT :%s" (String.slice ~first:3 line)
+					(* TODO: Actually close the program *)
+				| "/? " ->	(* Help! *)
+					Vt100.printf "/me for CTCP action, /n for nickname, /j for join, /p for part (type /p #chan :REASON if you want a reason), /m for channel modes, /um for user modes, /q for quit, /? for this help"
+				| something ->	(* Anything else is a message. *)
+					writef "PRIVMSG %s :%s" channel line;
 		done;
 	end () "irc read loop");
 	
@@ -70,6 +91,10 @@ let run server port nick pass channel =
 				when String.starts_with msg "\001PING " ->
 					(* CTCP Ping *)
 					writef "NOTICE %s :%s" (clean_nick s) msg
+			| Some s, Privmsg, target :: msg :: []
+				when String.starts_with msg "\001VERSION" ->
+					(* CTCP Version *)
+					writef "NOTICE %s :\001VERSION SnowflakeCLI SnowflakeOS-svn-i86 snowflake-os.googlecode.com\001" (clean_nick s)
 			| Some s, Privmsg, target :: msg :: [] ->
 					(* Message *)
 					Vt100.printf "(%s) <%s> %s\n" target (sender s) msg
