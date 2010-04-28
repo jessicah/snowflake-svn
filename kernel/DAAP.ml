@@ -262,5 +262,6 @@ let output_songs song_list =
 	List.iter begin fun daap ->
 		print daap [
 			"minm", "Name";
+			"miid", "ID";
 		]
 	end records
