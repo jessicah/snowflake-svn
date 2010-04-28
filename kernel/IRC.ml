@@ -18,7 +18,9 @@ let clean_nick user =
 
 let run server port nick pass channel =
 	Vt100.printf "Connecting to server...";
-	let writer, read_line = TCP.open_channel server port in
+	(*let writer, read_line = TCP.open_channel server port in*)
+	let socket = TCP.open_readline server port in
+	let writer, read_line = socket.TCP.send, socket.TCP.recv in
 	Vt100.printf "done!\n";
 	let sender sender = try
 			fst (String.split sender "!")
@@ -38,11 +40,14 @@ let run server port nick pass channel =
 	
 	Vt100.printf "Sent user registration, waiting for response...\n";
 	
+	let issued_quit = ref false in
+	
 	ignore (Thread.create begin fun () ->
-		while true do
+		while not !issued_quit do
 			(* shell does line buffering for us :) *)
 			let line = Shell.read_line Shell.input in
 			(* Let's make Snowflake a better IRC client! *)
+			if String.length line >= 4 then begin
 			match String.sub line 0 3 with
 				  "/me" ->	(* CTCP action *)
 					writef "PRIVMSG %s :\001ACTION %s \001" channel (String.slice ~first:4 line)
@@ -60,16 +65,19 @@ let run server port nick pass channel =
 					*)
 					Vt100.printf "Not implemented"
 				| "/q " ->	(* Quit IRC *)
-					writef "QUIT :%s" (String.slice ~first:3 line)
-					(* TODO: Actually close the program *)
+					writef "QUIT :%s" (String.slice ~first:3 line);
+					TCP.close socket;
+					issued_quit := true;
+					Thread.yield ();
 				| "/? " ->	(* Help! *)
 					Vt100.printf "/me for CTCP action, /n for nickname, /j for join, /p for part (type /p #chan :REASON if you want a reason), /m for channel modes, /um for user modes, /q for quit, /? for this help"
-				| something ->	(* Anything else is a message. *)
+				| _ ->	(* Anything else is a message. *)
 					writef "PRIVMSG %s :%s" channel line;
+			end else writef "PRIVMSG %s :%s" channel line;
 		done;
 	end () "irc read loop");
 	
-	while true do
+	while not !issued_quit do
 		let line = read_line () in
 		try match IrcParser.args IrcLexer.message (Lexing.from_string line) with
 			(* Numeric commands *)
@@ -103,8 +111,11 @@ let run server port nick pass channel =
 			| None, Ping, data :: [] ->
 					writef "PONG :%s" data
 			| _ -> ()
-		with ex ->
-			Vt100.printf "Error: %s (%s)\n" (Printexc.to_string ex) line
+		with
+			| End_of_file ->
+				issued_quit := true (* just in case other end terminated it *)
+			| ex ->
+				Vt100.printf "Error: %s (%s)\n" (Printexc.to_string ex) line
 	done
 
 let nick = ref "snowflake-os"

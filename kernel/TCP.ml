@@ -47,6 +47,12 @@ type t = {
 	rxq : (PacketLists.TCP.packet * int) MVar.t;
 }
 
+type tcp_readline = {
+	tcp : t;
+	send : string -> unit;
+	recv : unit -> string;
+}
+
 let used_ports = ref []
 
 let rec get_port () =
@@ -146,6 +152,13 @@ let input_thread cookie =
 					RingBuffer.write cookie.rb packet_data;
 				end
 			end
+		| Closing when has_flag Finish ->
+			(* ack and close the connection *)
+			cookie.status.mode <- Closed;
+			RingBuffer.close cookie.rb;
+			NetworkStack.unbind_tcp cookie.src_port;
+			send cookie cookie.status.s_next cookie.status.r_next [Ack] empty;
+			Vt100.printf "tcp: closed connection\n";
 		| Closing when has_flag Ack ->
 			(* close the connection *)
 			cookie.status.mode <- Closed;
@@ -167,6 +180,10 @@ let input_thread cookie =
 let on_input cookie packet packet_length =
 	(* this should queue the packet and let it know there something ready for it *)
 	MVar.put (packet, packet_length) cookie.rxq
+
+let close tcp =
+	tcp.tcp.status.mode <- Closing;
+	send tcp.tcp tcp.tcp.status.s_next tcp.tcp.status.r_next [Finish] empty
 
 let rec do_output cookie app_data =
 	match String.length app_data with
@@ -304,6 +321,10 @@ let open_channel ip port =
 		end*)
 	(*t.do_output, RingBuffer.mk_input t.rb*)
 	t.do_output, RingBuffer.read_line t.rb
+
+let open_readline ip port =
+	let t = connect ip port in
+	{ tcp = t; send = t.do_output; recv = RingBuffer.read_line t.rb }
 
 (* this is close, but not quite what we want *)
 type segment = (int * int * string) list

@@ -130,7 +130,8 @@ let safe_index s c =
 let read_line t () =
 	let rec loop acc cr = (* acc is a list of sub-strings *)
 		(* fill buffer if needed *)
-		if !len' = 0 then
+		if !len' = 0 && t.closed then raise End_of_file
+		else if !len' = 0 then
 			len' := read t buf' 0 1024;
 		while !len' = 0 && t.closed = false do
 			(* we didn't actually get any data yet; wait for more *)
