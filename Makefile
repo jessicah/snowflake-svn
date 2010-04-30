@@ -49,3 +49,4 @@ clean:
 
 distclean: clean
 	$(MAKE) -C tools clean
+	rm -f tools/Makefile

@@ -33,7 +33,7 @@ ocaml: $(OCAMLFILE)
 	cp -f $(OCAML)/driver/main_args.ml.orig $(OCAML)/driver/main_args.ml
 	cd $(OCAML) && patch -Np0 -i ../ocaml.dev.patch
 	# we actually need to replace some instances of amd64 with i386 for the remainder to work...
-	cd $(OCAML) && sed -e 's/ARCH=amd64/ARCH=i386/' config/Makefile | sed -e 's/SYSTEM=linux/SYSTEM=linux_elf/' > config/Makefile.new
+	cd $(OCAML) && sed -e 's/ARCH=amd64/ARCH=i386/' config/Makefile | sed -e 's/SYSTEM=.*/SYSTEM=linux_elf/' > config/Makefile.new
 	cd $(OCAML) && cp -f config/Makefile.new config/Makefile
 	# update some more config files...
 	cd $(OCAML) && ./build/mkconfig.sh && ./build/mkmyocamlbuild_config.sh
