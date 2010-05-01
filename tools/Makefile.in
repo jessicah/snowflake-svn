@@ -17,9 +17,6 @@ ocaml: $(OCAMLFILE)
 	mv trunk $(OCAML)
 	# tarball from viewcvs doesn't include execute bits
 	cd $(OCAML) && chmod -R 777 *
-	# this should be a patch; adds an arg for compatibility with snowflake's custom compiler
-	cp $(OCAML)/driver/main_args.ml $(OCAML)/driver/main_args.ml.orig
-	cp -f main_args.ml $(OCAML)/driver/main_args.ml
 	# prepare a 32-bit configure the first time around
 	cd $(OCAML) && ./configure $(CONFIGURE_OPTS) -prefix $(PWD)/ocaml -no-curses -no-pthread -no-tk
 	# save the config somewhere...
@@ -30,7 +27,6 @@ ocaml: $(OCAMLFILE)
 	cd $(OCAML) && ./build/install.sh
 	# now overwrite with the 32-bit configuration
 	cd $(OCAML) && cp -rf config.snowflake/* config/
-	cp -f $(OCAML)/driver/main_args.ml.orig $(OCAML)/driver/main_args.ml
 	cd $(OCAML) && patch -Np0 -i ../ocaml.dev.patch
 	# we actually need to replace some instances of amd64 with i386 for the remainder to work...
 	cd $(OCAML) && sed -e 's/ARCH=amd64/ARCH=i386/' config/Makefile | sed -e 's/SYSTEM=.*/SYSTEM=linux_elf/' > config/Makefile.new
@@ -44,7 +40,7 @@ ocaml: $(OCAMLFILE)
 	cd $(OCAML) && rm snowflake/boot/ocamlrun
 	cd $(OCAML) && cp -f byterun/ocamlrun snowflake/boot/ocamlrun
 	cd $(OCAML) && cp _build/boot/ocamlyacc snowflake/boot/ocamlyacc
-	cd $(OCAML) && $(PWD)/ocaml/bin/ocamlbuild -build-dir snowflake stdlib/std_exit.cmx stdlib/std_exit.cmo ocamlopt.opt
+	cd $(OCAML) && $(PWD)/ocaml/bin/ocamlbuild -build-dir snowflake stdlib/std_exit.cmx ocamlopt.opt
 	# and copy it to the tools directory
 	cp $(OCAML)/snowflake/ocamlopt.opt ./ocamlopt.opt
 
@@ -53,7 +49,6 @@ $(OCAMLFILE):
 	touch $(OCAMLFILE)
 
 bitstring: $(BITSTRINGFILE) ocaml
-	
 	cd $(BITSTRING) && cp -f ../Makefile.in.bitstring Makefile.in && cp -f ../configure.bitstring configure && PATH=../ocaml/bin:$$PATH$$ ./configure
 	$(MAKE) -C $(BITSTRING) all install
 	touch bitstring

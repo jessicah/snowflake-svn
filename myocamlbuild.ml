@@ -7,6 +7,7 @@ open Outcome;;
 module M = Myocamlbuild_config;;
 
 Options.ocamlopt := P"./ocamlopt.opt";;
+Options.ocamlc := P"./ocamlopt.opt";;
 Options.nostdlib := true;;
 
 flag ["ocaml"; "compile"; "snowflake"] & S[A"-nostdlib"; A"-freestanding"; A"-g"];;
