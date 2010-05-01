@@ -3,12 +3,9 @@ true: -byte, native, nostdlib
 
 <**/*.*>: snowflake
 
-<tools/{ocaml,ocaml-3.10.2,ocaml-bitstring-2.0.0}>: -traverse, not_hygienic
+<tools>: -traverse, not_hygienic
 
-<tools/ocamlopt/**/*.ml*>: -snowflake, custom_ocaml
-<tools/ocamlopt/**/*.*>: -snowflake
 <tools/bin2ml.*>: -snowflake
-<ocamloptcomp.*>: -snowflake
 <myocamlbuild_config.*>: -snowflake, warn_p
 
 ### libraries/stdlib
@@ -37,8 +34,4 @@ true: -byte, native, nostdlib
 <kernel/ELF.ml>: use_bitstring
 <kernel/DAAP.ml>: use_bitstring
 
-<{test1.o,test2.o,test.out}>: precious
-
 <kernel/elfParsing.ml>: use_bitstring
-
-<tools/linker/**>: -traverse

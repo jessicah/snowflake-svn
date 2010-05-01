@@ -8,7 +8,6 @@ module M = Myocamlbuild_config;;
 
 Options.ocamlopt := P"./ocamlopt.opt";;
 Options.ocamlc := P"./ocamlopt.opt";;
-Options.nostdlib := true;;
 
 flag ["ocaml"; "compile"; "snowflake"] & S[A"-nostdlib"; A"-freestanding"; A"-g"];;
 flag ["ocaml"; "link"; "snowflake"] & S[A"-nostdlib"; A"-freestanding"];;
@@ -390,13 +389,12 @@ let caml_headers = [
             A"-cc"; A(M._ld);
             A"-ccopt"; A"-L .";
             A"-ccopt"; A"-T ../kernel/kernel.ldscript";
-            A"-clibrary"; A"-lgcc";
+						A"-clibrary"; A"-lgcc";
             A"-clibrary"; A"-lc";
             A"-clibrary"; A"-lm";
             A"-clibrary"; A"-lbigarray";
 						A"-clibrary"; A"-lthreads";
 						A"-clibrary"; A"-lbitstring";
-						A"-dstartup";	A"-nostdlib";
         ]);;
 	
 	dep ["file:kernel/snowflake.native"] ["libkernel.a"; "libm.a"; "libc.a"; "libgcc.a"; "libbigarray.a"; "libthreads.a"; "libbitstring.a"];;

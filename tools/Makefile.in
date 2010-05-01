@@ -5,11 +5,7 @@ BITSTRING = ocaml-bitstring-2.0.0
 BITSTRINGFILE = $(BITSTRING).touch
 PWD = $(shell pwd)
 OCAMLCMDS = "ocamlc=$(PWD)/ocaml/bin/ocamlc.opt ocamlopt=$(PWD)/ocaml/bin/ocamlopt.opt camlp4o=$(PWD)/ocaml/bin/camlp4o"
-# linux x64:
-# ./configure -cc "gcc -m32" -as "as --32" -aspp "gcc -m32 -c"
-# mac os x 10.6:
-# ./configure -cc "gcc -m32" -as "as -arch i386" -aspp "gcc -m32 -c"
-CONFIGURE_OPTS = -cc "gcc -m32" -as "as --32" -aspp "gcc -m32 -c"
+SAFETOOLSPREFIX = $(shell echo $(TOOLSPREFIX) | sed -e 's/\//\\\//g')
 
 ocaml: $(OCAMLFILE)
 	# can't build a 32-bit compiler yet, so this patch breaks their build system
@@ -17,21 +13,21 @@ ocaml: $(OCAMLFILE)
 	mv trunk $(OCAML)
 	# tarball from viewcvs doesn't include execute bits
 	cd $(OCAML) && chmod -R 777 *
-	# prepare a 32-bit configure the first time around
-	cd $(OCAML) && ./configure $(CONFIGURE_OPTS) -prefix $(PWD)/ocaml -no-curses -no-pthread -no-tk
-	# save the config somewhere...
-	cd $(OCAML) && cp -r config config.snowflake
-	# then reconfigure normally
+	# build host compiler tools
 	cd $(OCAML) && ./configure -prefix $(PWD)/ocaml -no-curses -no-pthread -no-tk
 	cd $(OCAML) && ./build/fastworld.sh
 	cd $(OCAML) && ./build/install.sh
-	# now overwrite with the 32-bit configuration
-	cd $(OCAML) && cp -rf config.snowflake/* config/
+	# now overwrite with the snowflake 32-bit configuration
+	cd $(OCAML) && cp -rf ../config.snowflake/* config/
 	cd $(OCAML) && patch -Np0 -i ../ocaml.dev.patch
-	# we actually need to replace some instances of amd64 with i386 for the remainder to work...
-	cd $(OCAML) && sed -e 's/ARCH=amd64/ARCH=i386/' config/Makefile | sed -e 's/SYSTEM=.*/SYSTEM=linux_elf/' > config/Makefile.new
-	cd $(OCAML) && cp -f config/Makefile.new config/Makefile
 	# update some more config files...
+	if [ ! -z "$(TOOLSPREFIX)" ]; then sed -i -e 's/^TOOLSPREFIX=/TOOLSPREFIX=$(SAFETOOLSPREFIX)\/i386-elf-/' $(OCAML)/config/Makefile; fi
+	# fix macosx: doesn't handle --32
+	if [ ! -z "$(TOOLSPREFIX)" ]; then \
+		if [ ! -z "`grep -e 'macosx' $(OCAML)/config/config.sh`" ]; then \
+			sed -i -e 's/i386-elf-as --32/i386-elf-as -arch i386' $(OCAML)/config/Makefile; \
+		fi; \
+	fi
 	cd $(OCAML) && ./build/mkconfig.sh && ./build/mkmyocamlbuild_config.sh
 	# finally build our own ocamlopt.opt
 	cd $(OCAML) && mkdir snowflake
