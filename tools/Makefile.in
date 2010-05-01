@@ -13,6 +13,8 @@ ocaml: $(OCAMLFILE)
 	mv trunk $(OCAML)
 	# tarball from viewcvs doesn't include execute bits
 	cd $(OCAML) && chmod -R 777 *
+	# copy over modified boot-c-parts.sh
+	cp -f boot-c-parts.sh $(OCAML)/build/
 	# build host compiler tools
 	cd $(OCAML) && ./configure -prefix $(PWD)/ocaml -no-curses -no-pthread -no-tk
 	cd $(OCAML) && ./build/fastworld.sh
