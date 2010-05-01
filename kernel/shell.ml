@@ -9,28 +9,55 @@ let no_anon arg =
 let add_command name f ?(anon = no_anon) specs =
 	Hashtbl.add commands name (f, Arg.align specs, anon)
 
+(* will need to switch to using a parser soon... *)
 let read_line ic =
-	let line = IO.read_line ic in
-	let length = String.length line in
 	let stack = Stack.create () in
-	for i = 0 to length - 1 do
-		if line.[i] = '\b' then begin
-			if not (Stack.is_empty stack) then
-				ignore (Stack.pop stack)
-		end else
-			Stack.push line.[i] stack
+	let rec loop in_quotes =
+		if in_quotes then
+			match Keyboard.get_char () with
+			| '\b' ->
+				ignore (Stack.pop stack);
+				Vt100.printf "\b";
+				loop (Stack.is_empty stack = false)
+			| '"' ->
+				(* closed the quoted string *)
+				Vt100.printf "\"";
+				loop false
+			| ' ' ->
+				Stack.push '\\' stack;
+				Stack.push ' ' stack;
+				Vt100.printf " ";
+				loop true
+			| ch ->
+				Stack.push ch stack;
+				Vt100.printf "%c" ch;
+				loop true
+		else
+			match Keyboard.get_char () with
+			| '\n' ->
+				(* we have our line on the stack *)
+				Vt100.printf "\n";
+			| '\b' when Stack.is_empty stack ->
+				(* nothing to delete; ignore it *)
+				loop false
+			| '\b' ->
+				ignore (Stack.pop stack);
+				Vt100.printf "\b";
+				loop false
+			| '"' ->
+				Vt100.printf "\"";
+				loop true
+			| ch ->
+				Stack.push ch stack;
+				Vt100.printf "%c" ch;
+				loop false
+	in loop false;
+	let len = Stack.length stack in
+	let line = String.create len in
+	for i = len - 1 downto 0 do
+		line.[i] <- Stack.pop stack
 	done;
-	let s_length = Stack.length stack in
-	if s_length = length then
-		(* we didn't remove anything *)
-		line
-	else begin
-		let s = String.create s_length in
-		for i = s_length - 1 downto 0 do
-			s.[i] <- Stack.pop stack
-		done;
-		s
-	end
+	line
 
 let rec replace_all s sub rep = match ExtString.String.replace s sub rep with
 	| true, s -> replace_all s sub rep
