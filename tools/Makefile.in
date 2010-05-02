@@ -28,7 +28,7 @@ ocaml: $(OCAMLFILE)
 	# fix macosx: doesn't handle --32
 	if [ ! -z "$(TOOLSPREFIX)" ]; then \
 		if [ ! -z "`grep -e 'macosx' $(OCAML)/config/config.sh`" ]; then \
-			sed -i -e 's/i386-elf-as --32/i386-elf-as -arch i386' $(OCAML)/config/Makefile; \
+			sed -i -e 's/i386-elf-as --32/i386-elf-as -arch i386/' $(OCAML)/config/Makefile; \
 		fi; \
 	fi
 	cd $(OCAML) && ./build/mkconfig.sh && ./build/mkmyocamlbuild_config.sh
