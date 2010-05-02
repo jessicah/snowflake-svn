@@ -27,12 +27,18 @@ let physical_console =
 
 let erase console count =
 	let term = reshape_1 (genarray_of_array2 console.term) (console.cols * console.rows * 2) in
-	let offset = console.curr_x * console.cols + console.curr_y in
+	let offset = console.curr_x + console.cols * console.curr_y * 2 in
 	for i = 0 to count - 1 do
 		term.{i * 2 + offset} <- ' ';
 		term.{i * 2 + offset + 1} <- char_of_int console.attrib;
 	done
 
+(*
+	foreground 30-37; background 40-47
+	bright send ESC[1;<n>m
+					black		red		green		yellow	blue	magenta		cyan	white
+	colour   30      31     32      33     34     35       36     37
+*)
 let set_attrib console attr =
 	let ansi_to_vga = [| 0; 4; 2; 6; 1; 5; 3; 7 |] in
 	console.attrib <- match attr with
@@ -47,6 +53,31 @@ let set_attrib console attr =
 
 (* ANSI VT100 terminal emulation is a state machine *)
 
+(*
+
+http://en.wikipedia.org/wiki/ANSI_escape_code#Codes
+
+ESC[m set attrib 0
+ESC[s save cursor
+ESC[u update to saved cursor
+ESC[H move cursor home
+ESC[J erase to end of screen
+ESC[K erase to end of line
+
+ESC[2J erase whole screen
+ESC[<n>m set attrib n
+ESC[<n>A move cursor up n lines or top
+ESC[<n>B move cursor down n lines or bottom
+ESC[<n>C move cursor right n cols or right
+ESC[<n>D move cursor left n cols or left
+
+ESC[<x>;<y>H move cursor to x,y or bottom right
+ESC[<x>;<y>f ^^ (these are 1-based)
+ESC[<m>;<n>m set attrib m, and n
+
+ESC[<m>;<n>;<o>m set attrib m, n, and o
+
+*)
 let zero = int_of_char '0'
 
 type result = Reset | Char | Cont of (console -> char -> result)

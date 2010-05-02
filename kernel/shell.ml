@@ -9,8 +9,45 @@ let no_anon arg =
 let add_command name f ?(anon = no_anon) specs =
 	Hashtbl.add commands name (f, Arg.align specs, anon)
 
+let input2 = IO.from_in_chars(object (self)
+		val mutable len = 0
+		method get () =
+			let ch = Keyboard.get_char () in
+			if ch = '\b' && len = 0 then
+				self#get ()
+			else begin
+				begin match ch with
+					| '\b' -> len <- len - 1
+					| '\n' -> len <- 0
+					| _    -> len <- len + 1
+				end;
+				if ch <> '\n' then Vt100.printf "%c" ch;
+				ch
+			end
+		method close_in () = ()
+	end)
+
+let read_input () =
+	let stack = Stack.create () in
+	let rec loop () =
+		match IO.read input2 with
+			| '\n' ->
+					let len = Stack.length stack in
+					let line = String.create len in
+					for i = len - 1 downto 0 do
+						line.[i] <- Stack.pop stack
+					done;
+					line
+			| '\b' ->
+					ignore (Stack.pop stack);
+					loop ()
+			| ch ->
+					Stack.push ch stack;
+					loop ()
+	in loop ()
+
 (* will need to switch to using a parser soon... *)
-let read_line ic =
+let read_line () =
 	let stack = Stack.create () in
 	let rec loop in_quotes =
 		if in_quotes then
@@ -70,11 +107,21 @@ let split line =
 			replace_all part "%20" " "
 		end parts
 
-let input = IO.from_in_chars(object
+let input = IO.from_in_chars(object (self)
+		val mutable len = 0
 		method get () =
 			let ch = Keyboard.get_char () in
-			Vt100.printf "%c" ch;
-			ch
+			if ch = '\b' && len = 0 then
+				self#get ()
+			else begin
+				begin match ch with
+					| '\b' -> len <- len - 1
+					| '\n' -> len <- 0
+					| _    -> len <- len + 1
+				end;
+				Vt100.printf "%c" ch;
+				ch
+			end
 		method close_in () = ()
 	end)
 
@@ -82,7 +129,7 @@ let shell () =
 	Vt100.printf "Welcome to the Snowflake shell\n\n";
 	while true do
 		Vt100.printf "> ";
-		let line = read_line input in
+		let line = read_line () in
 		let parts = split line in
 		let current = ref 0 in
 		match parts with
