@@ -34,8 +34,16 @@ static void x86emu_wrl(u32 addr, u32 val)
 static X86EMU_pioFuncs x86emu_piofuncs = { x86emu_inb, x86emu_inw, x86emu_inl, x86emu_outb, x86emu_outw, x86emu_outl };
 static X86EMU_memFuncs x86emu_memfuncs = { x86emu_rdb, x86emu_rdw, x86emu_rdl, x86emu_wrb, x86emu_wrw, x86emu_wrl };
 
+static int x86emu_setup = 0;
+
 static void bios_interrupt(unsigned char num, X86EMU_regs *regs)
 {
+	if (!x86emu_setup) {
+		X86EMU_setupPioFuncs(&x86emu_piofuncs);
+		X86EMU_setupMemFuncs(&x86emu_memfuncs);
+		x86emu_setup = 1;
+	}
+	
 	memset(&M, 0, sizeof M);
 	M.x86 = *regs;
 	/* Mmmm, fixed addresses */
