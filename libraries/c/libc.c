@@ -6,6 +6,11 @@ void *malloc(size_t n);
 int dprintf(const char *fmt, ...);
 size_t strlen(const char *str);
 
+int abs(int x)
+{
+	return x < 0 ? -x : x;
+}
+
 /* <ctype.h> */
 
 int isprint(int c) {
@@ -414,4 +419,8 @@ int sigaction(int signum, struct sigaction *sa, struct sigaction *oldsa) {
 	sigaddset(&set, signum);
 	sigprocmask(SIG_UNBLOCK, &set, NULL);
 	return 0;
+}
+
+void printk(const char *fmt, ...)
+{
 }

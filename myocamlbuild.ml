@@ -394,7 +394,7 @@ let caml_headers = [
             ]
         end;;
 
-    flag ["compile"; "c"; "libkernel"] (S[A"-I"; A"libraries/include"; A"-nostdinc"; A"-DCAML_NAME_SPACE"; A"-DSYS_linux_elf"; A"-DTARGET_i386"; A"-DNATIVE_CODE"; A"-O2"]);;
+    flag ["compile"; "c"; "libkernel"] (S[A"-I"; A"libraries/include"; A"-I"; A"libraries/x86emu"; A"-nostdinc"; A"-DCAML_NAME_SPACE"; A"-DSYS_linux_elf"; A"-DTARGET_i386"; A"-DNATIVE_CODE"; A"-O2"]);;
 	
 	let deps = [
 		"libraries/include/multiboot.h";
@@ -402,6 +402,9 @@ let caml_headers = [
 		"libraries/kernel/idt.h";
 		"libraries/include/list.h";
 		"libraries/include/assert.h";
+		"libraries/x86emu/x86emu.h";
+		"libraries/x86emu/x86emu/types.h";
+		"libraries/x86emu/x86emu/regs.h";
 	] in dep ["compile"; "c"; "libkernel"] deps;;
 
     copy_rule' "libraries/kernel/libkernel.a" "libkernel.a";;

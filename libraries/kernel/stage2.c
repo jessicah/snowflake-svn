@@ -73,7 +73,7 @@ void __startup(multiboot_info_t *multiboot, int magic)
 	// set up C thread machinery, exception and irq handlers
 	thread_init();
 	idt_init();
-	paging_init();
+	//paging_init();
 	
 	unmask_irq(0);
 	update_mask();
