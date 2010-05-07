@@ -333,6 +333,31 @@ let caml_headers = [
 							] @ caml_headers;
         };;
 
+(*** libx86emu.a ***)
+
+	mk_stlib {
+		name = "libx86emu";
+		path = "libraries/x86emu";
+		context = ["~/x86emu"];
+		c_options = ["-nostdinc"; "-fno-builtin"; "-nostdlib";
+                "-nostartfiles"; "-nodefaultlibs"];
+		s_options = [];
+		includes = ["~"; "~/x86emu"; "libraries/include"];
+		headers = [
+				"~/x86emu.h";
+				"~/x86emu/debug.h";
+				"~/x86emu/decode.h";
+				"~/x86emu/fpu.h";
+				"~/x86emu/fpu_regs.h";
+				"~/x86emu/ops.h";
+				"~/x86emu/prim_asm.h";
+				"~/x86emu/prim_ops.h";
+				"~/x86emu/regs.h";
+				"~/x86emu/types.h";
+				"~/x86emu/x86emui.h";
+			];
+		};;
+	
 (*** libgcc.a ***)
 
     rule "libgcc (internal library)"
@@ -395,9 +420,10 @@ let caml_headers = [
             A"-clibrary"; A"-lbigarray";
 						A"-clibrary"; A"-lthreads";
 						A"-clibrary"; A"-lbitstring";
+						A"-clibrary"; A"-lx86emu";
         ]);;
 	
-	dep ["file:kernel/snowflake.native"] ["libkernel.a"; "libm.a"; "libc.a"; "libgcc.a"; "libbigarray.a"; "libthreads.a"; "libbitstring.a"];;
+	dep ["file:kernel/snowflake.native"] ["libkernel.a"; "libm.a"; "libc.a"; "libgcc.a"; "libbigarray.a"; "libthreads.a"; "libbitstring.a"; "libx86emu.a"];;
 
 (*** ocamlopt.opt ***)
 		

@@ -112,7 +112,7 @@ module UI = struct
 			chan.lines <- List.tl chan.lines @ [
 					Printf.sprintf "\027[33;1m%s\027[0m" line
 				];
-			chan.highlighted <- true;
+			chan.highlighted <- true && chan <> state.active;
 		end else
 			chan.lines <- List.tl chan.lines @ [line];
 		(* we have activity on this channel *)

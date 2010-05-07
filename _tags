@@ -27,6 +27,7 @@ true: -byte, native, nostdlib
 <libraries/threads/*.{c,s,S}>: libthreads
 <libraries/kernel/*.{c,s,S}>: libkernel
 <libraries/bitstring/*.{c,s,S}>: libbitstring
+<libraries/x86emu/*.c>: libx86emu
 
 <kernel/networkProtocolStack.ml>: use_bitstring
 <kernel/networkStack.ml>: use_bitstring
