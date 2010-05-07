@@ -30,9 +30,13 @@ let () =
 	let surface = Cairo_bigarray.of_bigarr_32 ~alpha:false (Asm.matrix32 frame_buffer 768 1024) in
 	let cr = Cairo.create surface in
 	
-	Cairo.set_source_rgb cr 1. 0. 0.;
+	(*Cairo.set_source_rgb cr 1. 0. 0.;
 	Cairo.rectangle cr 25. 25. 25. 25.;
 	Cairo.fill cr;
+	
+	Sylvia_clock.face cr 256. 256.;*)
+	
+	Fdclock.main cr 50. 50.;
 	
 	(* probe the PCI bus and load any drivers it can find *)
 	DeviceManager.scan_pci_bus ();
