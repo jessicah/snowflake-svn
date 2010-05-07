@@ -23,8 +23,16 @@ let () =
 	
 	(* switch to gfx mode? *)
 	Debug.printf "Switching to gfx mode...";
-	ignore (set_vbe_mode 0x118);
+	(* 0x144 requires -vga vmware *)
+	let frame_buffer = set_vbe_mode 0x144 in
 	Debug.printf " completed! \o/\n";
+	
+	let surface = Cairo_bigarray.of_bigarr_32 ~alpha:false (Asm.matrix32 frame_buffer 768 1024) in
+	let cr = Cairo.create surface in
+	
+	Cairo.set_source_rgb cr 1. 0. 0.;
+	Cairo.rectangle cr 25. 25. 25. 25.;
+	Cairo.fill cr;
 	
 	(* probe the PCI bus and load any drivers it can find *)
 	DeviceManager.scan_pci_bus ();

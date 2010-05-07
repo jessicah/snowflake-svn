@@ -19,8 +19,6 @@ dep ["ocaml"; "compile"; "snowflake"] ["ocamlopt.opt"];;
 
 flag ["ocamldep"] (A"-native");;
 
-Pathname.define_context "kernel" ["kernel"; "libraries/bigarray"];;
-
 let snowflake_lib name =
     ocaml_lib ~extern:true ~byte:false ~native:true ~dir:("libraries/"^name) ~tag_name:("snowflake_"^name) ("libraries/"^name^"/"^name);;
 
@@ -75,10 +73,18 @@ let copy_rule' ?insert src dst =
 
     (* just don't bother; seems to have some strange bugs for this particular library *)
     (* let build system pull in bigarray.cmx instead... *)
+	
+	snowflake_lib "bigarray";;
 
 (*** threads.cmxa ***)
 
 	snowflake_lib "threads";;
+
+(*** cairo.cmxa ***)
+
+	snowflake_lib "cairo";;
+	
+	(*Pathname.define_context "libraries/cairo" ["libraries/cairo"; "libraries/bigarray"];;*)
 
 (*** extlib.cmxa ***)
 
@@ -333,6 +339,36 @@ let caml_headers = [
 							] @ caml_headers;
         };;
 
+(*** libmlcairo.a ***)
+
+	mk_stlib {
+		name = "libmlcairo";
+		path = "libraries/cairo";
+		context = [];
+		c_options = [
+			"-DCAML_NAME_SPACE"; "-DSYS_linux_elf"; "-DTARGET_i386"; "-DNATIVE_CODE";
+			"-nostdinc"; "-fno-builtin"; "-nostdlib"; "-nostartfiles"; "-nodefaultlibs"
+			];
+		s_options = [];
+		includes = ["~"; "libraries/include"; "libraries/include/caml"];
+		headers = [
+				"libraries/cairo/ml_cairo.h";
+				"libraries/cairo/ml_cairo_wrappers.h";
+				"libraries/include/setjmp.h";
+                "libraries/include/stddef.h";
+                "libraries/include/stdarg.h";
+                "libraries/include/stdlib.h";
+                "libraries/include/string.h";
+                "libraries/include/math.h";
+                "libraries/include/stdio.h";
+                "libraries/include/limits.h";
+                "libraries/include/ctype.h";
+                "libraries/include/caml/bigarray.h";
+							] @ caml_headers;
+		};;
+	
+	flag ["compile"; "c"; "libmlcairo"] (S[A"-I"; A"../tools/custom/include/cairo"]);;
+
 (*** libx86emu.a ***)
 
 	mk_stlib {
@@ -418,18 +454,19 @@ let caml_headers = [
             A"-ccopt"; A"-L .";
 			A"-ccopt"; A"-L ../tools/custom/lib";
             A"-ccopt"; A"-T ../kernel/kernel.ldscript";
+			A"-clibrary"; A"-lmlcairo";
 						A"-clibrary"; A"-lcairo";
 						A"-clibrary"; A"-lpixman-1";
 						A"-clibrary"; A"-lgcc";
             A"-clibrary"; A"-lc";
             A"-clibrary"; A"-lm";
-            A"-clibrary"; A"-lbigarray";
+			A"-clibrary"; A"-lbigarray";
 						A"-clibrary"; A"-lthreads";
 						A"-clibrary"; A"-lbitstring";
 						A"-clibrary"; A"-lx86emu";
         ]);;
 	
-	dep ["file:kernel/snowflake.native"] ["libkernel.a"; "libm.a"; "libc.a"; "libgcc.a"; "libbigarray.a"; "libthreads.a"; "libbitstring.a"; "libx86emu.a";];;
+	dep ["file:kernel/snowflake.native"] ["libkernel.a"; "libm.a"; "libc.a"; "libgcc.a"; "libbigarray.a"; "libthreads.a"; "libbitstring.a"; "libx86emu.a"; "libmlcairo.a"];;
 
 (*** ocamlopt.opt ***)
 		

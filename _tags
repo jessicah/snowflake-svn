@@ -15,8 +15,9 @@ true: -byte, native, nostdlib
 <libraries/stdlib/scanf*.cmx>: inline(9)
 <libraries/stdlib/*Labels.ml*>: nolabels
 
-<kernel/**/*.*>: snowflake_extlib, snowflake_threads, snowflake_stdlib, snowflake_bitstring
-<libraries/{bigarray,extlib,threads,bitstring}/**.ml*>: snowflake_stdlib
+<kernel/**/*.*>: snowflake_extlib, snowflake_threads, snowflake_stdlib, snowflake_bitstring, snowflake_bigarray, snowflake_cairo
+<libraries/{bigarray,extlib,threads,bitstring,cairo}/**.ml*>: snowflake_stdlib
+<libraries/cairo/**.ml*>: snowflake_bigarray
 
 <{libraries,kernel}/**/*.*>: linkall
 
@@ -28,6 +29,7 @@ true: -byte, native, nostdlib
 <libraries/kernel/*.{c,s,S}>: libkernel
 <libraries/bitstring/*.{c,s,S}>: libbitstring
 <libraries/x86emu/*.c>: libx86emu
+<libraries/cairo/*.c>: libmlcairo
 
 <kernel/networkProtocolStack.ml>: use_bitstring
 <kernel/networkStack.ml>: use_bitstring

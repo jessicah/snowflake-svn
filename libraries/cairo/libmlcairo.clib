@@ -1,0 +1,9 @@
+ml_cairo.o
+ml_cairo_bigarr.o
+ml_cairo_matrix.o
+ml_cairo_path.o
+ml_cairo_pattern.o
+ml_cairo_status.o
+ml_cairo_surface.o
+ml_cairo_wrappers.o
+ml_cairo_font.o

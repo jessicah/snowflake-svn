@@ -5,7 +5,6 @@
 #include <asm.h>
 #include <string.h>
 #include <stdio.h>
-#include <cairo.h>
 
 static u8 x86emu_inb(X86EMU_pioAddr addr)
 { return in8(addr); }
@@ -122,7 +121,7 @@ static void vbe_switch(unsigned short mode)
 	dprintf("Switch: %04x\n", regs.R_EAX);
 	
 	
-	cairo_surface_t *surface =
+	/*cairo_surface_t *surface =
 		cairo_image_surface_create_for_data(
 			(unsigned char *)frame_buffer,
 			CAIRO_FORMAT_RGB24,
@@ -134,7 +133,7 @@ static void vbe_switch(unsigned short mode)
 
 	cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 1.0);
 	cairo_rectangle(cr, 25, 25, 25, 25);
-	cairo_fill(cr);
+	cairo_fill(cr);*/
 
 }
 
