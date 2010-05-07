@@ -1,9 +1,11 @@
 
 #include <x86emu.h>
 #include <caml/mlvalues.h>
+#include <caml/alloc.h>
 #include <asm.h>
 #include <string.h>
 #include <stdio.h>
+#include <cairo.h>
 
 static u8 x86emu_inb(X86EMU_pioAddr addr)
 { return in8(addr); }
@@ -59,6 +61,8 @@ static void bios_interrupt(unsigned char num, X86EMU_regs *regs)
 	*regs = M.x86;
 }
 
+static unsigned long frame_buffer = 0;
+
 static void vbe_switch(unsigned short mode)
 {
 	X86EMU_regs regs;
@@ -97,7 +101,11 @@ static void vbe_switch(unsigned short mode)
 	
 	bios_interrupt(0x10, &regs);
 	
-	dprintf("Mode Info for %x: %04x\n", mode, regs.R_EAX);
+	frame_buffer = *((unsigned long *)(buffer+0x28));
+	unsigned short width = *((unsigned short *)(buffer+0x12));
+	unsigned short height = *((unsigned short *)(buffer+0x14));
+	
+	dprintf("Framebuffer at 0x%08x, width: %d, height: %d\n", frame_buffer, width, height);
 	
 	/* set the mode */
 	memset(&regs, 0, sizeof regs);
@@ -112,10 +120,26 @@ static void vbe_switch(unsigned short mode)
 	bios_interrupt(0x10, &regs);
 	
 	dprintf("Switch: %04x\n", regs.R_EAX);
+	
+	
+	cairo_surface_t *surface =
+		cairo_image_surface_create_for_data(
+			(unsigned char *)frame_buffer,
+			CAIRO_FORMAT_RGB24,
+			width,
+			height,
+			width * 4);
+
+	cairo_t *cr = cairo_create(surface);
+
+	cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 1.0);
+	cairo_rectangle(cr, 25, 25, 25, 25);
+	cairo_fill(cr);
+
 }
 
 CAMLprim value snowflake_vbe_switch(value mode)
 {
 	vbe_switch((unsigned short)(Int_val(mode)));
-	return Val_unit;
+	return caml_copy_int32(frame_buffer);
 }

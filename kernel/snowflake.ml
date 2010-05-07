@@ -1,5 +1,5 @@
 
-external set_vbe_mode : int -> unit = "snowflake_vbe_switch"
+external set_vbe_mode : int -> int32 = "snowflake_vbe_switch"
 
 let () =
 	(* seed the random number generator *)
@@ -23,7 +23,7 @@ let () =
 	
 	(* switch to gfx mode? *)
 	Debug.printf "Switching to gfx mode...";
-	set_vbe_mode 0x118;
+	ignore (set_vbe_mode 0x118);
 	Debug.printf " completed! \o/\n";
 	
 	(* probe the PCI bus and load any drivers it can find *)

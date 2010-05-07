@@ -3,9 +3,13 @@ OCAML = ocaml-3.12.0+dev
 OCAMLFILE = $(OCAML).touch
 BITSTRING = ocaml-bitstring-2.0.0
 BITSTRINGFILE = $(BITSTRING).touch
+CAIRO = cairo-1.8.10
+PIXMAN = pixman-0.18.0
 PWD = $(shell pwd)
 OCAMLCMDS = "ocamlc=$(PWD)/ocaml/bin/ocamlc.opt ocamlopt=$(PWD)/ocaml/bin/ocamlopt.opt camlp4o=$(PWD)/ocaml/bin/camlp4o"
 SAFETOOLSPREFIX = $(shell echo $(TOOLSPREFIX) | sed -e 's/\//\\\//g')
+
+all: ocaml bitstring pixman cairo
 
 ocaml: $(OCAMLFILE)
 	# can't build a 32-bit compiler yet, so this patch breaks their build system
@@ -56,9 +60,40 @@ $(BITSTRINGFILE):
 	tar xzf $(BITSTRING).tar.gz
 	touch $(BITSTRINGFILE)
 
+cairo: custom/lib/libcairo.a
+
+custom/lib/libcairo.a: $(CAIRO) custom/lib/libpixman-1.a
+	cd $(CAIRO) && PKG_CONFIG_PATH=$(PWD)/custom/lib/pkgconfig CC="gcc -m32" CFLAGS="-fno-builtin" \
+		./configure --prefix=$(PWD)/custom \
+		--disable-xlib \
+		--disable-xcb \
+		--disable-png \
+		--disable-directfb \
+		--disable-ft \
+		--disable-pthread \
+		--disable-ps \
+		--disable-pdf \
+		--disable-svg \
+		--enable-shared=no || true
+	echo "#define CAIRO_NO_MUTEX 1" >> $(CAIRO)/config.h
+	$(MAKE) -C $(CAIRO) all install
+
+$(CAIRO):
+	tar zxf $(CAIRO).tar.gz
+
+pixman: custom/lib/libpixman-1.a
+
+custom/lib/libpixman-1.a: $(PIXMAN)
+	cd $(PIXMAN) && CC="gcc -m32" CFLAGS="-fno-builtin" ./configure --disable-shared --disable-mmx --disable-sse2 --prefix=$(PWD)/custom
+	$(MAKE) -C $(PIXMAN) all install
+
+$(PIXMAN):
+	tar zxf $(PIXMAN).tar.gz
+
 clean:
 	rm -rf ocaml $(OCAML) $(OCAMLFILE) trunk
 	rm -rf $(BITSTRING) $(BITSTRINGFILE) bitstring
+	rm -rf $(CAIRO) $(PIXMAN) custom
 
 cleanbitstring:
 	rm -rf $(BITSTRING) $(BITSTRINGFILE) bitstring
