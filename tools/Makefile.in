@@ -6,12 +6,23 @@ BITSTRINGFILE = $(BITSTRING).touch
 CAIRO = cairo-1.8.10
 PIXMAN = pixman-0.18.0
 PWD = $(shell pwd)
-OCAMLCMDS = "ocamlc=$(PWD)/ocaml/bin/ocamlc.opt ocamlopt=$(PWD)/ocaml/bin/ocamlopt.opt camlp4o=$(PWD)/ocaml/bin/camlp4o"
+OCAMLCMDS = "ocamlc=$(PWD)/custom/bin/ocamlc.opt ocamlopt=$(PWD)/custom/bin/ocamlopt.opt camlp4o=$(PWD)/custom/bin/camlp4o"
 SAFETOOLSPREFIX = $(shell echo $(TOOLSPREFIX) | sed -e 's/\//\\\//g')
 
-all: ocaml bitstring pixman cairo
+all: ocamlopt.opt pixman cairo
 
-ocaml: $(OCAMLFILE)
+ocamlopt.opt: $(OCAMLFILE)
+	cp -f configure.ocaml $(OCAML)/configure
+	cd $(OCAML) && chmod -R 777 *
+	cp -f boot-c-parts.sh $(OCAML)/build/
+	cp -f install.sh $(OCAML)/build/
+	cd $(OCAML) && patch -Np0 -i ../ocaml.dev.patch
+	cd $(OCAML) && ./configure -cc "gcc -m32" -as "as --32" -aspp "gcc -m32 -c" -prefix $(PWD)/custom -no-curses -no-pthread -no-tk
+	$(MAKE) -C $(OCAML) opt.opt
+	$(MAKE) -C $(OCAML) install
+	cp custom/bin/ocamlopt.opt ./ocamlopt.opt
+
+oldstuff:
 	# can't build a 32-bit compiler yet, so this patch breaks their build system
 	#cd trunk && patch -Np0 -i ../ocaml.dev.patch
 	mv trunk $(OCAML)
@@ -49,10 +60,11 @@ ocaml: $(OCAMLFILE)
 
 $(OCAMLFILE):
 	tar zxf $(OCAML).tar.gz
+	mv trunk $(OCAML)
 	touch $(OCAMLFILE)
 
-bitstring: $(BITSTRINGFILE) ocaml
-	cd $(BITSTRING) && cp -f ../Makefile.in.bitstring Makefile.in && cp -f ../configure.bitstring configure && PATH=../ocaml/bin:$$PATH$$ ./configure
+bitstring: $(BITSTRINGFILE) ocamlopt.opt
+	cd $(BITSTRING) && cp -f ../Makefile.in.bitstring Makefile.in && cp -f ../configure.bitstring configure && PATH=../custom/bin:$$PATH$$ ./configure
 	$(MAKE) -C $(BITSTRING) all install
 	touch bitstring
 
@@ -91,7 +103,7 @@ $(PIXMAN):
 	tar zxf $(PIXMAN).tar.gz
 
 clean:
-	rm -rf ocaml $(OCAML) $(OCAMLFILE) trunk
+	rm -rf custom $(OCAML) $(OCAMLFILE) trunk
 	rm -rf $(BITSTRING) $(BITSTRINGFILE) bitstring
 	rm -rf $(CAIRO) $(PIXMAN) custom
 

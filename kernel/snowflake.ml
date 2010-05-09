@@ -8,7 +8,7 @@ let () =
 	(* initialise a bunch of devices *)
 	Vga.init ();
 	Keyboard.init ();
-	ICH0.init ();
+	(*ICH0.init ();
 	IDE.init ();
 	RealTek8139.init ();
 	E1000.init ();
@@ -16,12 +16,12 @@ let () =
 	(*MusicPlayer.init ();
 	TarFileSystem.init ();*)
 	IRC.init ();
-	StreamingPlayer.init ();
+	StreamingPlayer.init ();*)
 	
 	(* let interrupts run *)
 	Asm.sti ();
 	
-	(* switch to gfx mode? *)
+	(* switch to gfx mode *)
 	Debug.printf "Switching to gfx mode...";
 	(* 0x144 requires -vga vmware *)
 	let frame_buffer = set_vbe_mode 0x144 in
@@ -30,15 +30,25 @@ let () =
 	let surface = Cairo_bigarray.of_bigarr_32 ~alpha:false (Asm.matrix32 frame_buffer 768 1024) in
 	let cr = Cairo.create surface in
 	
-	(*Cairo.set_source_rgb cr 1. 0. 0.;
-	Cairo.rectangle cr 25. 25. 25. 25.;
-	Cairo.fill cr;
+	(*Fdclock.FDHand.draw_now cr 200. 200. true;*)
 	
-	Sylvia_clock.face cr 256. 256.;*)
+	let fb = Asm.matrix32 frame_buffer 768 1024 in
 	
-	Fdclock.main cr 50. 50.;
+	let f = Fonts.BDF.get "Courier" Fonts.BDF.Normal Fonts.BDF.Regular 14 in
+	(*Bigarray.Array2.fill fb 0xffffff;*)
+	Fonts.draw_text fb "snowflake-os: graphics mode!"
+		f (50,50) (255,201,14);
+	Fonts.draw_text fb "red text"
+		f (50,100) (255,0,0);
+	Fonts.draw_text fb "green text"
+		f (50,150) (0,255,0);
+	Fonts.draw_text fb "blue text"
+		f (50,200) (0,0,255);
 	
-	(* probe the PCI bus and load any drivers it can find *)
+	
+	(*Fdclock.FDHand.draw_now cr 200. 200. true;*)
+	
+	(*(* probe the PCI bus and load any drivers it can find *)
 	DeviceManager.scan_pci_bus ();
 	
 	(* get the partitions for the primary master *)
@@ -81,7 +91,7 @@ let () =
 			with Not_found -> loop xs
 			end
 	in loop partitions;
-	(*List.iter Ext2fs.init partitions;*)
+	(*List.iter Ext2fs.init partitions;*)*)
 	
 	(* finished, so launch the shell *)
 	Shell.init ()

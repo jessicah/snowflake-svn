@@ -99,24 +99,3 @@ diff -r trunk/utils/clflags.mli ocaml-patched/utils/clflags.mli
 78a79,80
 > val free_standing : bool ref
 > val c_libraries : string ref
-Index: utils/misc.ml
-===================================================================
-diff -r trunk/utils/misc.ml ocaml-patched/utils/misc.ml
-117c117,120
-<   then Filename.concat alt
----
->   then begin
-> 		if !Clflags.free_standing
-> 			then failwith "-I +<dir> incompatible with -freestanding"
-> 			else Filename.concat alt
-119c122
-<   else s
----
->   end else s
-Index: asmcomp/emitaux.ml
-===================================================================
-diff -r trunk/asmcomp/emitaux.ml ocaml-patched/asmcomp/emitaux.ml
-30c30
-< let emit_nativeint n = output_string !output_channel (Nativeint.to_string n)
----
-> let emit_nativeint n = output_string !output_channel (Int32.to_string (Nativeint.to_int32 n))

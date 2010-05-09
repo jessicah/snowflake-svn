@@ -1,7 +1,7 @@
 
 BUILDDIR = _build
 
-OCB = tools/ocaml/bin/ocamlbuild 
+OCB = tools/custom/bin/ocamlbuild 
 
 OCAMLBUILD = $(OCB) $(OCBFLAGS)
 
