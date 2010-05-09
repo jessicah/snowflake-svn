@@ -3,6 +3,7 @@ OCAML = ocaml-3.12.0+dev
 OCAMLFILE = $(OCAML).touch
 BITSTRING = ocaml-bitstring-2.0.0
 BITSTRINGFILE = $(BITSTRING).touch
+FREETYPE = freetype-2.3.11
 CAIRO = cairo-1.8.10
 PIXMAN = pixman-0.18.0
 PWD = $(shell pwd)
@@ -72,16 +73,35 @@ $(BITSTRINGFILE):
 	tar xzf $(BITSTRING).tar.gz
 	touch $(BITSTRINGFILE)
 
+freetype: custom/lib/libfreetype.a
+
+custom/lib/libfreetype.a: $(FREETYPE)
+	cd $(FREETYPE) && CC="gcc -m32" CFLAGS="-fno-builtin" \
+		./configure --prefix=$(PWD)/custom \
+		--disable-shared \
+		--without-zlib \
+		--without-old-mac-fonts \
+		--without-fsspec \
+		--without-fsref \
+		--without-quickdraw-toolbox \
+		--without-quickdraw-carbon \
+		--without-ats \
+		--without-pic
+	make -C $(FREETYPE) all install
+
+$(FREETYPE):
+	tar jxf $(FREETYPE).tar.bz2
+
 cairo: custom/lib/libcairo.a
 
-custom/lib/libcairo.a: $(CAIRO) custom/lib/libpixman-1.a
+custom/lib/libcairo.a: $(CAIRO) custom/lib/libpixman-1.a custom/lib/libfreetype.a
 	cd $(CAIRO) && PKG_CONFIG_PATH=$(PWD)/custom/lib/pkgconfig CC="gcc -m32" CFLAGS="-fno-builtin" \
 		./configure --prefix=$(PWD)/custom \
 		--disable-xlib \
 		--disable-xcb \
 		--disable-png \
 		--disable-directfb \
-		--disable-ft \
+		--enable-ft \
 		--disable-pthread \
 		--disable-ps \
 		--disable-pdf \
@@ -97,7 +117,7 @@ pixman: custom/lib/libpixman-1.a
 
 custom/lib/libpixman-1.a: $(PIXMAN)
 	cd $(PIXMAN) && CC="gcc -m32" CFLAGS="-fno-builtin" ./configure --disable-shared --disable-mmx --disable-sse2 --prefix=$(PWD)/custom
-	$(MAKE) -C $(PIXMAN) all install
+	$(MAKE) -C $(PIXMAN)/pixman all install
 
 $(PIXMAN):
 	tar zxf $(PIXMAN).tar.gz

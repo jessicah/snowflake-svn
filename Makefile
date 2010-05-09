@@ -39,7 +39,7 @@ prep-osx:
 	cd tools && patch -i ../macosx.patch
 
 qemu:
-	qemu -serial stdio -boot d -hda fake_hd.tar -cdrom snowflake.iso -soundhw all -net nic,model=rtl8139,macaddr=00:15:60:9E:28:0A -net tap -m 512 -no-kqemu
+	qemu -serial stdio -boot d -hda fake_hd.tar -cdrom snowflake.iso -soundhw all -net nic,model=rtl8139,macaddr=00:15:60:9E:28:0A -net user -m 512
 
 clean:
 	$(OCAMLBUILD) -clean || true
