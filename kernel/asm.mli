@@ -35,8 +35,6 @@ external matrix16 : int32 -> int -> int -> (int, int16_unsigned_elt, c_layout) A
 	= "snowflake_matrix16"
 external matrix32 : int32 -> int -> int -> (int32, int32_elt, c_layout) Array2.t
 	= "snowflake_matrix32"
-external matrix32_ : int32 -> int -> int -> (int, int_elt, c_layout) Array2.t
-	= "snowflake_matrix32"
 
 external peek32 : int32 -> int32 = "snowflake_peek32"
 external poke32 : int32 -> int32 -> unit = "snowflake_poke32"

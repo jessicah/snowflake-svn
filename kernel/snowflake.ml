@@ -21,7 +21,7 @@ let () =
 	(* let interrupts run *)
 	Asm.sti ();
 	
-	(* switch to gfx mode *)
+	(*(* switch to gfx mode *)
 	Debug.printf "Switching to gfx mode...";
 	(* 0x144 requires -vga vmware *)
 	let frame_buffer = set_vbe_mode 0x144 in
@@ -44,7 +44,12 @@ let () =
 		f (50,150) (0,255,0);
 	Fonts.draw_text fb "blue text"
 		f (50,200) (0,0,255);
+	*)
+	GraphicsConsole.init ();
 	
+	while true do
+		GraphicsConsole.put (Keyboard.get_char ());
+	done;
 	
 	(*Fdclock.FDHand.draw_now cr 200. 200. true;*)
 	
