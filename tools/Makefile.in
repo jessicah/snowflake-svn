@@ -94,14 +94,14 @@ $(FREETYPE):
 
 cairo: custom/lib/libcairo.a
 
-custom/lib/libcairo.a: $(CAIRO) custom/lib/libpixman-1.a custom/lib/libfreetype.a
+custom/lib/libcairo.a: $(CAIRO) custom/lib/libpixman-1.a
 	cd $(CAIRO) && PKG_CONFIG_PATH=$(PWD)/custom/lib/pkgconfig CC="gcc -m32" CFLAGS="-fno-builtin" \
 		./configure --prefix=$(PWD)/custom \
 		--disable-xlib \
 		--disable-xcb \
 		--disable-png \
 		--disable-directfb \
-		--enable-ft \
+		--disable-ft \
 		--disable-pthread \
 		--disable-ps \
 		--disable-pdf \
