@@ -116,8 +116,8 @@ $(CAIRO):
 pixman: custom/lib/libpixman-1.a
 
 custom/lib/libpixman-1.a: $(PIXMAN)
-	cd $(PIXMAN) && CC="gcc -m32" CFLAGS="-fno-builtin" ./configure --disable-shared --disable-mmx --disable-sse2 --prefix=$(PWD)/custom
-	$(MAKE) -C $(PIXMAN) all install
+	cd $(PIXMAN) && sed -i 's/pixman test/pixman/' Makefile.in && CC="gcc -m32" CFLAGS="-fno-builtin" ./configure --disable-shared --disable-mmx --disable-sse2 --prefix=$(PWD)/custom
+	$(MAKE) -C $(PIXMAN)/pixman all install
 
 $(PIXMAN):
 	tar zxf $(PIXMAN).tar.gz
