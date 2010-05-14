@@ -148,7 +148,7 @@ FT_BEGIN_HEADER
   /*                                                                       */
   /*   Define this macro if you want to enable this `feature'.             */
   /*                                                                       */
-#define FT_CONFIG_OPTION_USE_LZW
+/* #define FT_CONFIG_OPTION_USE_LZW */
 
 
   /*************************************************************************/
@@ -251,7 +251,7 @@ FT_BEGIN_HEADER
   /*   You would normally undefine this configuration macro when building  */
   /*   a version of FreeType that doesn't contain a Type 1 or CFF driver.  */
   /*                                                                       */
-/* #define FT_CONFIG_OPTION_POSTSCRIPT_NAMES */
+#define FT_CONFIG_OPTION_POSTSCRIPT_NAMES
 
 
   /*************************************************************************/
@@ -269,7 +269,7 @@ FT_BEGIN_HEADER
   /*   able to synthesize a Unicode charmap out of the glyphs found in the */
   /*   fonts.                                                              */
   /*                                                                       */
-/* #define FT_CONFIG_OPTION_ADOBE_GLYPH_LIST */
+#define FT_CONFIG_OPTION_ADOBE_GLYPH_LIST
 
 
   /*************************************************************************/
@@ -542,7 +542,7 @@ FT_BEGIN_HEADER
   /*     ...                                                               */
   /*   }                                                                   */
   /*                                                                       */
-/* #define TT_CONFIG_OPTION_UNPATENTED_HINTING */
+#define TT_CONFIG_OPTION_UNPATENTED_HINTING
 
 
   /*************************************************************************/
@@ -584,7 +584,7 @@ FT_BEGIN_HEADER
   /* and avar tables).  This has many similarities to Type 1 Multiple      */
   /* Masters support.                                                      */
   /*                                                                       */
-/* #define TT_CONFIG_OPTION_GX_VAR_SUPPORT */
+#define TT_CONFIG_OPTION_GX_VAR_SUPPORT
 
 
   /*************************************************************************/

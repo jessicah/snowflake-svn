@@ -91,7 +91,9 @@ let init () =
 		inited := true
 	end
 
-let face buffer = Internal.new_face buffer
+let face buffer =
+	init ();
+	Internal.new_face buffer
 
 let draw_string plot position face string =
 	init ();

@@ -2,9 +2,9 @@
 /*                                                                         */
 /*  ftsystem.c                                                             */
 /*                                                                         */
-/*    Unix-specific FreeType low-level system interface (body).            */
+/*    ANSI-specific FreeType low-level system interface (body).            */
 /*                                                                         */
-/*  Copyright 1996-2001, 2002, 2004, 2005, 2006, 2007, 2008 by             */
+/*  Copyright 1996-2001, 2002, 2006, 2008, 2009 by                         */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -15,33 +15,36 @@
 /*                                                                         */
 /***************************************************************************/
 
+  /*************************************************************************/
+  /*                                                                       */
+  /* This file contains the default interface used by FreeType to access   */
+  /* low-level, i.e. memory management, i/o access as well as thread       */
+  /* synchronisation.  It can be replaced by user-specific routines if     */
+  /* necessary.                                                            */
+  /*                                                                       */
+  /*************************************************************************/
+
 
 #include <ft2build.h>
-  /* we use our special ftconfig.h file, not the standard one */
-/* #include <ftconfig.h> */
-#include FT_CONFIG_OPTIONS_H
+#include FT_CONFIG_CONFIG_H
 #include FT_INTERNAL_DEBUG_H
+#include FT_INTERNAL_STREAM_H
 #include FT_SYSTEM_H
 #include FT_ERRORS_H
 #include FT_TYPES_H
-#include FT_INTERNAL_STREAM_H
-
-#ifdef __cplusplus
-  extern "C"
-#else
-  extern
-#endif
-
-/* #include <sys/types.h> */
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 
   /*************************************************************************/
   /*                                                                       */
   /*                       MEMORY MANAGEMENT INTERFACE                     */
+  /*                                                                       */
+  /*************************************************************************/
+
+  /*************************************************************************/
+  /*                                                                       */
+  /* It is not necessary to do any error checking for the                  */
+  /* allocation-related functions.  This will be done by the higher level  */
+  /* routines like ft_mem_alloc() or ft_mem_realloc().                     */
   /*                                                                       */
   /*************************************************************************/
 
@@ -62,11 +65,13 @@
   /* <Return>                                                              */
   /*    The address of newly allocated block.                              */
   /*                                                                       */
-  void*
+  FT_CALLBACK_DEF( void* )
   ft_alloc( FT_Memory  memory,
             long       size )
   {
-    return malloc( size );
+    FT_UNUSED( memory );
+
+    return ft_smalloc( size );
   }
 
 
@@ -90,13 +95,16 @@
   /* <Return>                                                              */
   /*    The address of the reallocated memory block.                       */
   /*                                                                       */
-  void*
+  FT_CALLBACK_DEF( void* )
   ft_realloc( FT_Memory  memory,
               long       cur_size,
               long       new_size,
               void*      block )
   {
-    return realloc( block, new_size );
+    FT_UNUSED( memory );
+    FT_UNUSED( cur_size );
+
+    return ft_srealloc( block, new_size );
   }
 
 
@@ -109,15 +117,17 @@
   /*    The memory release function.                                       */
   /*                                                                       */
   /* <Input>                                                               */
-  /*    memory :: A pointer to the memory object.                          */
+  /*    memory  :: A pointer to the memory object.                         */
   /*                                                                       */
-  /*    block  :: The address of block in memory to be freed.              */
+  /*    block   :: The address of block in memory to be freed.             */
   /*                                                                       */
-  void
+  FT_CALLBACK_DEF( void )
   ft_free( FT_Memory  memory,
            void*      block )
   {
-    free( block );
+    FT_UNUSED( memory );
+
+    ft_sfree( block );
   }
 
 
@@ -127,36 +137,119 @@
   /*                                                                       */
   /*************************************************************************/
 
-	FT_BASE_DEF( FT_Error )
-	FT_Stream_Open(FT_Stream stream, const char * filepathname)
-  {
-	  FT_ERROR(( "FT_Stream_Open:" ));
-	  FT_ERROR(( " not implemented\n" ));
-	  return FT_Err_Cannot_Open_Resource;
-  }
+
+  /*************************************************************************/
+  /*                                                                       */
+  /* The macro FT_COMPONENT is used in trace mode.  It is an implicit      */
+  /* parameter of the FT_TRACE() and FT_ERROR() macros, used to print/log  */
+  /* messages during execution.                                            */
+  /*                                                                       */
+#undef  FT_COMPONENT
+#define FT_COMPONENT  trace_io
+
+  /* We use the macro STREAM_FILE for convenience to extract the       */
+  /* system-specific stream handle from a given FreeType stream object */
+/* #define STREAM_FILE( stream )  ( (FT_FILE*)stream->descriptor.pointer ) */
 
 
   /*************************************************************************/
   /*                                                                       */
   /* <Function>                                                            */
-  /*    ft_close_stream_by_free                                            */
+  /*    ft_ansi_stream_close                                               */
   /*                                                                       */
   /* <Description>                                                         */
-  /*    The function to close a stream which is created by ft_alloc.       */
+  /*    The function to close a stream.                                    */
   /*                                                                       */
   /* <Input>                                                               */
   /*    stream :: A pointer to the stream object.                          */
   /*                                                                       */
-  void
-  ft_close_stream_by_free( FT_Stream  stream )
+  /*FT_CALLBACK_DEF( void )
+  ft_ansi_stream_close( FT_Stream  stream )
   {
-    ft_free( NULL, stream->descriptor.pointer );
+    ft_fclose( STREAM_FILE( stream ) );
 
     stream->descriptor.pointer = NULL;
     stream->size               = 0;
     stream->base               = 0;
-  }
+  }*/
 
+
+  /*************************************************************************/
+  /*                                                                       */
+  /* <Function>                                                            */
+  /*    ft_ansi_stream_io                                                  */
+  /*                                                                       */
+  /* <Description>                                                         */
+  /*    The function to open a stream.                                     */
+  /*                                                                       */
+  /* <Input>                                                               */
+  /*    stream :: A pointer to the stream object.                          */
+  /*                                                                       */
+  /*    offset :: The position in the data stream to start reading.        */
+  /*                                                                       */
+  /*    buffer :: The address of buffer to store the read data.            */
+  /*                                                                       */
+  /*    count  :: The number of bytes to read from the stream.             */
+  /*                                                                       */
+  /* <Return>                                                              */
+  /*    The number of bytes actually read.                                 */
+  /*                                                                       */
+  /*FT_CALLBACK_DEF( unsigned long )
+  ft_ansi_stream_io( FT_Stream       stream,
+                     unsigned long   offset,
+                     unsigned char*  buffer,
+                     unsigned long   count )
+  {
+    FT_FILE*  file;
+
+
+    file = STREAM_FILE( stream );
+
+    if ( stream->pos != offset )
+      ft_fseek( file, offset, SEEK_SET );
+
+    return (unsigned long)ft_fread( buffer, 1, count, file );
+  }*/
+
+
+  /* documentation is in ftstream.h */
+
+  FT_BASE_DEF( FT_Error )
+  FT_Stream_Open( FT_Stream    stream,
+                  const char*  filepathname )
+  {
+    /*FT_FILE*  file;
+
+
+    if ( !stream )
+      return FT_Err_Invalid_Stream_Handle;
+
+    file = ft_fopen( filepathname, "rb" );
+    if ( !file )
+    {*/
+      FT_ERROR(( "FT_Stream_Open:"
+                 " not implemented" ));
+
+      return FT_Err_Cannot_Open_Resource;
+    /*}
+
+    ft_fseek( file, 0, SEEK_END );
+    stream->size = ft_ftell( file );
+    ft_fseek( file, 0, SEEK_SET );
+
+    stream->descriptor.pointer = file;
+    stream->pathname.pointer   = (char*)filepathname;
+    stream->pos                = 0;
+
+    stream->read  = ft_ansi_stream_io;
+    stream->close = ft_ansi_stream_close;
+
+    FT_TRACE1(( "FT_Stream_Open:" ));
+    FT_TRACE1(( " opened `%s' (%d bytes) successfully\n",
+                filepathname, stream->size ));
+
+    return FT_Err_Ok;*/
+  }
 
 
 #ifdef FT_DEBUG_MEMORY
@@ -178,7 +271,7 @@
     FT_Memory  memory;
 
 
-    memory = (FT_Memory)malloc( sizeof ( *memory ) );
+    memory = (FT_Memory)ft_smalloc( sizeof ( *memory ) );
     if ( memory )
     {
       memory->user    = 0;
@@ -202,7 +295,7 @@
 #ifdef FT_DEBUG_MEMORY
     ft_mem_debug_done( memory );
 #endif
-    memory->free( memory, memory );
+    ft_sfree( memory );
   }
 
 

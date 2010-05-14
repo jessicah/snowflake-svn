@@ -6,6 +6,8 @@
 #include <fail.h>
 #include <bigarray.h>
 
+#include <stdio.h>
+
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
@@ -41,18 +43,21 @@ value ml_freetype_newface(value buffer)
 	
 	FT_Face face;
 	
+	int error;
+	
 	res = caml_alloc_tuple(3);
 	
 	/*if ( (face = caml_stat_alloc(sizeof(FT_Face))) == NULL) {
 		caml_failwith("ml_freetype_newface: out of memory");
 	}*/
 	
-	if (FT_New_Memory_Face(
+	if (error = FT_New_Memory_Face(
 				library,
 				String_val(buffer),
 				caml_string_length(buffer),
 				0, &face))
 	{
+		dprintf("freetype error: 0x%02x\n", error);
 		caml_failwith("FT_New_Memory_Face");
 	}
 	
