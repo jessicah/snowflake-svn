@@ -47,6 +47,10 @@ let () =
 	*)
 	GraphicsConsole.init ();
 	
+	let face, family, style = Freetype.face Gothic.data in
+	
+	Debug.printf "Loaded font: %s (%s)\n" family style;
+	
 	while true do
 		GraphicsConsole.put (Keyboard.get_char ());
 	done;

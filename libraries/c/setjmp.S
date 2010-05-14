@@ -1,8 +1,10 @@
 #include "i386mach.S"
 
+.global _setjmp
 .global setjmp
 .global longjmp
 
+_setjmp:
 setjmp:
     movl	4(esp),eax
 	movl	0(esp),edx

@@ -87,6 +87,9 @@ custom/lib/libfreetype.a: $(FREETYPE)
 		--without-quickdraw-carbon \
 		--without-ats \
 		--without-pic
+	cp -f modules.cfg $(FREETYPE)/
+	cp -f ftsystem.c $(FREETYPE)/builds/unix/
+	cp -f ftoption.h $(FREETYPE)/objs/
 	make -C $(FREETYPE) all install
 
 $(FREETYPE):

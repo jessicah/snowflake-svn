@@ -12,7 +12,7 @@ ISO = snowflake.iso
 all: myocamlbuild_config.ml
 	if [ ! -e tools/Makefile ] ; then cp -f tools/Makefile.in tools/Makefile; fi
 	$(MAKE) -C tools all
-	$(OCAMLBUILD) libraries/stdlib/stdlib.cmxa libraries/bigarray/bigarray.cmxa libraries/extlib/extlib.cmxa libraries/threads/threads.cmxa libraries/bitstring/bitstring.cmxa libraries/cairo/cairo.cmxa $(KERNEL)
+	$(OCAMLBUILD) libraries/stdlib/stdlib.cmxa libraries/bigarray/bigarray.cmxa libraries/extlib/extlib.cmxa libraries/threads/threads.cmxa libraries/bitstring/bitstring.cmxa libraries/cairo/cairo.cmxa libraries/freetype/freetype.cmxa $(KERNEL)
 	rm -rf cdrom/iso_prep
 	# this should be done in myocamlbuild
 	#strip -s $(BUILDDIR)/$(KERNEL)

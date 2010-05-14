@@ -86,6 +86,10 @@ let copy_rule' ?insert src dst =
 	
 	(*Pathname.define_context "libraries/cairo" ["libraries/cairo"; "libraries/bigarray"];;*)
 
+(*** freetype.cmxa ***)
+	
+	snowflake_lib "freetype";;
+
 (*** extlib.cmxa ***)
 
     snowflake_lib "extlib";;
@@ -346,7 +350,7 @@ let caml_headers = [
 		path = "libraries/cairo";
 		context = [];
 		c_options = [
-			"-DCAML_NAME_SPACE"; "-DSYS_linux_elf"; "-DTARGET_i386"; "-DNATIVE_CODE";
+			"-DSYS_linux_elf"; "-DTARGET_i386"; "-DNATIVE_CODE";
 			"-nostdinc"; "-fno-builtin"; "-nostdlib"; "-nostartfiles"; "-nodefaultlibs"
 			];
 		s_options = [];
@@ -368,6 +372,37 @@ let caml_headers = [
 		};;
 	
 	flag ["compile"; "c"; "libmlcairo"] (S[A"-I"; A"../tools/custom/include/cairo"]);;
+
+(*** libmlfreetype.a ***)
+
+	mk_stlib {
+		name = "libmlfreetype";
+		path = "libraries/freetype";
+		context = [];
+		c_options = [
+			"-DCAML_NAME_SPACE"; "-DSYS_linux_elf"; "-DTARGET_i386"; "-DNATIVE_CODE";
+			"-DFT_USE_AUTOCONF_SIZEOF_TYPES"; "-nostdinc"; "-fno-builtin"; "-nostdlib"; "-nostartfiles"; "-nodefaultlibs"
+			];
+		s_options = [];
+		includes = ["~"; "libraries/include"; "libraries/include/caml"];
+		headers = [
+				"libraries/include/setjmp.h";
+                "libraries/include/stddef.h";
+                "libraries/include/stdarg.h";
+                "libraries/include/stdlib.h";
+                "libraries/include/string.h";
+                "libraries/include/math.h";
+                "libraries/include/stdio.h";
+                "libraries/include/limits.h";
+                "libraries/include/ctype.h";
+                "libraries/include/caml/bigarray.h";
+							] @ caml_headers;
+		};;
+	
+	flag ["compile"; "c"; "libmlfreetype"] (S[
+			A"-I"; A"../tools/custom/include/freetype2";
+			A"-I"; A"../tools/custom/include";
+		]);;
 
 (*** libx86emu.a ***)
 
@@ -455,18 +490,20 @@ let caml_headers = [
 			A"-ccopt"; A"-L ../tools/custom/lib";
             A"-ccopt"; A"-T ../kernel/kernel.ldscript";
 			A"-clibrary"; A"-lmlcairo";
-						A"-clibrary"; A"-lcairo";
-						A"-clibrary"; A"-lpixman-1";
-						A"-clibrary"; A"-lgcc";
+			A"-clibrary"; A"-lcairo";
+			A"-clibrary"; A"-lpixman-1";
+			A"-clibrary"; A"-lmlfreetype";
+			A"-clibrary"; A"-lfreetype";
+			A"-clibrary"; A"-lgcc";
             A"-clibrary"; A"-lc";
             A"-clibrary"; A"-lm";
 			A"-clibrary"; A"-lbigarray";
-						A"-clibrary"; A"-lthreads";
-						A"-clibrary"; A"-lbitstring";
-						A"-clibrary"; A"-lx86emu";
+			A"-clibrary"; A"-lthreads";
+			A"-clibrary"; A"-lbitstring";
+			A"-clibrary"; A"-lx86emu";
         ]);;
 	
-	dep ["file:kernel/snowflake.native"] ["libkernel.a"; "libm.a"; "libc.a"; "libgcc.a"; "libbigarray.a"; "libthreads.a"; "libbitstring.a"; "libx86emu.a"; "libmlcairo.a"];;
+	dep ["file:kernel/snowflake.native"] ["libkernel.a"; "libm.a"; "libc.a"; "libgcc.a"; "libbigarray.a"; "libthreads.a"; "libbitstring.a"; "libx86emu.a"; "libmlcairo.a"; "libmlfreetype.a"];;
 
 (*** ocamlopt.opt ***)
 		
