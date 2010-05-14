@@ -90,7 +90,10 @@ custom/lib/libfreetype.a: $(FREETYPE)
 	cp -f modules.cfg $(FREETYPE)/
 	cp -f ftsystem.c $(FREETYPE)/builds/unix/
 	cp -f ftoption.h $(FREETYPE)/objs/
-	make -C $(FREETYPE) all install
+	cp -f $(FREETYPE)/builds/ansi/ansi.mk $(FREETYPE)/config.mk
+	sed -i -e 's/:= cc/:= gcc -m32/' $(FREETYPE)/builds/compiler/ansi-cc.mk
+	make -C $(FREETYPE) all
+	cp -f $(FREETYPE)/objs/libfreetype.a custom/lib/
 
 $(FREETYPE):
 	tar jxf $(FREETYPE).tar.bz2

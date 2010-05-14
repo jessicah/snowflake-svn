@@ -1,5 +1,61 @@
 
+open Bigarray
+
 external set_vbe_mode : int -> int32 = "snowflake_vbe_switch"
+
+module Test = struct
+
+	open Freetype
+	
+	type pen = {
+		mutable x : int;
+		mutable y : int;
+	}
+	
+	let pen = { x = 32; y = 0 }
+
+	let draw_glyph fb face glyph =
+		
+		if pen.x + glyph.advance_x / 64 > 1024 then begin
+			pen.x <- 0;
+			pen.y <- pen.y + 32; (* don't have face->size->metrics.height atm *)
+		end;
+		
+		let baseline = pen.y + 32 in (* same as above *)
+		
+		Debug.printf
+			"rows: %d  width: %d  pitch: %d  mode: %s  bitleft: %d  bittop: %d  base: %d\n"
+			glyph.bitmap.rows glyph.bitmap.width glyph.bitmap.pitch
+			(match glyph.bitmap.pixel_mode with
+				| PM_Mono -> "mono"
+				| PM_Gray -> "gray"
+				| _ -> "other")
+			glyph.bitmap_left glyph.bitmap_top baseline;
+		
+		if glyph.bitmap.pixel_mode = PM_Mono then
+			for row = 0 to glyph.bitmap.rows - 1 do
+				for x = 0 to glyph.bitmap.width - 1 do
+					if glyph.bitmap.buffer.{row, (x+1)/8} land (1 lsr (8-((x+1) mod 8))) <> 0 then
+						fb.{baseline - glyph.bitmap_top + row, pen.x + glyph.bitmap_left + x} <- 0x00ff00l;
+				done
+			done
+		else
+			for row = 0 to glyph.bitmap.rows - 1 do
+				for x = 0 to glyph.bitmap.width - 1 do
+					if glyph.bitmap.buffer.{row, x} <> 0 then
+						fb.{baseline - glyph.bitmap_top + row, pen.x + glyph.bitmap_left + x} <-
+							Int32.of_int (glyph.bitmap.buffer.{row, x} * 0x010101);
+				done
+			done;
+		
+		pen.x <- pen.x + glyph.advance_x / 64
+	
+	let draw_text fb face text =
+		String.iter begin fun ch ->
+			draw_glyph fb face (Internal.load_char face ch)
+		end text
+
+end
 
 let () =
 	(* seed the random number generator *)
@@ -49,11 +105,27 @@ let () =
 	
 	let face, family, style = Freetype.face Gothic.data in
 	
+	Freetype.Internal.set_pixel_size face 20;
+	
 	Debug.printf "Loaded font: %s (%s)\n" family style;
 	
-	while true do
+	let fb = GraphicsConsole.t.GraphicsConsole.frame_buffer in
+	
+	(*let plot bmp x y =
+		for i = 0 to Array2.dim1 bmp.buffer - 1 do
+			for j = 0 to Array2.dim2 bmp.buffer - 1 do
+				fb.{x+i,y+j} <- Int32.of_int(bmp.buffer.{i,j} land 0x00FF00);
+			done
+		done
+	in
+	
+	drawstring plot (100,100) face "hello snowflake-os (with freetype!)";*)
+	
+	Test.draw_text fb face "hello snowflake-os (with freetype!)";
+	
+	(*while true do
 		GraphicsConsole.put (Keyboard.get_char ());
-	done;
+	done;*)
 	
 	(*Fdclock.FDHand.draw_now cr 200. 200. true;*)
 	

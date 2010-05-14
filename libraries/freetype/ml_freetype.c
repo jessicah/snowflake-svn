@@ -11,13 +11,15 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
-FT_Library library;
+FT_Library *library;
 
 value ml_freetype_init()
 {
 	CAMLparam0();
 	
-	if (FT_Init_FreeType(&library)) {
+	library = caml_stat_alloc(sizeof(FT_Library));
+	
+	if (FT_Init_FreeType(library)) {
 		caml_failwith("FT_Init_FreeType");
 	}
 	
@@ -28,9 +30,9 @@ value ml_freetype_done()
 {
 	CAMLparam0();
 	
-	if (FT_Done_FreeType(library)) {
+	/*if (FT_Done_FreeType(library)) {
 		caml_failwith("FT_Done_FreeType");
-	}
+	}*/
 	
 	CAMLreturn(Val_unit);
 }
@@ -41,29 +43,29 @@ value ml_freetype_newface(value buffer)
 	CAMLparam1(buffer);
 	CAMLlocal1(res);
 	
-	FT_Face face;
+	FT_Face *face;
 	
 	int error;
 	
 	res = caml_alloc_tuple(3);
 	
-	/*if ( (face = caml_stat_alloc(sizeof(FT_Face))) == NULL) {
+	if ( (face = caml_stat_alloc(sizeof(FT_Face))) == NULL) {
 		caml_failwith("ml_freetype_newface: out of memory");
-	}*/
+	}
 	
 	if (error = FT_New_Memory_Face(
-				library,
+				*(FT_Library*)library,
 				String_val(buffer),
 				caml_string_length(buffer),
-				0, &face))
+				0, face))
 	{
 		dprintf("freetype error: 0x%02x\n", error);
 		caml_failwith("FT_New_Memory_Face");
 	}
 	
 	Store_field(res, 0, (value)face);
-	Store_field(res, 1, caml_copy_string(face->family_name));
-	Store_field(res, 2, caml_copy_string(face->style_name));
+	Store_field(res, 1, caml_copy_string((*face)->family_name));
+	Store_field(res, 2, caml_copy_string((*face)->style_name));
 	
 	CAMLreturn(res);
 }
@@ -89,11 +91,15 @@ value ml_freetype_loadchar(value facev, value chr)
 	slot = caml_alloc_tuple(5);
 	bitmap = caml_alloc_tuple(6);
 	
-	face = *(FT_Face *) facev;
+	face = *(FT_Face*) facev;
+	
+	dprintf("ml_freetype_loadchar: getting bitmap stuff\n");
 	
 	if (FT_Load_Char( face, Int_val(chr), FT_LOAD_RENDER)) {
 		caml_failwith("FT_Load_Char");
 	}
+	
+	dprintf("ml_freetype_loadchar: got; creating ocaml values\n");
 	
 	intnat dims[] = { face->glyph->bitmap.rows, abs(face->glyph->bitmap.pitch) };
 	
@@ -112,6 +118,7 @@ value ml_freetype_loadchar(value facev, value chr)
 	Store_field(slot, 2, bitmap);
 	Store_field(slot, 3, Val_int(face->glyph->bitmap_left));
 	Store_field(slot, 4, Val_int(face->glyph->bitmap_top));
-		
+	
+	dprintf("ml_freetype_loadchar: created ocaml values\n");
 	CAMLreturn(slot);
 }
