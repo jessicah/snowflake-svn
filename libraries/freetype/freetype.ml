@@ -66,6 +66,13 @@ and bitmap = {
 and pixel_mode = PM_None | PM_Mono | PM_Gray | PM_Gray2 | PM_Gray4 | PM_LCD | PM_LCD_V
 	(* likely only use Mono and Gray *)
 
+type metrics = {
+	ascender : int;
+	descender : int;
+	height : int;
+	max_advance : int;
+}
+
 module Internal = struct
 	external init : unit -> unit = "ml_freetype_init"
 	external uninit : unit -> unit = "ml_freetype_done"
@@ -78,8 +85,14 @@ module Internal = struct
 	external set_pixel_size : face -> int -> unit
 		= "ml_freetype_pixelsize"
 	
+	external set_char_size : face -> int -> int -> unit
+		= "ml_freetype_charsize"
+	
 	external load_char : face -> char -> glyph_slot
 		= "ml_freetype_loadchar"
+	
+	external get_metrics : face -> metrics
+		= "ml_freetype_getmetrics"
 
 end
 

@@ -81,6 +81,17 @@ value ml_freetype_pixelsize(value face, value pixels)
 	CAMLreturn(Val_unit);
 }
 
+value ml_freetype_charsize(value face, value size, value res)
+{
+	CAMLparam3(face, size, res);
+	
+	if (FT_Set_Char_Size( *(FT_Face *)face, Int_val(size), 0, Int_val(res), 0)) {
+		caml_failwith("FT_Set_Char_Size");
+	}
+	
+	CAMLreturn(Val_unit);
+}
+
 value ml_freetype_loadchar(value facev, value chr)
 {
 	CAMLparam2(facev,chr);
@@ -92,15 +103,11 @@ value ml_freetype_loadchar(value facev, value chr)
 	bitmap = caml_alloc_tuple(6);
 	
 	face = *(FT_Face*) facev;
-	
-	dprintf("ml_freetype_loadchar: getting bitmap stuff\n");
-	
+		
 	if (FT_Load_Char( face, Int_val(chr), FT_LOAD_RENDER)) {
 		caml_failwith("FT_Load_Char");
 	}
-	
-	dprintf("ml_freetype_loadchar: got; creating ocaml values\n");
-	
+		
 	intnat dims[] = { face->glyph->bitmap.rows, abs(face->glyph->bitmap.pitch) };
 	
 	data = caml_ba_alloc(CAML_BA_UINT8 | CAML_BA_C_LAYOUT, 2,
@@ -119,6 +126,24 @@ value ml_freetype_loadchar(value facev, value chr)
 	Store_field(slot, 3, Val_int(face->glyph->bitmap_left));
 	Store_field(slot, 4, Val_int(face->glyph->bitmap_top));
 	
-	dprintf("ml_freetype_loadchar: created ocaml values\n");
 	CAMLreturn(slot);
+}
+
+value ml_freetype_getmetrics(value facev)
+{
+	CAMLparam1(facev);
+	CAMLlocal1(res);
+	
+	FT_Face face;
+	
+	res = caml_alloc_tuple(4);
+	
+	face = *(FT_Face *) facev;
+	
+	Store_field(res, 0, Int_val(face->size->metrics.ascender));
+	Store_field(res, 1, Int_val(face->size->metrics.descender));
+	Store_field(res, 2, Int_val(face->size->metrics.height));
+	Store_field(res, 3, Int_val(face->size->metrics.max_advance));
+	
+	CAMLreturn(res);
 }

@@ -12,25 +12,29 @@ module Test = struct
 		mutable y : int;
 	}
 	
-	let pen = { x = 32; y = 0 }
+	let pen = { x = 0; y = 0 }
+	
+	let colour = ref 0xedca00
 
 	let draw_glyph fb face glyph =
+	
+		let metrics = Internal.get_metrics face in
 		
 		if pen.x + glyph.advance_x / 64 > 1024 then begin
 			pen.x <- 0;
-			pen.y <- pen.y + 32; (* don't have face->size->metrics.height atm *)
+			pen.y <- pen.y + (metrics.height lsr 4);
 		end;
 		
-		let baseline = pen.y + 32 in (* same as above *)
+		let baseline = pen.y + (metrics.ascender lsr 4) in
 		
-		Debug.printf
+		(*Debug.printf
 			"rows: %d  width: %d  pitch: %d  mode: %s  bitleft: %d  bittop: %d  base: %d\n"
 			glyph.bitmap.rows glyph.bitmap.width glyph.bitmap.pitch
 			(match glyph.bitmap.pixel_mode with
 				| PM_Mono -> "mono"
 				| PM_Gray -> "gray"
 				| _ -> "other")
-			glyph.bitmap_left glyph.bitmap_top baseline;
+			glyph.bitmap_left glyph.bitmap_top baseline;*)
 		
 		if glyph.bitmap.pixel_mode = PM_Mono then
 			for row = 0 to glyph.bitmap.rows - 1 do
@@ -42,9 +46,14 @@ module Test = struct
 		else
 			for row = 0 to glyph.bitmap.rows - 1 do
 				for x = 0 to glyph.bitmap.width - 1 do
-					if glyph.bitmap.buffer.{row, x} <> 0 then
+					if glyph.bitmap.buffer.{row, x} <> 0 then begin
+						let alpha = glyph.bitmap.buffer.{row,x} in
+						let alpha = (alpha lsl 16) lor (alpha lsl 8) lor alpha in
+						let colour = Int32.of_int (!colour land alpha) in
 						fb.{baseline - glyph.bitmap_top + row, pen.x + glyph.bitmap_left + x} <-
-							Int32.of_int (glyph.bitmap.buffer.{row, x} * 0x010101);
+							(*(Int32.of_int (0xffffff - (glyph.bitmap.buffer.{row, x} * 0x010101)));*)
+							colour;
+					end
 				done
 			done;
 		
@@ -103,14 +112,14 @@ let () =
 	*)
 	GraphicsConsole.init ();
 	
-	let face, family, style = Freetype.face Gothic.data in
+	let face, family, style = Freetype.face Courier.data in
 	
-	Freetype.Internal.set_pixel_size face 20;
+	Freetype.Internal.set_char_size face (12*64) 96;
 	
 	Debug.printf "Loaded font: %s (%s)\n" family style;
 	
 	let fb = GraphicsConsole.t.GraphicsConsole.frame_buffer in
-	
+		
 	(*let plot bmp x y =
 		for i = 0 to Array2.dim1 bmp.buffer - 1 do
 			for j = 0 to Array2.dim2 bmp.buffer - 1 do
@@ -121,7 +130,11 @@ let () =
 	
 	drawstring plot (100,100) face "hello snowflake-os (with freetype!)";*)
 	
-	Test.draw_text fb face "hello snowflake-os (with freetype!)";
+	Test.draw_text fb face "hello snowflake-os (with freetype!) using courier new :-)";
+	
+	while true do
+		Test.draw_text fb face (String.make 1 (Keyboard.get_char ()));
+	done;
 	
 	(*while true do
 		GraphicsConsole.put (Keyboard.get_char ());
