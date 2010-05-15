@@ -10,7 +10,7 @@ PWD = $(shell pwd)
 OCAMLCMDS = "ocamlc=$(PWD)/custom/bin/ocamlc.opt ocamlopt=$(PWD)/custom/bin/ocamlopt.opt camlp4o=$(PWD)/custom/bin/camlp4o"
 SAFETOOLSPREFIX = $(shell echo $(TOOLSPREFIX) | sed -e 's/\//\\\//g')
 
-all: ocamlopt.opt pixman cairo
+all: ocamlopt.opt pixman cairo freetype
 
 ocamlopt.opt: $(OCAMLFILE)
 	cp -f configure.ocaml $(OCAML)/configure
@@ -94,6 +94,7 @@ custom/lib/libfreetype.a: $(FREETYPE)
 	sed -i -e 's/:= cc/:= gcc -m32/' $(FREETYPE)/builds/compiler/ansi-cc.mk
 	make -C $(FREETYPE) all
 	cp -f $(FREETYPE)/objs/libfreetype.a custom/lib/
+	cp -rf $(FREETYPE)/include custom/
 
 $(FREETYPE):
 	tar jxf $(FREETYPE).tar.bz2

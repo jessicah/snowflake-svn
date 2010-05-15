@@ -381,7 +381,7 @@ let caml_headers = [
 		context = [];
 		c_options = [
 			"-DCAML_NAME_SPACE"; "-DSYS_linux_elf"; "-DTARGET_i386"; "-DNATIVE_CODE";
-			"-DFT_USE_AUTOCONF_SIZEOF_TYPES"; "-nostdinc"; "-fno-builtin"; "-nostdlib"; "-nostartfiles"; "-nodefaultlibs"
+			"-nostdinc"; "-fno-builtin"; "-nostdlib"; "-nostartfiles"; "-nodefaultlibs"
 			];
 		s_options = [];
 		includes = ["~"; "libraries/include"; "libraries/include/caml"];

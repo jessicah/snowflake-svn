@@ -130,15 +130,15 @@ let () =
 	
 	drawstring plot (100,100) face "hello snowflake-os (with freetype!)";*)
 	
-	Test.draw_text fb face "hello snowflake-os (with freetype!) using courier new :-)";
+	(*Test.draw_text fb face "hello snowflake-os (with freetype!) using courier new :-)";
 	
 	while true do
 		Test.draw_text fb face (String.make 1 (Keyboard.get_char ()));
-	done;
-	
-	(*while true do
-		GraphicsConsole.put (Keyboard.get_char ());
 	done;*)
+	
+	while true do
+		GraphicsConsole.put (Keyboard.get_char ());
+	done;
 	
 	(*Fdclock.FDHand.draw_now cr 200. 200. true;*)
 	
