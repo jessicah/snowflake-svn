@@ -88,7 +88,7 @@ custom/lib/libfreetype.a: $(FREETYPE)
 		--without-ats \
 		--without-pic
 	cp -f modules.cfg $(FREETYPE)/
-	cp -f ftsystem.c $(FREETYPE)/builds/unix/
+	cp -f ftsystem.c $(FREETYPE)/src/base/
 	cp -f ftoption.h $(FREETYPE)/objs/
 	cp -f $(FREETYPE)/builds/ansi/ansi.mk $(FREETYPE)/config.mk
 	sed -i -e 's/:= cc/:= gcc -m32/' $(FREETYPE)/builds/compiler/ansi-cc.mk
