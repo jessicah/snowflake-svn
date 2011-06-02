@@ -285,7 +285,7 @@ let pass = ref ""
 let test () =
 	if !nick = "snowflake-os" && !pass = "" then
 		Vt100.printf "irc: specify password for snowflake-os or use a different nick\n"
-	else run freenode 8000 !nick !pass "#AWOS"
+	else run freenode 8000 !nick !pass "#snowflake"
 
 open Shell
 open Arg
