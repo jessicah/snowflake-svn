@@ -25,10 +25,11 @@ let t = {
 	colour = 255, 255, 255;
 }
 
-let init () =
-	t.frame_buffer <- Asm.matrix32 (set_mode 0x144) 768 1024
+let rec init () =
+	t.frame_buffer <- Asm.matrix32 (set_mode 0x144) 768 1024;
+	Ovt100.current_console := gfx_console
 
-let gfx_console =
+and gfx_console =
 	object (self)
 		inherit Ovt100.console as super
 		val mutable width = 1024 / t.font.BDF.global_bbox.BDF.width * 2

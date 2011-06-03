@@ -136,11 +136,11 @@ let () =
 	while true do
 		Test.draw_text fb face (String.make 1 (Keyboard.get_char ()));
 	done;*)
-	UTF8.iter GraphicsConsole.uput "雪片へようこそ (Welcome to Snowflake)\000";
+	(*UTF8.iter GraphicsConsole.uput "雪片へようこそ (Welcome to Snowflake)\000";*)
 		
-	while true do
+	(*while true do
 		GraphicsConsole.put (Keyboard.get_char ());
-	done;
+	done;*)
 	
 	(*Fdclock.FDHand.draw_now cr 200. 200. true;*)
 	

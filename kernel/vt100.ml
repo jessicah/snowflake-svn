@@ -1,4 +1,4 @@
-
+(*
 open Bigarray
 open IO
 
@@ -255,3 +255,8 @@ let console_out = from_out_chars (object
 let () = printf console_out "\027[2J" (* clear the console *)
 
 let printf fmt = printf console_out fmt
+*)
+
+(* use the new object-based vt100 code *)
+
+let printf = Ovt100.printf

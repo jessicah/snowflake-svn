@@ -126,7 +126,7 @@ let input = IO.from_in_chars(object (self)
 	end)
 
 let shell () =
-	Vt100.printf "Welcome to the Snowflake shell\n\n";
+	Vt100.printf "雪片へようこそ (Welcome to Snowflake)\n\n";
 	while true do
 		Vt100.printf "> ";
 		let line = read_line () in

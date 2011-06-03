@@ -31,6 +31,19 @@ class virtual console = object
 	method set_saved p = saved <- p
 end
 
+let dummy_console =
+	object
+		inherit console
+		val mutable width = 1
+		val mutable height = 1
+		method attrib _ = ()
+		method erase _ = ()
+		method draw _ = 0
+		method update_cursor = ()
+	end
+
+let current_console = ref dummy_console
+
 (*type console = {
 		term : (char, int8_unsigned_elt, c_layout) Array2.t;
 		rows : int;
@@ -332,3 +345,20 @@ let () = printf console_out "\027[2J" (* clear the console *)
 
 let printf fmt = printf console_out fmt
 *)
+
+let console_out = IO.from_out_chars (object
+		method put ch = process !current_console (UChar.uchar_of_int (Char.code ch))
+		method flush () = ()
+		method close_out () = ()
+	end)
+
+let console_out = IO.from_out_channel (object
+		method output buf ofs len =
+			(* need to treat as possible utf-8 *)
+			UTF8.iter (process !current_console) (String.sub buf ofs len);
+			len
+		method flush () = ()
+		method close_out () = ()
+	end)
+
+let printf fmt = IO.printf console_out fmt
