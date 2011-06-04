@@ -1,13 +1,54 @@
 
-class virtual console = object
+type colour = Black | Red | Green | Yellow | Blue | Magenta | Cyan | White
+
+(*
+	foreground 30-37; background 40-47
+	bright send ESC[1;<n>m
+					black		red		green		yellow	blue	magenta		cyan	white
+	colour   30      31     32      33     34     35       36     37
+*)
+(*let set_attrib console attr =
+	let ansi_to_vga = [| 0; 4; 2; 6; 1; 5; 3; 7 |] in
+	console.attrib <- match attr with
+		| 0 -> 7
+		| 1 -> console.attrib lor 0x08
+		| 7 -> (console.attrib land 0x88) lor ((console.attrib land 0x07) lsl 4) lor ((console.attrib land 0x70) asr 4)
+		| n when n >= 30 && n <= 37 ->
+				(console.attrib land (lnot 0x07)) lor ansi_to_vga.(n - 30)
+		| n when n >= 40 && n <= 47 ->
+				(console.attrib land (lnot 0x70)) lor (ansi_to_vga.(n - 40) lsl 4)
+		| n -> console.attrib*)
+	
+let set_attrib console attr =
+	let ansi_to_colour = [| Black; Red; Green; Yellow; Blue; Magenta; Cyan; White |] in
+	match attr with
+	| 0 -> Some White, Some Black
+	| 1 -> None, None (* a "bolder" colour *)
+	| 7 -> Some console#get_background, Some console#get_colour
+	| n when n >= 30 && n <= 37 ->
+		Some ansi_to_colour.(n-30), None
+	| n when n >= 40 && n <= 47 ->
+		None, Some ansi_to_colour.(n-40)
+	| _ -> None, None
+	
+class virtual console = object(self)
 	val mutable pen = 0, 0
 	val mutable saved = 0, 0
+	val mutable colour = White
+	val mutable background = Black
 	val mutable virtual width : int
 	val mutable virtual height : int
-	method virtual attrib : int -> unit
+	method virtual set_colour : colour -> unit
+	method virtual set_background : colour -> unit
 	method virtual erase : int -> unit
 	method virtual draw : UChar.uchar -> int
 	method virtual update_cursor : unit
+	method get_colour = colour
+	method get_background = background
+	method attrib attr =
+		let fg,bg = set_attrib self attr in
+		(match fg with None -> () | Some c -> self#set_colour c; colour <- c);
+		(match bg with None -> () | Some c -> self#set_background c; background <- c);
 	method get_width = width
 	method get_height = height
 	method set_x x =
@@ -36,7 +77,8 @@ let dummy_console =
 		inherit console
 		val mutable width = 1
 		val mutable height = 1
-		method attrib _ = ()
+		method set_colour _ = ()
+		method set_background _ = ()
 		method erase _ = ()
 		method draw _ = 0
 		method update_cursor = ()
@@ -75,23 +117,7 @@ let erase console count =
 		term.{i * 2 + offset + 1} <- char_of_int console.attrib;
 	done*)
 
-(*
-	foreground 30-37; background 40-47
-	bright send ESC[1;<n>m
-					black		red		green		yellow	blue	magenta		cyan	white
-	colour   30      31     32      33     34     35       36     37
-*)
-(*let set_attrib console attr =
-	let ansi_to_vga = [| 0; 4; 2; 6; 1; 5; 3; 7 |] in
-	console.attrib <- match attr with
-		| 0 -> 7
-		| 1 -> console.attrib lor 0x08
-		| 7 -> (console.attrib land 0x88) lor ((console.attrib land 0x07) lsl 4) lor ((console.attrib land 0x70) asr 4)
-		| n when n >= 30 && n <= 37 ->
-				(console.attrib land (lnot 0x07)) lor ansi_to_vga.(n - 30)
-		| n when n >= 40 && n <= 47 ->
-				(console.attrib land (lnot 0x70)) lor (ansi_to_vga.(n - 40) lsl 4)
-		| n -> console.attrib*)
+
 
 (* ANSI VT100 terminal emulation is a state machine *)
 
@@ -166,7 +192,7 @@ and vt_cmd console = function
 			Reset
 	| 'K' -> (* ESC[K *)
 			(***erase console (console.cols - console.curr_x);***)
-			console#erase (console#get_height - console#get_x);
+			console#erase (console#get_width - console#get_x);
 			Reset
 	| _ -> Char
 and vt_cmd_num num console = function

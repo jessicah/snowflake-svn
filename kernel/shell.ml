@@ -134,6 +134,7 @@ let shell () =
 		let current = ref 0 in
 		match parts with
 		| [] -> ()
+		| "" :: [] -> ()
 		| x :: rest ->
 			begin try
 				let f, spec_list, anon = Hashtbl.find commands x in

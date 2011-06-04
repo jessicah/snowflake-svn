@@ -65,7 +65,7 @@ $(OCAMLFILE):
 	touch $(OCAMLFILE)
 
 bitstring: $(BITSTRINGFILE) ocamlopt.opt
-	cd $(BITSTRING) && cp -f ../Makefile.in.bitstring Makefile.in && cp -f ../configure.bitstring configure && PATH=../custom/bin:$$PATH$$ ./configure
+	cd $(BITSTRING) && cp -f ../Makefile.in.bitstring Makefile.in && cp -f ../configure.bitstring configure && PATH=../custom/bin:$$PATH$$ ./configure CC="gcc -m32"
 	$(MAKE) -C $(BITSTRING) all install
 	touch bitstring
 
