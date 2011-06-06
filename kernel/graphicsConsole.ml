@@ -48,13 +48,9 @@ and gfx_console =
 		val mutable width = 1024 / t.font.BDF.global_bbox.BDF.width * 2
 		val mutable height = 768 / t.font.BDF.global_bbox.BDF.height
 		method set_colour c =
-			t.colour <- to_colour c;
-			let r,g,b = t.colour in
-			Debug.printf "Foreground set to rgb(%d,%d,%d)\n" r g b
+			t.colour <- to_colour c
 		method set_background c =
-			t.background <- to_colour c;
-			let r,g,b = t.background in
-			Debug.printf "Background set to rgb(%d,%d,%d)\n" r g b
+			t.background <- to_colour c
 		method erase length =
 			(* initial implementation -- really slow & inefficient and awful hack :P *)
 			let x = ref super#get_x in
@@ -67,12 +63,12 @@ and gfx_console =
 					else
 						!x, super#get_y
 				in
-				draw_uchar
+				ignore (draw_uchar
 					t.frame_buffer
 					0x20
 					t.font
 					(x * t.font.BDF.global_bbox.BDF.width / 2, y * t.font.BDF.global_bbox.BDF.height + t.font.BDF.ascent)
-					t.colour t.background
+					t.colour t.background)
 			done
 		method draw uchar =
 			let p = draw_uchar
@@ -92,16 +88,7 @@ and gfx_console =
 			end;
 			if super#get_y >= height then begin
 				super#move_y (-1);
-				(* scroll... FIXME *)
-				(* the text based graphics code:
-				Array2.blit
-					(Array2.sub_left console.term 1 24)
-					(Array2.sub_left console.term 0 24);
-				let last_row = Array2.slice_left console.term 24 in
-				for i = 0 to Array1.dim last_row / 2 - 1 do
-					last_row.{i * 2} <- ' ';
-					last_row.{i * 2 + 1} <- char_of_int console.attrib;
-				done*)
+				(* scrolling *)
 				Array2.blit
 					(Array2.sub_left t.frame_buffer t.font.BDF.global_bbox.BDF.height (t.height - t.font.BDF.global_bbox.BDF.height))
 					(Array2.sub_left t.frame_buffer 0 (t.height - t.font.BDF.global_bbox.BDF.height));
@@ -110,51 +97,6 @@ and gfx_console =
 					0x000000l;
 			end
 	end
-
-(*let gfx_console =
-	object (self)
-		inherit Console.console as super
-		method draw uchar =
-			if (UChar.int_of_uchar uchar) = Char.code '\n'
-				then t.position <- 50,24 + snd t.position
-			else
-				t.position <- draw_uchar
-					t.frame_buffer
-					(UChar.int_of_uchar uchar)
-					t.font
-					t.position
-					t.colour;
-			match t.position with
-				| x,y when x >= t.width - 50 ->
-						t.position <- 50, y + 24
-				| _ -> ()
-	end*)
-
-(*let put ch =
-	if ch = '\n' then t.position <- 50, 24 + snd t.position else
-	t.position <- draw_char
-		t.frame_buffer
-		ch
-		t.font
-		t.position
-		t.colour;
-	match t.position with
-		| x, y when x >= t.width - 50 ->
-				t.position <- 50, y + 24
-		| _ -> ()
-
-let uput uchar =
-	if (UChar.int_of_uchar uchar) = Char.code '\n' then t.position <- 50, 24 + snd t.position else
-	t.position <- draw_uchar
-		t.frame_buffer
-		(UChar.int_of_uchar uchar)
-		t.font
-		t.position
-		t.colour;
-	match t.position with
-		| x, y when x >= t.width - 50 ->
-				t.position <- 50, y + 24
-		| _ -> ()*)
 
 let put ch = Ovt100.process gfx_console (UChar.uchar_of_int (Char.code ch))
 let uput uchar = Ovt100.process gfx_console uchar

@@ -9,18 +9,18 @@ module UI = struct
 	
 	(* handles rendering/state of the IRC client interface *)
 	
-	let title = [
-			"                           __ _       _          _          ";
-			" ___ _ __       __      __/ _| | __ _| | _____ _(_)_ __ ___ ";
-			"/ __| '_ \\  _/\\_\\ \\ /\\ / / |_| |/ _` | |/ / _ (_) | '__/ __|";
-			"\\__ \\ | | |\\    /\\ V  V /|  _| | (_| |   <  __/_| | | | (__ ";
-			"|___/_| |_|/_  _\\ \\_/\\_/ |_| |_|\\__,_|_|\\_\\___(_)_|_|  \\___|";
-			"             \\/                                             ";
-		]
+	let title = [|
+		"\027[37;40;1m                                     __ _       _          _          ";
+		"\027[37;40;1m           ___ _ __       __      __/ _| | __ _| | _____ _(_)_ __ ___ ";
+		"\027[37;40;1m          / __| '_ \\  _/\\_\\ \\ /\\ / / |_| |/ _` | |/ / _ (_) | '__/ __|";
+		"\027[37;40;1m          \\__ \\ | | |\\    /\\ V  V /|  _| | (_| |   <  __/_| | | | (__ ";
+		"\027[37;40;1m          |___/_| |_|/_  _\\ \\_/\\_/ |_| |_|\\__,_|_|\\_\\___(_)_|_|  \\___|";
+		"\027[37;40;1m                       \\/                                             ";
+	|]
 	
 	type channel = {
 		name : string;
-		mutable lines : string list;
+		mutable lines : string array;
 		mutable users : string list;
 		mutable highlighted : bool;
 		mutable activity : bool;
@@ -31,32 +31,35 @@ module UI = struct
 		mutable active : channel;
 	}
 	
-	let status_channel = {
+	let dummy_channel = {
+		name = "dummy channel";
+		lines = [| |];
+		users = [];
+		highlighted = false;
+		activity = false;
+	}
+	
+	let mk_empty_window () = Array.make (snd (Ovt100.dims ()) - 2) ""
+	
+	let mk_status_channel () =
+		let chan = {
 			name = "[status]";
-			lines = [
-				(* 25 rows, 5 for text, 2 for headers, 18 empty *)
-				""; ""; ""; ""; ""; ""; ""; ""; "";
-				"\027[37;40;1m                                     __ _       _          _          ";
-				"\027[37;40;1m           ___ _ __       __      __/ _| | __ _| | _____ _(_)_ __ ___ ";
-				"\027[37;40;1m          / __| '_ \\  _/\\_\\ \\ /\\ / / |_| |/ _` | |/ / _ (_) | '__/ __|";
-				"\027[37;40;1m          \\__ \\ | | |\\    /\\ V  V /|  _| | (_| |   <  __/_| | | | (__ ";
-				"\027[37;40;1m          |___/_| |_|/_  _\\ \\_/\\_/ |_| |_|\\__,_|_|\\_\\___(_)_|_|  \\___|";
-				"\027[37;40;1m                       \\/                                             ";
-				""; ""; ""; ""; ""; ""; ""; "";
-			];
+			lines = mk_empty_window ();
 			users = [];
 			highlighted = false;
 			activity = false;
-		}
+		} in
+		for i = 0 to 5 do
+			chan.lines.(i + (((snd (Ovt100.dims ()) - 6) / 2))) <- title.(i)
+		done;
+		chan
 	
-	let state = { channels = [status_channel]; active = status_channel }
-	
-	let empty_window = [""; ""; ""; ""; ""; ""; ""; ""; ""; ""; ""; ""; ""; ""; ""; ""; ""; ""; ""; ""; ""; ""; ""]
+	let state = { channels = []; active = dummy_channel }
 	
 	let add_channel name =
 		state.channels <- state.channels @ [ {
 					name = name;
-					lines = empty_window;
+					lines = mk_empty_window ();
 					highlighted = false;
 					activity = false;
 					users = [];
@@ -64,7 +67,7 @@ module UI = struct
 			]
 	
 	let channel_name () =
-		if state.active = status_channel then raise Not_found
+		if state.active.name = "[status]" then raise Not_found
 		else state.active.name
 	
 	let highlight name =
@@ -75,10 +78,9 @@ module UI = struct
 	
 	let active_channel () =
 		let chan = state.active in
-		ignore (List.fold_left begin fun row text ->
-				Vt100.printf "\027[s\027[%d;1f\027[0m\027[K%s\027[u" row text;
-				row + 1
-			end 2 chan.lines)
+		Array.iteri (fun row line ->
+			Vt100.printf "\027[s\027[%d;1f\027[0m\027[K%s\027[u" (row+2) line)
+			chan.lines
 	
 	let channel_status chan =
 		if chan = state.active then
@@ -93,28 +95,36 @@ module UI = struct
 	let status () =
 		(* redraws the status line *)
 		let channel_names = List.map channel_status  state.channels in
-		(*let channel_names = [ "\027[7m  [status]  \027[7m"; "\027[42;37;1m  <#AWOS>  \027[30;47;1m"; "  <#XoMB>  " ] in*)
 		let header = String.concat "" channel_names in
 		Vt100.printf "%s\027[H\027[30;47;1m\027[K%s%s"
 			save header restore
 	
 	let prompt () =
-		Vt100.printf "\027[25;1f\027[37;44;1m\027[K> "
+		Vt100.printf "\027[%d;1f\027[37;44;1m\027[K> " (snd (Ovt100.dims ()))
 	
 	let redraw () =
 		status ();
 		active_channel ();
 		prompt ()
 	
-	let add_line ?(highlighted = false) ?(input = false) name line =
-		let chan = List.find begin fun ch -> ch.name = name end state.channels in
+	let add_line ?(autocreate = false) ?(highlighted = false) ?(input = false) name line =
+		let chan =
+			try
+				List.find begin fun ch -> ch.name = name end state.channels
+			with Not_found ->
+				if autocreate then begin
+					add_channel name;
+					ExtList.List.last state.channels
+				end else raise Not_found
+		in
+		(* scroll a line first *)
+		let len = Array.length chan.lines in
+		Array.blit chan.lines 1 chan.lines 0 (len - 1);
 		if highlighted then begin
-			chan.lines <- List.tl chan.lines @ [
-					Printf.sprintf "\027[33;1m%s\027[0m" line
-				];
+			chan.lines.(len - 1) <- Printf.sprintf "\027[33;1m%s\027[m" line;
 			chan.highlighted <- true && chan <> state.active;
 		end else
-			chan.lines <- List.tl chan.lines @ [line];
+			chan.lines.(len - 1) <- line;
 		(* we have activity on this channel *)
 		if chan <> state.active && chan.highlighted = false then
 			chan.activity <- true;
@@ -142,6 +152,11 @@ module UI = struct
 		state.active.activity <- false;
 		state.active.highlighted <- false;
 		redraw ()
+	
+	let init () =
+		let status = mk_status_channel () in
+		state.channels <- [status];
+		state.active <- status
 end
 
 (* freenode: 216.165.191.52, or a list of many, many others... :P *)
@@ -155,7 +170,7 @@ let clean_nick user =
 let status = "[status]"
 
 let run server port nick pass channel' =
-	(*UI.init ();*)
+	UI.init ();
 	UI.redraw ();
 	UI.add_line status "Connecting to Freenode...";
 	let socket = TCP.open_readline server port in
@@ -188,34 +203,44 @@ let run server port nick pass channel' =
 			let line = Shell.read_input () in
 			(* Let's make Snowflake a better IRC client! *)
 			begin try
-			if String.length line >= 4 then begin
-			match String.sub line 0 3 with
-				  "/me" ->	(* CTCP action *)
-					writef "PRIVMSG %s :\001ACTION %s \001" (channel ()) (String.slice ~first:4 line);
-					UI.add_line ~input:true (channel ()) (Printf.sprintf " * %s %s" nick (String.slice ~first:4 line))
-				| "/n " ->	(* Change nickname *)
-					writef "NICK %s" (String.slice ~first:3 line)
-				| "/j " -> 	(* Join channel *)
-					UI.add_channel (String.slice ~first:3 line);
-					writef "JOIN %s" (String.slice ~first:3 line)
-				| "/p " ->	(* Part channel *)
-					writef "PART %s" (String.slice ~first:3 line)
-				| "/m " ->	(* Channel mode *)
-					writef "MODE %s" (String.slice ~first:3 line)
-				| "/um" ->	(* User mode *)
+				let parts = String.nsplit line " " in
+				if parts <> [] then begin
+				let cmd, rest =
+					try String.split line " " with _ -> line, ""
+				in match String.nsplit line " " with
+				| "/me" :: _ ->	(* CTCP action *)
+					writef "PRIVMSG %s :\001ACTION %s \001" (channel ()) rest;
+					UI.add_line ~input:true (channel ()) (Printf.sprintf " * %s %s" nick rest)
+				| "/nick" :: new_nick :: _ ->	(* Change nickname *)
+					writef "NICK %s" new_nick;
+					(* need to propagate the change... *)
+				| "/join" :: channels -> 	(* Join channel(s) *)
+					List.iter (fun channel ->
+						UI.add_channel channel;
+						writef "JOIN %s" channel) channels;
+					UI.redraw ()
+				| "/part" :: channels ->	(* Part channel(s) *)
+					List.iter (fun channel ->
+						writef "PART %s" channel) channels;
+				| "/mode" :: _ ->	(* Channel mode *)
+					writef "MODE %s" rest;
+				(*| "/um" ->	(* User mode *)
 					(* need the current nickname which might have changed
 						writef ":MODE %s %s" nick (String.slice ~first:4 line)
 					*)
-					Vt100.printf "Not implemented"
-				| "/q " ->	(* Quit IRC *)
-					writef "QUIT :%s" (String.slice ~first:3 line);
+					Vt100.printf "Not implemented"*)
+				| "/quit" :: _ ->	(* Quit IRC *)
+					writef "QUIT :%s" rest;
 					TCP.close socket;
 					issued_quit := true;
 					Vt100.printf "\027[0m\027[J";
 					Thread.yield ();
-				| "/c " ->
+				| "/cycle" :: _ ->
 					UI.cycle_channels ()
-				| "/? " ->	(* Help! *)
+				| "/query" :: user :: [] ->
+					UI.add_channel user;
+					UI.redraw ();
+				| "/?" :: [] ->	(* Help! *)
 					UI.add_line ~input:true status "Help!" (*"/me for CTCP action, /n for nickname, /j for join, /p for part (type /p #chan :REASON if you want a reason), /m for channel modes, /um for user modes, /q for quit, /? for this help"*)
 				| _ ->	(* Anything else is a message. *)
 					writef "PRIVMSG %s :%s" (channel ()) line;
@@ -224,7 +249,7 @@ let run server port nick pass channel' =
 				writef "PRIVMSG %s :%s" (channel ()) line;
 				UI.add_line ~input:true (channel ()) (Printf.sprintf " <%s> %s" nick line)
 			end
-			with Not_found -> ()
+			with Not_found -> UI.redraw ()
 			end;
 		done;
 	end () "irc read loop");
@@ -264,7 +289,10 @@ let run server port nick pass channel' =
 					(* Message *)
 					begin try
 						let highlighted = String.exists msg nick in
-						UI.add_line ~highlighted target (Printf.sprintf " <%s> %s" (sender s) msg);
+						if (clean_nick target) = nick then
+							UI.add_line ~autocreate:true ~highlighted:true (sender s) (Printf.sprintf " <%s> %s" (sender s) msg)
+						else
+							UI.add_line ~highlighted (sender target) (Printf.sprintf " <%s> %s" (sender s) msg);
 					with Not_found ->
 						()
 					end
