@@ -5,6 +5,8 @@ open Bigarray
 open Fonts
 
 external set_mode : int -> int32 = "snowflake_vbe_switch"
+external set_highest : unit -> int32 * int * int = "snowflake_vbe_switch_highest"
+external set_target : int -> int -> int32 = "snowflake_vbe_switch_target"
 
 type t = {
 	mutable position: int * int;
@@ -40,13 +42,18 @@ let to_colour = function
 	| White -> 255, 255, 255
 
 let rec init () =
-	t.frame_buffer <- Asm.matrix32 (set_mode 0x144) 768 1024;
+	(*t.frame_buffer <- Asm.matrix32 (set_mode 0x144) 768 1024;*)
+	(*let frame_buffer, width, height = set_highest () in
+	t.frame_buffer <- Asm.matrix32 frame_buffer height width;
+	t.width <- width;
+	t.height <- height;*)
+	t.frame_buffer <- Asm.matrix32 (set_target t.width t.height) t.height t.width;
 	Ovt100.current_console := gfx_console
 and gfx_console =
 	object (self)
 		inherit Ovt100.console as super
-		val mutable width = 1024 / t.font.BDF.global_bbox.BDF.width * 2
-		val mutable height = 768 / t.font.BDF.global_bbox.BDF.height
+		val mutable width = t.width / t.font.BDF.global_bbox.BDF.width * 2
+		val mutable height = t.height / t.font.BDF.global_bbox.BDF.height
 		method set_colour c =
 			t.colour <- to_colour c
 		method set_background c =

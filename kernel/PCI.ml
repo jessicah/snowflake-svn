@@ -9,9 +9,11 @@ module R = struct
 	let data = 0xCFC
 end
 
+type device_id = int32
+
 type device =
 	{
-		id : int32;
+		id : device_id;
 		vendor : int;
 		device : int;
 		resources : resource array;
@@ -24,6 +26,71 @@ and resource =
 	| Empty
 	| IO of int
 	| Memory of int32
+
+exception Invalid_address_space
+
+module AddressSpace = struct
+
+	module IOAddress = struct
+		let read8 base ofs =
+			Asm.in8 (base + ofs)
+		let read16 base ofs =
+			Asm.in16 (base + ofs)
+		let read32 base ofs =
+			Asm.in32 (base + ofs)
+		let write8 base ofs value =
+			Asm.out8 (base + ofs) value
+		let write16 base ofs value =
+			Asm.out16 (base + ofs) value
+		let write32 base ofs value =
+			Asm.out32 (base + ofs) value
+	end
+	
+	(* This MemAddress module is probably broken :p *)
+	module MemAddress = struct
+		let read8 addr ofs =
+			(Asm.array8 addr ofs).{ofs}
+		let read16 addr ofs =
+			(Asm.array16 addr ofs).{ofs / 2}
+		let read32 addr ofs =
+			(Asm.array32 addr ofs).{ofs / 4}
+		let write8 addr ofs value =
+			(Asm.array8 addr ofs).{ofs} <- value
+		let write16 addr ofs value =
+			(Asm.array16 addr ofs).{ofs / 2} <- value
+		let write32 addr ofs value =
+			(Asm.array32 addr ofs).{ofs / 4} <- value
+	end
+	
+	let read8 = function
+	| Empty -> raise Invalid_address_space
+	| IO base -> IOAddress.read8 base
+	| Memory addr -> MemAddress.read8 addr
+	
+	let read16 = function
+	| Empty -> raise Invalid_address_space
+	| IO base -> IOAddress.read16 base 
+	| Memory addr -> MemAddress.read16 addr 
+	
+	let read32  = function
+	| Empty -> raise Invalid_address_space
+	| IO base -> IOAddress.read32 base 
+	| Memory addr -> MemAddress.read32 addr 
+	
+	let write8   = function
+	| Empty -> raise Invalid_address_space
+	| IO base -> IOAddress.write8 base 
+	| Memory addr -> MemAddress.write8 addr  
+	
+	let write16   = function
+	| Empty -> raise Invalid_address_space
+	| IO base -> IOAddress.write16 base  
+	| Memory addr -> MemAddress.write16 addr 
+	
+	let write32   = function
+	| Empty -> raise Invalid_address_space
+	| IO base -> IOAddress.write32 base  
+	| Memory addr -> MemAddress.write32 addr  end
 
 let aim command offset =
 	let value =

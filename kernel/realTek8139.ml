@@ -120,16 +120,12 @@ exception Restart
 
 let create pcii =
 	(* set up the in/out functions *)
-	let reg_base = match pcii.resources.(0) with
-	| IO x -> x
-	| _ -> failwith "rtl8139: can't get IO port"
-	in
-	let out8  offset value = Asm.out8  (reg_base + offset) value
-	and out16 offset value = Asm.out16 (reg_base + offset) value
-	and out32 offset value = Asm.out32 (reg_base + offset) value
-	and in8  offset = Asm.in8  (reg_base + offset)
-	and in16 offset = Asm.in16 (reg_base + offset)
-	and in32 offset = Asm.in32 (reg_base + offset) in
+	let out8 = AddressSpace.write8 pcii.resources.(0) in
+	let out16 = AddressSpace.write16 pcii.resources.(0) in
+	let out32 = AddressSpace.write32 pcii.resources.(0) in
+	let in8 = AddressSpace.read8 pcii.resources.(0) in
+	let in16 = AddressSpace.read16 pcii.resources.(0) in
+	let in32 = AddressSpace.read32 pcii.resources.(0) in
 	
 	let m = Mutex.create () in
 	let cv = Condition.create () in
@@ -138,7 +134,6 @@ let create pcii =
 		type t =
 		{
 			pcii: device;
-			reg_base: int;
 			
 			receivebuffer: (int, int8_unsigned_elt, c_layout) Array1.t;
 			mutable receivebufferoffset: int;
@@ -207,7 +202,6 @@ let create pcii =
 			out32 (Registers.mar0 + 4) 0x00l;
 			let properties = {
 				pcii = pcii;
-				reg_base = reg_base;
 				
 				receivebuffer = receivebuffer;
 				receivebufferoffset = 0;

@@ -36,10 +36,10 @@ let write_bcr base addr value =
 	Asm.out16 (base + C.bdp) value
 
 let create dev =
-	let base = match dev.resources.(0) with
+	(*let base = match dev.resources.(0) with
 		| IO addr -> addr
 		| _ -> failwith "pcnet: expected port i/o address"
-	in
+	in*)
 	()
 
 let init () =

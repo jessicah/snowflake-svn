@@ -2,6 +2,7 @@
 #include <x86emu.h>
 #include <caml/mlvalues.h>
 #include <caml/alloc.h>
+#include <caml/memory.h>
 #include <asm.h>
 #include <string.h>
 #include <stdio.h>
@@ -61,6 +62,252 @@ static void bios_interrupt(unsigned char num, X86EMU_regs *regs)
 }
 
 static unsigned long frame_buffer = 0;
+static unsigned short frame_width = 0;
+static unsigned short frame_height = 0;
+
+static void vbe_switch_target_mode(int target_width, int target_height)
+{
+	X86EMU_regs regs;
+	unsigned short max_mode = 0;
+	unsigned short max_width = 0;
+	unsigned short max_height = 0;
+	unsigned short cur_width = 0;
+	unsigned short cur_height = 0;
+		
+	char *buffer = (char *)0x3000;
+	memset(&regs, 0, sizeof regs);
+	regs.R_EAX = 0x4F00;
+	buffer[0] = 'V';
+	buffer[1] = 'B';
+	buffer[2] = 'E';
+	buffer[3] = '2';
+	regs.R_EDI = 0x3000;
+	
+	bios_interrupt(0x10, &regs);
+	
+	if (regs.R_EAX != 0x004F) {
+		dprintf("Couldn't find VBE2+\n");
+		return;
+	}
+	
+	/* buffer[0x0E] == pointer to list of modes */
+	unsigned short *mode_list = (unsigned short *)(buffer+0x0E);
+	while(*mode_list != 0xFFFF) {
+		unsigned short mode = *mode_list;
+		++mode_list;
+		if (mode == 0) continue;
+		memset(&regs, 0, sizeof regs);
+		regs.R_EAX = 0x4F01;
+		regs.R_ES = 0;
+		regs.R_EDI = 0x3000;
+		regs.R_ECX = mode;
+		
+		bios_interrupt(0x10, &regs);
+		
+		cur_width = *((unsigned short *)(buffer+0x12));
+		cur_height = *((unsigned short *)(buffer+0x14));
+		
+		/* check if it's a suitable mode */
+		unsigned short attr = *((unsigned short *)(buffer+0x00));
+		unsigned short scan_line = *((unsigned short *)(buffer+0x10));
+		unsigned char bpp = *((unsigned char *)(buffer+0x19));
+		unsigned char mm = *((unsigned char *)(buffer+0x1B));
+		
+		/*dprintf("mode %d: %dx%d, attr: %02x, scan_line: %d bytes, bpp: %d, memory model: %d\n",
+			mode, cur_width, cur_height, attr, scan_line, bpp, mm);*/
+		
+		if (attr & 0x90 == 0) {
+			/* doesn't support linear framebuffer */
+			//dprintf("skipping: doesn't support linear framebuffer\n");
+			continue;
+		}
+		
+		if (bpp != 32 && bpp != 24) {
+			/* want 8-bits per colour */
+			//dprintf("skipping: not 8-bits per pixel\n");
+			continue;
+		}
+		
+		if (mm != 6) {
+			/* want direct colour mode */
+			//dprintf("skipping: not direct colour mode\n");
+			continue;
+		}
+		
+		if ((scan_line / 4) != cur_width) {
+			/* not 32-bit colour mode */
+			//dprintf("skipping: not 32-bits per pixel\n");
+			continue;
+		}
+		
+		if (cur_width == target_width && cur_height == target_height) {
+			max_width = cur_width;
+			max_height = cur_height;
+			max_mode = mode;
+			dprintf("new selection: %d@%dx%d\n", max_mode, max_width, max_height);
+			dprintf("linear framebuffer: %s, bits/pixel: %d, memory model: %d, scanline: %d\n",
+				(attr & 0x90 == 0) ? "false" : "true", bpp, mm, (scan_line / 4));
+			break;
+		}
+	}
+	
+	/* get mode info */
+	dprintf("getting mode info for %d\n", max_mode);
+	memset(&regs, 0, sizeof regs);
+	regs.R_EAX = 0x4f01;
+	regs.R_ES = 0;
+	regs.R_EDI = 0x3000;
+	regs.R_ECX = max_mode;
+	
+	bios_interrupt(0x10, &regs);
+	
+	frame_buffer = *((unsigned long *)(buffer+0x28));
+	unsigned short width = *((unsigned short *)(buffer+0x12));
+	unsigned short height = *((unsigned short *)(buffer+0x14));
+	
+	frame_width = width;
+	frame_height = height;
+	
+	dprintf("Framebuffer at 0x%08x, width: %d, height: %d\n", frame_buffer, frame_width, frame_height);
+	
+	/* set the mode */
+	memset(&regs, 0, sizeof regs);
+	regs.R_EAX = 0x4F02;
+	if(max_mode) {
+		/* Use linear framebuffer model */
+		regs.R_EBX = max_mode | (1<<14);
+	} else {
+		regs.R_EBX = 3;
+	}
+	
+	dprintf("setting mode to %d\n", regs.R_EBX);
+	
+	bios_interrupt(0x10, &regs);
+	
+	dprintf("Switch: %04x\n", regs.R_EAX);
+}
+
+static void vbe_switch_best_mode()
+{
+	X86EMU_regs regs;
+	unsigned short max_mode = 0;
+	unsigned short max_width = 0;
+	unsigned short max_height = 0;
+	unsigned short cur_width = 0;
+	unsigned short cur_height = 0;
+		
+	char *buffer = (char *)0x3000;
+	memset(&regs, 0, sizeof regs);
+	regs.R_EAX = 0x4F00;
+	buffer[0] = 'V';
+	buffer[1] = 'B';
+	buffer[2] = 'E';
+	buffer[3] = '2';
+	regs.R_EDI = 0x3000;
+	
+	bios_interrupt(0x10, &regs);
+	
+	if (regs.R_EAX != 0x004F) {
+		dprintf("Couldn't find VBE2+\n");
+		return;
+	}
+	
+	/* buffer[0x0E] == pointer to list of modes */
+	unsigned short *mode_list = (unsigned short *)(buffer+0x0E);
+	while(*mode_list != 0xFFFF) {
+		unsigned short mode = *mode_list;
+		++mode_list;
+		memset(&regs, 0, sizeof regs);
+		regs.R_EAX = 0x4F01;
+		regs.R_ES = 0;
+		regs.R_EDI = 0x3000;
+		regs.R_ECX = mode;
+		
+		bios_interrupt(0x10, &regs);
+		
+		cur_width = *((unsigned short *)(buffer+0x12));
+		cur_height = *((unsigned short *)(buffer+0x14));
+		
+		/* check if it's a suitable mode */
+		unsigned short attr = *((unsigned short *)(buffer+0x00));
+		unsigned short scan_line = *((unsigned short *)(buffer+0x10));
+		unsigned char bpp = *((unsigned char *)(buffer+0x19));
+		unsigned char mm = *((unsigned char *)(buffer+0x1B));
+		
+		/*dprintf("mode %d: %dx%d, attr: %02x, scan_line: %d bytes, bpp: %d, memory model: %d\n",
+			mode, cur_width, cur_height, attr, scan_line, bpp, mm);*/
+		
+		if (attr & 0x90 == 0) {
+			/* doesn't support linear framebuffer */
+			dprintf("skipping: doesn't support linear framebuffer\n");
+			continue;
+		}
+		
+		#if 0
+		if (bpp != 32 || bpp != 24) {
+			/* want 8-bits per colour */
+			//dprintf("skipping: not 8-bits per pixel\n");
+			continue;
+		}
+		#endif
+		
+		if (mm != 6) {
+			/* want direct colour mode */
+			//dprintf("skipping: not direct colour mode\n");
+			continue;
+		}
+		
+		if ((scan_line / 4) != cur_width) {
+			/* not 32-bit colour mode */
+			//dprintf("skipping: not 32-bits per pixel\n");
+			continue;
+		}
+		
+		if (cur_width > max_width && cur_height > max_height) {
+			max_width = cur_width;
+			max_height = cur_height;
+			max_mode = mode;
+			dprintf("new selection: %d@%dx%d\n", max_mode, max_width, max_height);
+			dprintf("linear framebuffer: %s, bits/pixel: %d, memory model: %d, scanline: %d\n",
+				(attr & 0x90 == 0) ? "false" : "true", bpp, mm, (scan_line / 4));
+		}
+	}
+	
+	/* get mode info */
+	dprintf("getting mode info for %d\n", max_mode);
+	memset(&regs, 0, sizeof regs);
+	regs.R_EAX = 0x4f01;
+	regs.R_ES = 0;
+	regs.R_EDI = 0x3000;
+	regs.R_ECX = max_mode;
+	
+	bios_interrupt(0x10, &regs);
+	
+	frame_buffer = *((unsigned long *)(buffer+0x28));
+	unsigned short width = *((unsigned short *)(buffer+0x12));
+	unsigned short height = *((unsigned short *)(buffer+0x14));
+	
+	frame_width = width;
+	frame_height = height;
+	
+	dprintf("Framebuffer at 0x%08x, width: %d, height: %d\n", frame_buffer, frame_width, frame_height);
+	
+	/* set the mode */
+	memset(&regs, 0, sizeof regs);
+	regs.R_EAX = 0x4F02;
+	if(max_mode) {
+		/* Use linear framebuffer model */
+		regs.R_EBX = max_mode | (1<<14);
+	} else {
+		regs.R_EBX = 3;
+	}
+	
+	dprintf("setting mode to %d\n", regs.R_EBX);
+	
+	bios_interrupt(0x10, &regs);
+	
+	dprintf("Switch: %04x\n", regs.R_EAX);
+}
 
 static void vbe_switch(unsigned short mode)
 {
@@ -141,4 +388,20 @@ CAMLprim value snowflake_vbe_switch(value mode)
 {
 	vbe_switch((unsigned short)(Int_val(mode)));
 	return caml_copy_int32(frame_buffer);
+}
+
+CAMLprim value snowflake_vbe_switch_target(value vwidth, value vheight)
+{
+	vbe_switch_target_mode(Int_val(vwidth), Int_val(vheight));
+	return caml_copy_int32(frame_buffer);
+}
+
+CAMLprim value snowflake_vbe_switch_highest(value unit)
+{
+	vbe_switch_best_mode();
+	value result = caml_alloc_tuple(3);
+	Store_field(result, 0, caml_copy_int32(frame_buffer));
+	Store_field(result, 1, Val_int(frame_width));
+	Store_field(result, 2, Val_int(frame_height));
+	return result;
 }
