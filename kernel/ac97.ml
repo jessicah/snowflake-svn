@@ -10,13 +10,13 @@ type io_space = {
 	write32 : int -> int32 -> unit;
 }
 
-let make_io_space addr = {
-	read8 = begin fun x -> Asm.in8 (addr + x) end;
-	read16 = begin fun x -> Asm.in16 (addr + x) end;
-	read32 = begin fun x -> Asm.in32 (addr + x) end;
-	write8 = begin fun x -> Asm.out8 (addr + x) end;
-	write16 = begin fun x -> Asm.out16 (addr + x) end;
-	write32 = begin fun x -> Asm.out32 (addr + x) end;
+let make_io_space resource = {
+	read8 = AddressSpace.read8 resource;
+	read16 = AddressSpace.read16 resource;
+	read32 = AddressSpace.read32 resource;
+	write8 = AddressSpace.write8 resource;
+	write16 = AddressSpace.write16 resource;
+	write32 = AddressSpace.write32 resource;
 }
 
 module R = struct
@@ -38,10 +38,8 @@ let create device =
 		open Bigarray
 	
 		(* set up our i/o spaces *)
-		let nambar = make_io_space
-			(Int32.to_int (read32 device.id 0x10) land lnot 1)
-		let nabmbar = make_io_space
-			(Int32.to_int (read32 device.id 0x14) land lnot 1)
+		let nambar = make_io_space device.resources.(0)
+		let nabmbar = make_io_space device.resources.(1)
 		
 		(* create DMA buffers and buffer descriptor list *)
 		let buffers = Array.init num_buffers begin fun _ ->
