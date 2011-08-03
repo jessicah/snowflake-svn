@@ -4,6 +4,8 @@ open Bigarray
 let () =
 	(* seed the random number generator *)
 	Random.self_init ();
+
+	Vfs.mount () "hello";
 	
 	(* initialise a bunch of devices *)
 	Vga.init ();

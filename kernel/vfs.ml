@@ -96,26 +96,57 @@
 	val unsafe_really_input : in_channel -> string -> int -> int -> unit
 *)
 
-(* these two types should be concrete here, and abstract in Pervasives *)
-type in_channel
-type out_channel
+type abstract_inode
+
+module type Inode = sig
+	type t
+	
+	(* Input *)
+	val open_in : t -> unit
+	val close_in : t -> unit
+	val flush_in : t -> unit
+	val input_byte : t -> int
+	val input_bytes : t -> string -> int -> int -> int
+	val seek_in : t -> int -> unit
+	val pos_in : t -> int
+	val length_in : t -> int
+	
+	(* Output *)
+	val open_out : t -> unit
+	val close_out : t -> unit
+	val flush_out : t -> unit
+	val output_byte : t -> int -> unit
+	val output_bytes : t -> string -> int -> int -> int
+	val seek_out : t -> int -> unit
+	val pos_out : t -> int
+	val length_out : t -> int
+	
+	(* Coerce between abstract_inode & t *)
+	val of_abstract_inode : abstract_inode -> t
+	val to_abstract_inode : t -> abstract_inode
+end
 
 module type FileSystem = sig
-	type filesystem	
 	type inode
 	
-	val walk : filesystem -> string list -> inode option
+	module Ops : Inode with type t = inode (* should it use = or := ... *)
 	
-	val to_in_channel : inode -> in_channel
-	val to_out_channel : inode -> out_channel
+	val walk : string list -> abstract_inode option
 	
-	val is_directory : inode -> bool
+	val is_directory : abstract_inode -> bool
 	
-	val to_path : inode -> string list
-	val to_name : inode -> string
-	
-	val read_dir : inode -> inode list
+	val read_dir : abstract_inode -> (string * abstract_inode) list
+		
 end
+
+type in_channel = {
+	ops : (module Inode);
+	inode : abstract_inode;
+}
+type out_channel = {
+	ops : (module Inode);
+	inode : abstract_inode;
+}
 
 (* remember, no Pervasives here... *)
 
@@ -124,7 +155,7 @@ external ref: 'a -> 'a ref = "%makemutable"
 external (!): 'a ref -> 'a = "%field0"
 external (:=): 'a ref -> 'a -> unit = "%setfield0"
 
-let filesystems = ref ([] : (string * module FileSystem) list)
+let filesystems = ref ([] : (string * (module FileSystem)) list)
 
 let mount filesystem path = ()
 	(*
@@ -135,9 +166,8 @@ let mount filesystem path = ()
 
 let unmount path = ()
 
-let walk path_list = ()
-	(*
-		1. get root path
-		2. find it in [filesystems]
-		3. invoke filesystem's walk function
-	*)
+let walk path_list =
+	(* fix later to not depend on stdlib *)
+	let root :: paths = path_list in
+	let module FS = (val (List.assoc root !filesystems) : FileSystem) in
+	FS.walk paths
