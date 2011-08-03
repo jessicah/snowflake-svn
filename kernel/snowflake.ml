@@ -5,8 +5,7 @@ let () =
 	(* seed the random number generator *)
 	Random.self_init ();
 
-	Vfs.mount () "hello";
-	
+	(*Vfs.mount () "hello";*)
 	(* initialise a bunch of devices *)
 	Vga.init ();
 	GraphicsConsole.init ();
@@ -16,6 +15,9 @@ let () =
 	RealTek8139.init ();
 	NetworkStack.init ();
 	IRC.init ();
+	IDE.init ();
+	Tar_vfs.init (); (* this should also drag in the vfs code *)
+	
 	(*ICH0.init ();
 	IDE.init ();
 	RealTek8139.init ();
@@ -74,5 +76,15 @@ let () =
 	in loop partitions;
 	(*List.iter Ext2fs.init partitions;*)*)
 	
+	begin try
+		let entries = Vfs.read_dir ["tarfs"] in
+		Vt100.printf "Directory listing for /tarfs:\n";
+		List.iter begin fun entry ->
+				Vt100.printf "\t%s\n" entry
+			end entries;
+	with exn ->
+		Vt100.printf "Failure reading directory listing for /tarfs: %s\n" (Printexc.to_string exn)
+	end(*
+	
 	(* finished, so launch the shell *)
-	Shell.init ()
+	Shell.init ()*)

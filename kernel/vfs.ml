@@ -98,6 +98,8 @@
 
 type abstract_inode
 
+exception Not_supported
+
 module type Inode = sig
 	type t
 	
@@ -126,6 +128,31 @@ module type Inode = sig
 	val to_abstract_inode : t -> abstract_inode
 end
 
+module NullInode : Inode = struct
+	type t = abstract_inode
+	
+	let open_in _ = raise Not_supported
+	let close_in _ = raise Not_supported
+	let flush_in _ = raise Not_supported
+	let input_byte _ = raise Not_supported
+	let input_bytes _ _ _ _ = raise Not_supported
+	let seek_in _ _ = raise Not_supported
+	let pos_in _ = raise Not_supported
+	let length_in _ = raise Not_supported
+	
+	let open_out _ = raise Not_supported
+	let close_out _ = raise Not_supported
+	let flush_out _ = raise Not_supported
+	let output_byte _ = raise Not_supported
+	let output_bytes _ _ _ _ = raise Not_supported
+	let seek_out _ _ = raise Not_supported
+	let pos_out _ = raise Not_supported
+	let length_out _ = raise Not_supported
+	
+	let of_abstract_inode x = x
+	let to_abstract_inode x = x
+end
+
 module type FileSystem = sig
 	type inode
 	
@@ -135,7 +162,7 @@ module type FileSystem = sig
 	
 	val is_directory : abstract_inode -> bool
 	
-	val read_dir : abstract_inode -> (string * abstract_inode) list
+	val read_dir : abstract_inode -> string list
 		
 end
 
@@ -157,12 +184,13 @@ external (:=): 'a ref -> 'a -> unit = "%setfield0"
 
 let filesystems = ref ([] : (string * (module FileSystem)) list)
 
-let mount filesystem path = ()
+let mount filesystem path =
 	(*
 		1. check path doesn't contain path separators
 		2. check path isn't used
 		3. add to [filesystems] value above
 	*)
+	filesystems := (path, filesystem) :: !filesystems
 
 let unmount path = ()
 
@@ -171,3 +199,10 @@ let walk path_list =
 	let root :: paths = path_list in
 	let module FS = (val (List.assoc root !filesystems) : FileSystem) in
 	FS.walk paths
+
+let read_dir path_list =
+	let root :: paths = path_list in
+	let module FS = (val (List.assoc root !filesystems) : FileSystem) in
+	match FS.walk paths with
+	| Some inode -> FS.read_dir inode
+	| None -> failwith "directory not found"
