@@ -128,7 +128,7 @@ module type Inode = sig
 	val to_abstract_inode : t -> abstract_inode
 end
 
-module NullInode : Inode = struct
+(*module NullInode : Inode = struct
 	type t = abstract_inode
 	
 	let open_in _ = raise Not_supported
@@ -151,7 +151,7 @@ module NullInode : Inode = struct
 	
 	let of_abstract_inode x = x
 	let to_abstract_inode x = x
-end
+end*)
 
 module type FileSystem = sig
 	type inode
@@ -181,20 +181,28 @@ type 'a ref = { mutable contents: 'a }
 external ref: 'a -> 'a ref = "%makemutable"
 external (!): 'a ref -> 'a = "%field0"
 external (:=): 'a ref -> 'a -> unit = "%setfield0"
+external raise : exn -> 'a = "%raise"
+external (=) : 'a -> 'a -> bool = "%equal"
 
 let filesystems = ref ([] : (string * (module FileSystem)) list)
 
 let mount filesystem path =
-	(*
-		1. check path doesn't contain path separators
-		2. check path isn't used
-		3. add to [filesystems] value above
-	*)
+	(* if String.contains '/' path then failwith "invalid mount path"; *)
+	(* if List.assoc_mem path !filesystems then failwith "already mounted in path"; *)
 	filesystems := (path, filesystem) :: !filesystems
 
-let unmount path = ()
+let unmount path =
+	let fs = !filesystems in
+	let rec remove = function
+		| [] -> ()
+		| (p, _) :: rest when p = path -> remove rest
+		| x :: rest -> filesystems := x :: !filesystems; remove rest
+	in
+	filesystems := [];
+	remove fs
 
-let walk path_list =
+(* these don't need to be in here, actually; Pervasives/Sys can do it themselves... *)
+(*let walk path_list =
 	(* fix later to not depend on stdlib *)
 	let root :: paths = path_list in
 	let module FS = (val (List.assoc root !filesystems) : FileSystem) in
@@ -205,4 +213,4 @@ let read_dir path_list =
 	let module FS = (val (List.assoc root !filesystems) : FileSystem) in
 	match FS.walk paths with
 	| Some inode -> FS.read_dir inode
-	| None -> failwith "directory not found"
+	| None -> failwith "directory not found"*)

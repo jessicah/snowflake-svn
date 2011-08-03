@@ -39,3 +39,6 @@ true: -byte, native, nostdlib
 <kernel/DAAP.ml>: use_bitstring
 
 <kernel/elfParsing.ml>: use_bitstring
+
+# Pervasives will depend on Vfs, so no circular reference here!
+<kernel/vfs.ml> or <kernel/vfs.mli>: nopervasives

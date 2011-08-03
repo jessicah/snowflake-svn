@@ -76,7 +76,7 @@ let () =
 	in loop partitions;
 	(*List.iter Ext2fs.init partitions;*)*)
 	
-	begin try
+	(*begin try
 		let entries = Vfs.read_dir ["tarfs"] in
 		Vt100.printf "Directory listing for /tarfs:\n";
 		List.iter begin fun entry ->
@@ -84,7 +84,7 @@ let () =
 			end entries;
 	with exn ->
 		Vt100.printf "Failure reading directory listing for /tarfs: %s\n" (Printexc.to_string exn)
-	end(*
+	end*)
 	
 	(* finished, so launch the shell *)
-	Shell.init ()*)
+	Shell.init ()
