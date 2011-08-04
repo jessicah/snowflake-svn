@@ -106,7 +106,6 @@ module type Inode = sig
 	(* Input *)
 	val open_in : t -> unit
 	val close_in : t -> unit
-	val flush_in : t -> unit
 	val input_byte : t -> int
 	val input_bytes : t -> string -> int -> int -> int
 	val seek_in : t -> int -> unit
@@ -133,7 +132,6 @@ end
 	
 	let open_in _ = raise Not_supported
 	let close_in _ = raise Not_supported
-	let flush_in _ = raise Not_supported
 	let input_byte _ = raise Not_supported
 	let input_bytes _ _ _ _ = raise Not_supported
 	let seek_in _ _ = raise Not_supported
@@ -158,7 +156,7 @@ module type FileSystem = sig
 	
 	module Ops : Inode with type t = inode (* should it use = or := ... *)
 	
-	val walk : string list -> abstract_inode option
+	val walk : string list -> abstract_inode option (* raising Not_found is probably better than the option type? *)
 	
 	val is_directory : abstract_inode -> bool
 	
@@ -197,16 +195,19 @@ let unmount path =
 	filesystems := [];
 	remove fs
 
-(* these don't need to be in here, actually; Pervasives/Sys can do it themselves... *)
-(*let walk path_list =
-	(* fix later to not depend on stdlib *)
+let rec assoc x = function
+    [] -> raise Not_found
+  | (a,b)::l -> if a = x then b else assoc x l
+
+let walk path_list =
 	let root :: paths = path_list in
-	let module FS = (val (List.assoc root !filesystems) : FileSystem) in
-	FS.walk paths
+	let module FS = (val (assoc root !filesystems) : FileSystem) in
+	FS.walk paths, (module FS : FileSystem)
 
 let read_dir path_list =
-	let root :: paths = path_list in
-	let module FS = (val (List.assoc root !filesystems) : FileSystem) in
-	match FS.walk paths with
-	| Some inode -> FS.read_dir inode
-	| None -> failwith "directory not found"*)
+	match (walk path_list) with
+	| Some inode, fs -> 
+		let module FS = (val fs : FileSystem) in FS.read_dir inode
+	| None, _ -> raise Not_found
+
+(* we can't implement is_directory & read_dir in current state! *)

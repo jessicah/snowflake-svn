@@ -129,6 +129,7 @@ module FileSystem (*: Vfs.FileSystem*) = struct
 			let offset = inode.position mod 512 in
 			(*let buffer = IDE.read_disk 0x00 sector 1 in*)
 			let buffer = IDE_stuff.read_sector sector in
+			inode.position <- inode.position + 1;
 			Char.code buffer.[offset]
 		
 		let input_bytes inode obuf ofs len =
@@ -147,7 +148,9 @@ module FileSystem (*: Vfs.FileSystem*) = struct
 					let buf = IDE_stuff.read_sector ((s / 512) + n) in
 					String.blit buf 0 obuf (String.length obuf - rem) rem;
 				end;
-				(* return *) s
+				(* return *)
+				inode.position <- inode.position + s;
+				s
 			end
 		
 		let seek_in inode npos =

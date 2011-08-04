@@ -217,7 +217,6 @@ module NullInode = struct
 	
 	let open_in _ = raise Not_supported
 	let close_in _ = raise Not_supported
-	let flush_in _ = raise Not_supported
 	let input_byte _ = raise Not_supported
 	let input_bytes _ _ _ _ = raise Not_supported
 	let seek_in _ _ = raise Not_supported
@@ -227,7 +226,7 @@ module NullInode = struct
 	let open_out _ = raise Not_supported
 	let close_out _ = raise Not_supported
 	let flush_out _ = raise Not_supported
-	let output_byte _ = raise Not_supported
+	let output_byte _ _ = raise Not_supported
 	let output_bytes _ _ _ _ = raise Not_supported
 	let seek_out _ _ = raise Not_supported
 	let pos_out _ = raise Not_supported
@@ -258,24 +257,66 @@ let open_out name =
 let open_out_bin name =
   open_out_gen [Open_wronly; Open_creat; Open_trunc; Open_binary] 0o666 name
 
-let flush _ = ()
-let flush_all _ = ()
+let flush oc =
+	let module Ops = (val oc.ops : Inode) in
+	Ops.flush_out (Ops.of_abstract_inode oc.inode)
 
-let output_char _ _ = ()
+(*external out_channels_list : unit -> out_channel list = "caml_ml_out_channels_list"*)
+(*let flush_all () =
+	let rec iter = function
+		| [] -> ()
+		| a::l -> (try flush a with _ -> ()); iter l
+	in iter (out_channels_list ())*)
+let flush_all () = ()
 
-let output_string oc s = ()
+(*external unsafe_output : out_channel -> string -> int -> int -> unit*)
+let unsafe_output oc s ofs len =
+	let len = ref len in
+	let pos = ref ofs in 
+	let module Ops = (val oc.ops : Inode) in
+	let inode = Ops.of_abstract_inode oc.inode in
+	while !len > 0 do
+		let written = Ops.output_bytes inode s !pos !len in
+		len := !len - written;
+		pos := !pos + written;
+	done
 
-let output oc s ofs len = ()
+let output_char oc ch =
+	let module Ops = (val oc.ops : Inode) in
+	Ops.output_byte (Ops.of_abstract_inode oc.inode) (int_of_char ch)
 
-let output_byte _ _ = ()
-let output_binary_int _ _ = ()
+let output_string oc s =
+	unsafe_output oc s 0 (string_length s)
 
-let output_value chan v = ()
+let output oc s ofs len =
+	if ofs < 0 || len < 0 || ofs > string_length s - len
+	then invalid_arg "output"
+	else unsafe_output oc s ofs len
 
-let seek_out _ _ = ()
-let pos_out _ = 0
-let out_channel_length _ = 0
-let close_out_channel _ = ()
+let output_byte oc byte =
+	let module Ops = (val oc.ops : Inode) in
+	Ops.output_byte (Ops.of_abstract_inode oc.inode) byte
+
+let output_binary_int oc bin =
+	output_byte oc ((bin asr 24) land 0xff);
+	output_byte oc ((bin asr 16) land 0xff);
+	output_byte oc ((bin asr 8) land 0xff);
+	output_byte oc (bin land 0xff)
+
+let output_value chan v = failwith "output_value not implemented"
+
+let seek_out oc pos =
+	let module Ops = (val oc.ops : Inode) in
+	Ops.seek_out (Ops.of_abstract_inode oc.inode) pos
+let pos_out oc =
+	let module Ops = (val oc.ops : Inode) in
+	Ops.pos_out (Ops.of_abstract_inode oc.inode)
+let out_channel_length oc =
+	let module Ops = (val oc.ops : Inode) in
+	Ops.length_out (Ops.of_abstract_inode oc.inode)
+let close_out_channel oc =
+	let module Ops = (val oc.ops : Inode) in
+	Ops.close_out (Ops.of_abstract_inode oc.inode)
 
 let close_out oc = flush oc; close_out_channel oc
 let close_out_noerr oc =

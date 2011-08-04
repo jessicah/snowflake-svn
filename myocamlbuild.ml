@@ -68,7 +68,7 @@ let copy_rule' ?insert src dst =
 (*** stdlib.cmxa ***)
 
     snowflake_lib "stdlib";;
-    
+    dep ["compile"; "vfs"] ["libraries/stdlib/vfs.cmi"];;
     (*(* dep on kernel module *)
     dep ["file:libraries/stdlib/pervasives.ml"] ["kernel/vfs.cmx"];;
     flag ["file:libraries/stdlib/pervasives.ml";"compile"] (S[A"-I";A"kernel"]);;*)

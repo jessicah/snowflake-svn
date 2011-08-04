@@ -42,3 +42,6 @@ true: -byte, native, nostdlib
 
 # Pervasives will depend on Vfs, so no circular reference here!
 <libraries/stdlib/vfs.ml> or <libraries/stdlib/vfs.mli>: nopervasives, nostdlib
+
+<libraries/stdlib/*.cmi> or <libraries/stdlib/*.cmx>: vfs
+<libraries/stdlib/vfs.*>: -vfs

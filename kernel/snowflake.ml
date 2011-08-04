@@ -17,6 +17,8 @@ let () =
 	IRC.init ();
 	IDE.init ();
 	Tar_vfs.init (); (* this should also drag in the vfs code *)
+	Debug.init (); (* replace stderr with one that writes to serial port *)
+	Printf.eprintf "am I printing to the serial port now?\n";
 	
 	(*ICH0.init ();
 	IDE.init ();
