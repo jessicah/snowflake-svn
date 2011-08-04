@@ -307,3 +307,57 @@ let console_out = IO.from_out_channel (object
 let printf fmt = IO.printf console_out fmt
 
 let dims () = !current_console#get_width,!current_console#get_height
+
+(* redefined Pervasives.stdout at runtime :D *)
+module StdOut = struct
+	type t = unit
+	
+	open Vfs
+	
+	let (!) = Pervasives.(!)
+	
+	let open_in _ = raise Not_supported
+	let close_in _ = raise Not_supported
+	let input_byte _ = raise Not_supported
+	let input_bytes _ _ _ _ = raise Not_supported
+	let seek_in _ _ = raise Not_supported
+	let pos_in _ = raise Not_supported
+	let length_in _ = raise Not_supported
+	
+	let open_out _ = raise Not_supported
+	let close_out _ = raise Not_supported
+	let flush_out _ = ()
+	
+	(* buffer bytes to try get UTF8 handling working... *)	
+	let utf8_buffer = Buffer.create 1024
+	let rec output_byte _ byte =
+		Buffer.add_char utf8_buffer (Char.chr byte);
+		try
+			let s = Buffer.contents utf8_buffer in
+			UTF8.validate s;
+			output_bytes () s 0 (String.length s);
+			Buffer.clear utf8_buffer
+		with UTF8.Malformed_code -> ()
+	and output_bytes _ buf ofs len =
+		UTF8.iter (process !current_console) (String.sub buf ofs len); len
+	
+	let seek_out _ _ = raise Not_supported
+	let pos_out _ = raise Not_supported
+	let length_out _ = raise Not_supported
+	
+	let of_abstract_inode _ = ()
+	let to_abstract_inode () = Obj.magic ()
+end
+
+let stdout' = { Vfs.ops = (module StdOut : Vfs.Inode); inode = Obj.magic () }
+
+module type PERVASIVES = sig
+	include module type of Pervasives
+end
+
+let pervasives = (module Pervasives : PERVASIVES)
+
+let init () =
+	(* runtime modification : stdout is field 23 in Pervasives *)
+	let t = Obj.repr pervasives in
+	Obj.set_field t 23 (Obj.repr stdout')

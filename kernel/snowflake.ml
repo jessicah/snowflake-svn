@@ -19,6 +19,7 @@ let () =
 	Tar_vfs.init (); (* this should also drag in the vfs code *)
 	Debug.init (); (* replace stderr with one that writes to serial port *)
 	Printf.eprintf "am I printing to the serial port now?\n";
+	Ovt100.init (); (* replace stdout with one that writes to whatever the current console is *)
 	
 	(*ICH0.init ();
 	IDE.init ();

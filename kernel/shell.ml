@@ -46,6 +46,8 @@ let read_input () =
 					loop ()
 	in loop ()
 
+open Printf
+
 (* will need to switch to using a parser soon... *)
 let read_line () =
 	let stack = Stack.create () in
@@ -54,39 +56,39 @@ let read_line () =
 			match Keyboard.get_char () with
 			| '\b' ->
 				ignore (Stack.pop stack);
-				Vt100.printf "\b";
+				printf "\b";
 				loop (Stack.is_empty stack = false)
 			| '"' ->
 				(* closed the quoted string *)
-				Vt100.printf "\"";
+				printf "\"";
 				loop false
 			| ' ' ->
 				Stack.push '\\' stack;
 				Stack.push ' ' stack;
-				Vt100.printf " ";
+				printf " ";
 				loop true
 			| ch ->
 				Stack.push ch stack;
-				Vt100.printf "%c" ch;
+				printf "%c" ch;
 				loop true
 		else
 			match Keyboard.get_char () with
 			| '\n' ->
 				(* we have our line on the stack *)
-				Vt100.printf "\n";
+				printf "\n";
 			| '\b' when Stack.is_empty stack ->
 				(* nothing to delete; ignore it *)
 				loop false
 			| '\b' ->
 				ignore (Stack.pop stack);
-				Vt100.printf "\b";
+				printf "\b";
 				loop false
 			| '"' ->
-				Vt100.printf "\"";
+				printf "\"";
 				loop true
 			| ch ->
 				Stack.push ch stack;
-				Vt100.printf "%c" ch;
+				printf "%c" ch;
 				loop false
 	in loop false;
 	let len = Stack.length stack in
@@ -126,7 +128,7 @@ let input = IO.from_in_chars(object (self)
 	end)
 
 let shell () =
-	Vt100.printf "雪片へようこそ (Welcome to Snowflake)\n\n";
+	printf "雪片へようこそ (Welcome to Snowflake)\n\n";
 	while true do
 		Vt100.printf "> ";
 		let line = read_line () in
@@ -142,15 +144,15 @@ let shell () =
 					Arg.parse_argv ~current (Array.of_list parts) spec_list anon "";
 					f ()
 				with Arg.Help msg | Arg.Bad msg ->
-					Vt100.printf "%s" msg
+					printf "%s" msg
 				end
 			with
 			| Not_found ->
-				Vt100.printf "command not found: %s\n" x
+				printf "command not found: %s\n" x
 			| Failure msg ->
-				Vt100.printf "%s: %s\n" x msg
+				printf "%s: %s\n" x msg
 			| ex ->
-				Vt100.printf "%s: unhandled error\n%s\n"
+				printf "%s: unhandled error\n%s\n"
 					x (Printexc.to_string ex)
 			end
 	done
@@ -160,9 +162,9 @@ let shell () =
 let init () =
 	(* add a lil help command *)
 	add_command "help" begin fun () ->
-			Vt100.printf "Available commands:\n";
+			printf "Available commands:\n";
 			Hashtbl.iter (fun name _ ->
-				Vt100.printf " %s\n" name
+				printf " %s\n" name
 			) commands
 		end [];
 	(* then spawn the shell *)
