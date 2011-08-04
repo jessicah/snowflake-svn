@@ -156,7 +156,7 @@ let create device =
 	(* register an interrupt handler *)
 	Interrupts.create device.request_line C.isr;
 	C.set_bit C.nabmbar R.control 4; (* interrupts for buffer completion *)
-	Vt100.printf "ich0: on request line %02X\n" device.request_line;
+	Printf.printf "ich0: on request line %02X\n" device.request_line;
 	
 	(* add all the buffers to the free queue *)
 	for i = 0 to Array.length C.buffers - 1 do
@@ -168,7 +168,7 @@ let create device =
 	
 	(* register with the audio mixer *)
 	let sample_rate = C.nambar.read16 R.sample_rate in
-	Vt100.printf "ich0: sample rate = %d\n" sample_rate;
+	Printf.printf "ich0: sample rate = %d\n" sample_rate;
 	(*AudioMixer.register_device {
 		format = 16, sample_rate, 2;
 		output = C.output;

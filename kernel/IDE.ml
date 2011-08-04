@@ -136,7 +136,7 @@ let init () =
 	(* look for an ata controller *)
 	Asm.out8 (pri+R.seccount) 0xEC;
 	if Asm.in8 (pri+R.seccount) <> 0xEC then begin
-		Vt100.printf "ide: no controller found\n"
+		Printf.printf "ide: no controller found\n"
 	end else begin
 	
 	(* get status of disks *)
@@ -150,16 +150,16 @@ let init () =
 	(* master present if masterStatus = 1 *)
 	(* slave present if slaveStatus < 0x80 *)
 		if masterStatus land 0x01 = 0x01 then begin
-			Vt100.printf "ide: found primary master\n";
+			Printf.printf "ide: found primary master\n";
 			present_disks.(0) <- true;
 		end else begin
-			Vt100.printf "ide: can't find primary master\n";
+			Printf.printf "ide: can't find primary master\n";
 		end;
 		if slaveStatus land 0x01 = 0x01 then begin
-			Vt100.printf "ide: found primary slave\n";
+			Printf.printf "ide: found primary slave\n";
 			present_disks.(1) <- true;
 		end else begin
-			Vt100.printf "ide: can't find primary slave\n";
+			Printf.printf "ide: can't find primary slave\n";
 		end;
 	end;
 	Array.iteri (fun i d ->
@@ -177,7 +177,7 @@ let init () =
 	(* look for an ata controller *)
 	Asm.out8 (pri+R.seccount) 0xEC;
 	if Asm.in8 (pri+R.seccount) <> 0xEC then begin
-		Vt100.printf "ide: no controller found\n"
+		Printf.printf "ide: no controller found\n"
 	end else begin
 	
 	(* get status of disks *)
@@ -191,16 +191,16 @@ let init () =
 	(* master present if masterStatus = 1 *)
 	(* slave present if slaveStatus < 0x80 *)
 		if masterStatus land 0x01 = 0x01 then begin
-			Vt100.printf "ide: found primary master\n";
+			Printf.printf "ide: found primary master\n";
 			present_disks.(0) <- true;
 		end else begin
-			Vt100.printf "ide: can't find primary master\n";
+			Printf.printf "ide: can't find primary master\n";
 		end;
 		if slaveStatus land 0x01 = 0x01 then begin
-			Vt100.printf "ide: found primary slave\n";
+			Printf.printf "ide: found primary slave\n";
 			present_disks.(1) <- true;
 		end else begin
-			Vt100.printf "ide: can't find primary slave\n";
+			Printf.printf "ide: can't find primary slave\n";
 		end;
 	end;
 	Array.iteri (fun i d ->
@@ -220,8 +220,8 @@ open PCI
 let create dev =
 	begin try
 		(*let dev = PCI.probe dev.b dev.d 1 in
-	Vt100.printf "probing device %04x:%04x\r\n" dev.vendor dev.device;
-	Vt100.printf "programming interface: %x\r\n"
+	Printf.printf "probing device %04x:%04x\r\n" dev.vendor dev.device;
+	Printf.printf "programming interface: %x\r\n"
 		(PCI.read8 dev.id 9);
 	(*(* write 1f0 into the bmiba *)
 	PCI.write32 dev.id 0x20
@@ -229,9 +229,9 @@ let create dev =
 	(*(* write bit to set I/O space enable to command register *)
 	PCI.write16 dev.id 0x04 1;*)
 	(* try init() again *)
-	Vt100.printf "pci ide: init...\r\n";*)
+	Printf.printf "pci ide: init...\r\n";*)
 	init ();
-	with Not_found -> Vt100.printf "no sub device" end
+	with Not_found -> Printf.printf "no sub device" end
 	
 let init2 () =
 	DeviceManager.add_driver "Generic IDE Controller: Intel PIIX4" create 0x8086 0x7111;

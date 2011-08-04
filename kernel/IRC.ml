@@ -79,7 +79,7 @@ module UI = struct
 	let active_channel () =
 		let chan = state.active in
 		Array.iteri (fun row line ->
-			Vt100.printf "\027[s\027[%d;1f\027[0m\027[K%s\027[u" (row+2) line)
+			Printf.printf "\027[s\027[%d;1f\027[0m\027[K%s\027[u" (row+2) line)
 			chan.lines
 	
 	let channel_status chan =
@@ -96,11 +96,11 @@ module UI = struct
 		(* redraws the status line *)
 		let channel_names = List.map channel_status  state.channels in
 		let header = String.concat "" channel_names in
-		Vt100.printf "%s\027[H\027[30;47;1m\027[K%s%s"
+		Printf.printf "%s\027[H\027[30;47;1m\027[K%s%s"
 			save header restore
 	
 	let prompt () =
-		Vt100.printf "\027[%d;1f\027[37;44;1m\027[K> " (snd (Ovt100.dims ()))
+		Printf.printf "\027[%d;1f\027[37;44;1m\027[K> " (snd (Ovt100.dims ()))
 	
 	let redraw () =
 		status ();
@@ -133,7 +133,7 @@ module UI = struct
 		else begin
 			status ();
 			active_channel ();
-			Vt100.printf "\027[37;44;1m";
+			Printf.printf "\027[37;44;1m";
 		end
 	
 	let cycle_channels () =
@@ -228,12 +228,12 @@ let run server port nick pass channel' =
 					(* need the current nickname which might have changed
 						writef ":MODE %s %s" nick (String.slice ~first:4 line)
 					*)
-					Vt100.printf "Not implemented"*)
+					Printf.printf "Not implemented"*)
 				| "/quit" :: _ ->	(* Quit IRC *)
 					writef "QUIT :%s" rest;
 					TCP.close socket;
 					issued_quit := true;
-					Vt100.printf "\027[0m\027[J";
+					Printf.printf "\027[0m\027[J";
 					Thread.yield ();
 				| "/cycle" :: _ ->
 					UI.cycle_channels ()
@@ -304,7 +304,7 @@ let run server port nick pass channel' =
 			| End_of_file ->
 				issued_quit := true (* just in case other end terminated it *)
 			| ex ->
-				Vt100.printf "Error: %s (%s)\n" (Printexc.to_string ex) line
+				Printf.printf "Error: %s (%s)\n" (Printexc.to_string ex) line
 	done
 
 let nick = ref "snowflake-os"
@@ -312,7 +312,7 @@ let pass = ref ""
 
 let test () =
 	if !nick = "snowflake-os" && !pass = "" then
-		Vt100.printf "irc: specify password for snowflake-os or use a different nick\n"
+		Printf.printf "irc: specify password for snowflake-os or use a different nick\n"
 	else run freenode 8000 !nick !pass "#snowflake"
 
 open Shell

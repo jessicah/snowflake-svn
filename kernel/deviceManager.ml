@@ -10,10 +10,10 @@ let load_driver device =
 		let (name, driver) = Hashtbl.find drivers (device.vendor, device.device) in
 		begin try
 			driver device;
-            Vt100.printf "[LOADED] %04x:%04x %s\n" device.vendor device.device name
-            (*Vt100.printf "%s (%04x:%04x): loaded\n" name device.vendor device.device*)
+            Printf.printf "[LOADED] %04x:%04x %s\n" device.vendor device.device name
+            (*Printf.printf "%s (%04x:%04x): loaded\n" name device.vendor device.device*)
         with ex ->
-            Vt100.printf "[FAILED] %04x:%04x: %s\n"
+            Printf.printf "[FAILED] %04x:%04x: %s\n"
                 device.vendor device.device (Printexc.to_string ex)
         end
 	with Not_found -> ()

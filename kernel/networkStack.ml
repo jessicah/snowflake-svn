@@ -39,19 +39,19 @@ let nic () = match !devices with
 
 let send data = match !devices with
 	| [] -> 
-		Vt100.printf "netstack: no nic to send on!";
+		Printf.printf "netstack: no nic to send on!";
 		failwith "netstack: no nic to send on!"
 	| x :: _ -> x.send data
 
 let recv () = match !devices with
 	| [] -> 
-		Vt100.printf "netstack: no nic to recv from!";
+		Printf.printf "netstack: no nic to recv from!";
 		failwith "netstack: no nic to recv from!"
 	| x :: _ -> x.recv ()
 
 let get_hw_addr () = match !devices with
 	| [] ->
-		Vt100.printf "netstack: no nic present!";
+		Printf.printf "netstack: no nic present!";
 		failwith "netstack: no nic present!"
 	| x :: _ -> x.hw_addr
 
@@ -148,7 +148,7 @@ module ARP = struct
 			let self = get_hw_addr () in
 			if pkt.L.ARP.opcode = 1 && pkt.L.ARP.targetEth = self then begin
 				(* send reply to request for our address *)
-				Vt100.printf "ARP.process: request for our address\n";
+				Printf.printf "ARP.process: request for our address\n";
 				send_eth pkt.L.ARP.senderEth 0x0806 (BITSTRING {
 					1 : 16; 0x0800 : 16; 6 : 8; 4 : 8; 2 : 16;
 					P.Ethernet.unparse_addr self : 48 : bitstring;
@@ -157,14 +157,14 @@ module ARP = struct
 					P.IPv4.unparse_addr pkt.L.ARP.senderAddr : 32 : bitstring
 				})
 			end else begin
-				(*Vt100.printf "ARP.process: opcode: %d, target: %a\n"
+				(*Printf.printf "ARP.process: opcode: %d, target: %a\n"
 					pkt.L.ARP.opcode P.Ethernet.addr_printer pkt.L.ARP.targetEth*)
 			end;
 			(* update the table if we already have the IP, or it's a reply to us *)
 			(*if sender_ip <> P.IPv4.invalid && (Hashtbl.mem table sender_ip || target_eth = self) then begin*)
 			if pkt.L.ARP.opcode = 2 then begin
 				Hashtbl.replace table pkt.L.ARP.senderAddr pkt.L.ARP.senderEth;
-				(*Vt100.printf "added ARP mapping: %s has mac %s\n"
+				(*Printf.printf "added ARP mapping: %s has mac %s\n"
 					(P.IPv4.to_string sender_ip) (P.Ethernet.to_string sender_eth);*)
 			end;
 			(* notify of updates to the ARP table *)
@@ -172,7 +172,7 @@ module ARP = struct
 			Condition.signal cv;
 			Mutex.unlock m
 		with _ ->
-			() (*Vt100.printf "ARP.process: unknown ARP\n"*)
+			() (*Printf.printf "ARP.process: unknown ARP\n"*)
 		end
 end
 
@@ -213,7 +213,7 @@ module Shell = struct
 	let set_gw s = settings.gateway <- of_string s
 	
 	let print_settings () =
-		Vt100.printf "Network settings:\n  IP:      %s\n  Netmask: %s\n  Gateway: %s\n"
+		Printf.printf "Network settings:\n  IP:      %s\n  Netmask: %s\n  Gateway: %s\n"
 			(P.IPv4.to_string settings.ip)
 			(P.IPv4.to_string settings.netmask)
 			(P.IPv4.to_string settings.gateway)
@@ -267,15 +267,15 @@ let init () =
 								let f = Hashtbl.find tcp_bindings port in
 								f tcp packet_length
 							with Not_found ->
-								(*Vt100.printf "No handler for TCP port %d\n" port*)
+								(*Printf.printf "No handler for TCP port %d\n" port*)
 								()
 							end
-						| (*n -> Vt100.printf "IPv4: unknown protocol %d\n" n*)
+						| (*n -> Printf.printf "IPv4: unknown protocol %d\n" n*)
 						_ -> ()
 					end
-				| _ -> ()(*Vt100.printf "Ethernet: unknown protocol %d\n" n*)
+				| _ -> ()(*Printf.printf "Ethernet: unknown protocol %d\n" n*)
 		with ex ->
-			Vt100.printf "netstack read: %s\n" (Printexc.to_string ex)
+			Printf.printf "netstack read: %s\n" (Printexc.to_string ex)
 		end;
 		done
 	in			

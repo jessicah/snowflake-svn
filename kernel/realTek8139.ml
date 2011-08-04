@@ -150,7 +150,7 @@ let create pcii =
 		}
 		
 		let reset properties =
-			Vt100.printf "rtl: resetting device\n";
+			Printf.printf "rtl: resetting device\n";
 			out8 Registers.command CommandActions.reset;
 			out16 Registers.imr 0x00;
 			out16 Registers.cbr 0x00;
@@ -195,8 +195,8 @@ let create pcii =
 			let mac =
 				List.map (fun i -> in8 (Registers.idr0 + i)) [0; 1; 2; 3; 4; 5]
 			in
-			List.iter (fun i -> Vt100.printf "%02x " i) mac;
-			Vt100.printf "\r\n";
+			List.iter (fun i -> Printf.printf "%02x " i) mac;
+			Printf.printf "\r\n";
 			out32 Registers.rxconfig (Int32.logor (in32 Registers.rxconfig) (Int32.of_int (ReceiverActions.apm lor ReceiverActions.ab)));
 			out32 Registers.mar0 0x00l;
 			out32 (Registers.mar0 + 4) 0x00l;
@@ -254,7 +254,7 @@ let create pcii =
 				out32 (Registers.tsd0 + (4 * transmitid)) (Int32.logand (Int32.of_int transmitdescription) (Int32.lognot (Int32.of_int TransmitDescription.own)));
 				properties.queued_packets <- properties.queued_packets + 1;
 				Debug.log "rtl-send" start (Asm.rdtsc())
-			with Break -> Vt100.printf "rtl.send error!\r\n"
+			with Break -> Printf.printf "rtl.send error!\r\n"
 		
 		let rec read properties rx_buffer =
 			try
@@ -266,7 +266,7 @@ let create pcii =
 					with _ ->
 						(* it appears the receiverbufferoffset is 8 bytes larger than the buffer size *)
 						(* buffer size is 65552 = 65536 (0x10000) + 16 *)
-						Vt100.printf "rtl: unable to extract packet header (%d, %d)\n" properties.receivebufferoffset
+						Printf.printf "rtl: unable to extract packet header (%d, %d)\n" properties.receivebufferoffset
 							(Array1.dim properties.receivebuffer);
 						failwith "rtl: internal driver error";
 					end
@@ -291,11 +291,11 @@ let create pcii =
 				if properties.receivebufferoffset >= 0x10000 then
 					properties.receivebufferoffset <- properties.receivebufferoffset - 0x10000;
 				(*if properties.receivebufferoffset < 16 then
-					Vt100.printf "rtl: writing negative value to capr\n";*)
+					Printf.printf "rtl: writing negative value to capr\n";*)
 				out16 Registers.capr (properties.receivebufferoffset - 16); (* what happens if this is negative? *)
 				(* send received packet to the rx_buffer *)
 				Event.sync (Event.send rx_buffer int_list);
-			with Break -> Vt100.printf "rtl.read error!\r\n" | Restart -> read properties rx_buffer
+			with Break -> Printf.printf "rtl.read error!\r\n" | Restart -> read properties rx_buffer
 		
 		let rec isr properties rx_buffer () =
 			try

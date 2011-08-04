@@ -96,14 +96,14 @@ let input_thread cookie =
 		| Syn_sent when (*has_flag Syn &&*) has_flag Ack ->
 			(* establishing connection *)
 			if packet.L.TCP.ack <> cookie.status.s_next then begin
-				Vt100.printf "tcp: ack# (%lx) not equal next seq# (%lx), reset connection\n"
+				Printf.printf "tcp: ack# (%lx) not equal next seq# (%lx), reset connection\n"
 					packet.L.TCP.ack cookie.status.s_next;
 				(* should close the connection now *)
 				NetworkStack.unbind_tcp cookie.src_port;
 				RingBuffer.close cookie.rb;
 				send cookie Int32.zero Int32.zero [Reset] empty;
 			end else begin
-				(*Vt100.printf "tcp: connection established\n";*)
+				(*Printf.printf "tcp: connection established\n";*)
 				cookie.status.mode <- Established;
 				cookie.status.r_next <- packet.L.TCP.seq ++ one;
 				(* signal cv to say connection established *)
@@ -115,7 +115,7 @@ let input_thread cookie =
 			end
 		| Established ->
 			if packet.L.TCP.seq <> cookie.status.r_next then begin
-				(*Vt100.printf "tcp: seq# not equal r_next\n";*)
+				(*Printf.printf "tcp: seq# not equal r_next\n";*)
 				(* ignore it *)
 				()
 			end else begin
@@ -158,18 +158,18 @@ let input_thread cookie =
 			RingBuffer.close cookie.rb;
 			NetworkStack.unbind_tcp cookie.src_port;
 			send cookie cookie.status.s_next cookie.status.r_next [Ack] empty;
-			Vt100.printf "tcp: closed connection\n";
+			Printf.printf "tcp: closed connection\n";
 		| Closing when has_flag Ack ->
 			(* close the connection *)
 			cookie.status.mode <- Closed;
 			RingBuffer.close cookie.rb;
 			NetworkStack.unbind_tcp cookie.src_port;
 			(*send cookie Int32.zero Int32.zero [Reset] empty;*)
-			Vt100.printf "tcp: connection closed\n";
+			Printf.printf "tcp: connection closed\n";
 		| Closed ->
-			Vt100.printf "tcp: received data on closed connection\n";
+			Printf.printf "tcp: received data on closed connection\n";
 		| _ ->
-			Vt100.printf "unhandled tcp state\n";
+			Printf.printf "unhandled tcp state\n";
 			RingBuffer.close cookie.rb;
 			send cookie Int32.zero Int32.zero [Reset] empty;
 			NetworkStack.unbind_tcp cookie.src_port
@@ -263,7 +263,7 @@ let open_channel ip port =
 			method input buf ofs len =
 				if Queue.is_empty t.queue then begin
 					if t.status.mode <> Established then begin
-						(*Vt100.printf "no more data";*)
+						(*Printf.printf "no more data";*)
 						0
 					end else begin
 						pos := 0;
@@ -283,18 +283,18 @@ let open_channel ip port =
 						let l = String.length s in
 						match !pos, len with
 						| 0, _ when len > l ->
-							(*Vt100.printf " %d" l;*)
+							(*Printf.printf " %d" l;*)
 							String.unsafe_blit s 0 buf ofs l;
 							pos := l;
 							l
 						| 0, _ ->
-							(*Vt100.printf " %d" len;*)
+							(*Printf.printf " %d" len;*)
 							String.unsafe_blit s 0 buf ofs len;
 							pos := len;
 							len
 						| _ ->
 							let ll = min len (l - !pos) in
-							(*Vt100.printf " %d" ll;*)
+							(*Printf.printf " %d" ll;*)
 							String.unsafe_blit s !pos buf ofs ll;
 							pos := !pos + ll;
 							ll

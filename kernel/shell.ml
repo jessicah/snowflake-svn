@@ -1,6 +1,8 @@
 
 (* a lil command interpreter -- not really a shell *)
 
+open Printf
+
 let commands = Hashtbl.create 7
 
 let no_anon arg =
@@ -21,7 +23,7 @@ let input2 = IO.from_in_chars(object (self)
 					| '\n' -> len <- 0
 					| _    -> len <- len + 1
 				end;
-				if ch <> '\n' then Vt100.printf "%c" ch;
+				if ch <> '\n' then printf "%c" ch;
 				ch
 			end
 		method close_in () = ()
@@ -45,8 +47,6 @@ let read_input () =
 					Stack.push ch stack;
 					loop ()
 	in loop ()
-
-open Printf
 
 (* will need to switch to using a parser soon... *)
 let read_line () =
@@ -121,7 +121,7 @@ let input = IO.from_in_chars(object (self)
 					| '\n' -> len <- 0
 					| _    -> len <- len + 1
 				end;
-				Vt100.printf "%c" ch;
+				printf "%c" ch;
 				ch
 			end
 		method close_in () = ()
@@ -130,7 +130,7 @@ let input = IO.from_in_chars(object (self)
 let shell () =
 	printf "雪片へようこそ (Welcome to Snowflake)\n\n";
 	while true do
-		Vt100.printf "> ";
+		printf "> ";
 		let line = read_line () in
 		let parts = split line in
 		let current = ref 0 in

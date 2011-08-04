@@ -2,10 +2,10 @@
 open Bigarray
 
 let () =
-	(* seed the random number generator *)
-	Random.self_init ();
-
-	(*Vfs.mount () "hello";*)
+	Random.self_init (); (* seed the random number generator *)
+	Debug.init (); (* replace stderr with one that writes to serial port *)
+	Ovt100.init (); (* replace stdout with one that writes to whatever the current console is *)
+	
 	(* initialise a bunch of devices *)
 	Vga.init ();
 	GraphicsConsole.init ();
@@ -16,10 +16,7 @@ let () =
 	NetworkStack.init ();
 	IRC.init ();
 	IDE.init ();
-	Tar_vfs.init (); (* this should also drag in the vfs code *)
-	Debug.init (); (* replace stderr with one that writes to serial port *)
-	Printf.eprintf "am I printing to the serial port now?\n";
-	Ovt100.init (); (* replace stdout with one that writes to whatever the current console is *)
+	Tar_vfs.init ();
 	
 	(*ICH0.init ();
 	IDE.init ();
