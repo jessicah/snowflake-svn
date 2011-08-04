@@ -41,4 +41,4 @@ true: -byte, native, nostdlib
 <kernel/elfParsing.ml>: use_bitstring
 
 # Pervasives will depend on Vfs, so no circular reference here!
-<kernel/vfs.ml> or <kernel/vfs.mli>: nopervasives
+<libraries/stdlib/vfs.ml> or <libraries/stdlib/vfs.mli>: nopervasives, nostdlib

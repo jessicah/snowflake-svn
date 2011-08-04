@@ -204,12 +204,42 @@ let rec (@) l1 l2 =
 
 (* I/O operations *)
 
-type in_channel = unit
-type out_channel = unit
+open Vfs
 
-let stdin = ()
-let stdout = ()
-let stderr = ()
+type in_channel = Vfs.io_channel
+type out_channel = Vfs.io_channel
+
+external magic : 'a -> 'b = "%identity"
+
+(* to allow definition of stdin/stdout/stderr *)
+module NullInode = struct
+	type t = unit
+	
+	let open_in _ = raise Not_supported
+	let close_in _ = raise Not_supported
+	let flush_in _ = raise Not_supported
+	let input_byte _ = raise Not_supported
+	let input_bytes _ _ _ _ = raise Not_supported
+	let seek_in _ _ = raise Not_supported
+	let pos_in _ = raise Not_supported
+	let length_in _ = raise Not_supported
+	
+	let open_out _ = raise Not_supported
+	let close_out _ = raise Not_supported
+	let flush_out _ = raise Not_supported
+	let output_byte _ = raise Not_supported
+	let output_bytes _ _ _ _ = raise Not_supported
+	let seek_out _ _ = raise Not_supported
+	let pos_out _ = raise Not_supported
+	let length_out _ = raise Not_supported
+	
+	let of_abstract_inode _ = ()
+	let to_abstract_inode () = magic ()
+end
+
+let stdin  = { ops = (module NullInode : Inode); inode = magic () }
+let stdout = { ops = (module NullInode : Inode); inode = magic () }
+let stderr = { ops = (module NullInode : Inode); inode = magic () }
 
 (* General output functions *)
 
@@ -218,7 +248,9 @@ type open_flag =
   | Open_creat | Open_trunc | Open_excl
   | Open_binary | Open_text | Open_nonblock
 
-let open_out_gen mode perm name = ()
+let open_out_gen mode perm name =
+	(* this is where we walk to get an inode, and try open it *)
+	raise Not_supported
 
 let open_out name =
   open_out_gen [Open_wronly; Open_creat; Open_trunc; Open_text] 0o666 name
@@ -253,7 +285,9 @@ let set_binary_mode_out _ _ = ()
 
 (* General input functions *)
 
-let open_in_gen mode perm name = ()
+let open_in_gen mode perm name =
+	(* walk to inode, open it *)
+	raise Not_supported
 
 let open_in name =
   open_in_gen [Open_rdonly; Open_text] 0 name

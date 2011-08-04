@@ -166,11 +166,7 @@ module type FileSystem = sig
 		
 end
 
-type in_channel = {
-	ops : (module Inode);
-	inode : abstract_inode;
-}
-type out_channel = {
+type io_channel = {
 	ops : (module Inode);
 	inode : abstract_inode;
 }
