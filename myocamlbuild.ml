@@ -242,7 +242,7 @@ let caml_headers = [
         context = [];
         c_options = [
                 "-DNATIVE_CODE"; "-DCAML_NAME_SPACE"; "-DSYS_linux_elf";
-                "-Wall"; "-Werror"; "-DTARGET_i386";
+                "-Wall"; (*"-Werror";*) "-DTARGET_i386";
             ];
         s_options = ["-DSYS_linux_elf";"-DTARGET_i386"];
         includes = ["libraries/include"; "libraries/include/caml"];
