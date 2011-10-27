@@ -63,13 +63,20 @@ end
 
 let dummy_console =
 	object
-		inherit console
-		val mutable width = 1
-		val mutable height = 1
+		inherit console as super
+		val term = Asm.matrix8 0xB8000l 25 160
+		val mutable width = 80
+		val mutable height = 25
 		method set_colour _ = ()
 		method set_background _ = ()
-		method erase _ = ()
-		method draw _ = 0
+		method erase count =
+			let term = Bigarray.reshape_1 (Bigarray.genarray_of_array2 term) (width * height * 2) in
+			let offset = super#get_x + width * super#get_y * 2 in
+			for i = 0 to count - 1 do
+				term.{i * 2 + offset} <- ' ';
+				term.{i * 2 + offset + 1} <- char_of_int 7;
+			done
+		method draw ch = term.{super#get_y,super#get_x * 2} <- Char.chr ((UChar.int_of_uchar ch) land 0xFF); 1
 		method update_cursor = ()
 	end
 

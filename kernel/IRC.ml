@@ -4,6 +4,7 @@
 open IrcTypes
 
 open ExtString
+open Printf (* change to Printf for vfs layer *)
 
 module UI = struct
 	
@@ -79,7 +80,7 @@ module UI = struct
 	let active_channel () =
 		let chan = state.active in
 		Array.iteri (fun row line ->
-			Printf.printf "\027[s\027[%d;1f\027[0m\027[K%s\027[u" (row+2) line)
+			printf "\027[s\027[%d;1f\027[0m\027[K%s\027[u" (row+2) line)
 			chan.lines
 	
 	let channel_status chan =
@@ -96,16 +97,19 @@ module UI = struct
 		(* redraws the status line *)
 		let channel_names = List.map channel_status  state.channels in
 		let header = String.concat "" channel_names in
-		Printf.printf "%s\027[H\027[30;47;1m\027[K%s%s"
+		printf "%s\027[H\027[30;47;1m\027[K%s%s"
 			save header restore
 	
 	let prompt () =
-		Printf.printf "\027[%d;1f\027[37;44;1m\027[K> " (snd (Ovt100.dims ()))
+		printf "\027[%d;1f\027[37;44;1m\027[K> " (snd (Ovt100.dims ()))
 	
 	let redraw () =
+		let start = Asm.rdtsc () in
 		status ();
 		active_channel ();
-		prompt ()
+		prompt ();
+		let stop = Asm.rdtsc () in
+		Printf.eprintf "redraw: %Ld\n" (Int64.sub stop start)
 	
 	let add_line ?(autocreate = false) ?(highlighted = false) ?(input = false) name line =
 		let chan =
@@ -128,13 +132,16 @@ module UI = struct
 		(* we have activity on this channel *)
 		if chan <> state.active && chan.highlighted = false then
 			chan.activity <- true;
+		let start = Asm.rdtsc () in
 		if input then
 			redraw ()
 		else begin
 			status ();
 			active_channel ();
-			Printf.printf "\027[37;44;1m";
-		end
+			printf "\027[37;44;1m";
+		end;
+		let stop = Asm.rdtsc () in
+		Printf.eprintf "add_line: %Ld (redraw = %B)\n" (Int64.sub stop start) input
 	
 	let cycle_channels () =
 		let chan_after = List.fold_left begin fun (found,value) chan ->
@@ -233,7 +240,7 @@ let run server port nick pass channel' =
 					writef "QUIT :%s" rest;
 					TCP.close socket;
 					issued_quit := true;
-					Printf.printf "\027[0m\027[J";
+					printf "\027[0m\027[J";
 					Thread.yield ();
 				| "/cycle" :: _ ->
 					UI.cycle_channels ()
@@ -304,7 +311,7 @@ let run server port nick pass channel' =
 			| End_of_file ->
 				issued_quit := true (* just in case other end terminated it *)
 			| ex ->
-				Printf.printf "Error: %s (%s)\n" (Printexc.to_string ex) line
+				printf "Error: %s (%s)\n" (Printexc.to_string ex) line
 	done
 
 let nick = ref "snowflake-os"

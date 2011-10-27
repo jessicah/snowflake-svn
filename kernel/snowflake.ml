@@ -8,7 +8,7 @@ let () =
 	
 	(* initialise a bunch of devices *)
 	Vga.init ();
-	GraphicsConsole.init ();
+	(*GraphicsConsole.init ();*)
 	Keyboard.init ();
 	Ac97.init ();
 	Pcnet.init ();

@@ -48,6 +48,34 @@ let rec init () =
 	t.width <- width;
 	t.height <- height;*)
 	t.frame_buffer <- Asm.matrix32 (set_target t.width t.height) t.height t.width;
+	
+	(* do flood fill to get smth to compare for rdtsc *)
+	let t0 = Asm.rdtsc () in
+	Array2.fill t.frame_buffer 0x00FFFFFFl;
+	let t1 = Asm.rdtsc () in
+	Array2.fill t.frame_buffer 0x000000FFl;
+	let t2 = Asm.rdtsc () in
+	Array2.fill t.frame_buffer 0x0000FF00l;
+	let t3 = Asm.rdtsc () in
+	Array2.fill t.frame_buffer 0x00FF0000l;
+	let t4 = Asm.rdtsc () in
+	Array2.fill t.frame_buffer 0x00000000l;
+	let t5 = Asm.rdtsc () in
+	Printf.eprintf
+		"flood fill: %Ld %Ld %Ld %Ld %Ld; avg = %Ld\n"
+			(Int64.sub t1 t0) (Int64.sub t2 t1) (Int64.sub t3 t2) (Int64.sub t4 t3) (Int64.sub t5 t4)
+			(Int64.div (Int64.add t0 (Int64.add t1 (Int64.add t2 (Int64.add t3 (Int64.add t4 t5))))) 6L);
+	
+	(* fill with text :) *)
+	let start = Asm.rdtsc () in
+	for i = 0 to t.width / 8 - 1 do
+		for j = 0 to t.height / 16 - 1 do
+			Ovt100.process gfx_console (UChar.uchar_of_int (Char.code '*'));
+		done;
+	done;
+	let stop = Asm.rdtsc () in
+	Printf.eprintf "text fill: %Ld\n" (Int64.sub stop start);
+	
 	Ovt100.current_console := gfx_console
 and gfx_console =
 	object (self)
