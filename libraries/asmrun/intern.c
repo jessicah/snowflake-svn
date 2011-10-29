@@ -447,14 +447,14 @@ CAMLprim value caml_input_value(value vchan)
 CAMLexport value caml_input_val_from_string(value str, intnat ofs)
 {
   CAMLparam1 (str);
-  mlsize_t num_objects, size_32, size_64, whsize;
+  mlsize_t num_objects, size_32, /*size_64,*/ whsize;
   CAMLlocal1 (obj);
 
   intern_src = &Byte_u(str, ofs + 2*4);
   intern_input_malloced = 0;
   num_objects = read32u();
   size_32 = read32u();
-  size_64 = read32u();
+  /*size_64 = read32u();*/
   /* Allocate result */
 #ifdef ARCH_SIXTYFOUR
   whsize = size_64;
@@ -478,12 +478,12 @@ CAMLprim value caml_input_value_from_string(value str, value ofs)
 
 static value input_val_from_block(void)
 {
-  mlsize_t num_objects, size_32, size_64, whsize;
+  mlsize_t num_objects, size_32, /*size_64,*/ whsize;
   value obj;
 
   num_objects = read32u();
   size_32 = read32u();
-  size_64 = read32u();
+  /*size_64 = read32u();*/
   /* Allocate result */
 #ifdef ARCH_SIXTYFOUR
   whsize = size_64;
@@ -502,7 +502,7 @@ static value input_val_from_block(void)
 CAMLexport value caml_input_value_from_malloc(char * data, intnat ofs)
 {
   uint32 magic;
-  mlsize_t block_len;
+/*  mlsize_t block_len;*/
   value obj;
 
   intern_input = (unsigned char *) data;
@@ -511,7 +511,7 @@ CAMLexport value caml_input_value_from_malloc(char * data, intnat ofs)
   magic = read32u();
   if (magic != Intext_magic_number) 
     caml_failwith("input_value_from_malloc: bad object");
-  block_len = read32u();
+/*  block_len = read32u();*/
   obj = input_val_from_block();
   /* Free the input */
   caml_stat_free(intern_input);

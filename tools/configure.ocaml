@@ -24,6 +24,7 @@ manext=1
 host_type=unknown
 ccoption=''
 asoption=''
+asflags=''
 asppoption=''
 cclibs=''
 curseslibs=''
@@ -77,6 +78,8 @@ while : ; do
         ccoption="$2"; shift;;
     -as)
         asoption="$2"; shift;;
+    -asflags)
+	asflags="$2"; shift;;
     -aspp)
         asppoption="$2"; shift;;
     -lib*)
@@ -1413,7 +1416,7 @@ echo "NATIVECCPROFOPTS=$nativeccprofopts" >> Makefile
 echo "NATIVECCLINKOPTS=$nativecclinkopts" >> Makefile
 echo "NATIVECCRPATH=$nativeccrpath" >> Makefile
 echo "NATIVECCLIBS=$cclibs $dllib" >> Makefile
-echo "ASM=$as" >> Makefile
+echo "ASM=$as $asflags" >> Makefile
 echo "ASPP=$aspp" >> Makefile
 echo "ASPPPROFFLAGS=$asppprofflags" >> Makefile
 echo "PROFILING=$profiling" >> Makefile

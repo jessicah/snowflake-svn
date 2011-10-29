@@ -469,7 +469,7 @@ let caml_headers = [
             ]
         end;;
 
-    flag ["compile"; "c"; "libkernel"] (S[A"-I"; A"libraries/include"; A"-I"; A"libraries/x86emu"; A"-I"; A"../tools/custom/include/cairo"; A"-nostdinc"; A"-DCAML_NAME_SPACE"; A"-DSYS_linux_elf"; A"-DTARGET_i386"; A"-DNATIVE_CODE"; A"-O2"]);;
+    flag ["compile"; "c"; "libkernel"] (S[A"-I"; A"libraries/include"; A"-I"; A"libraries/x86emu"; A"-I"; A"-nostdinc"; A"-DCAML_NAME_SPACE"; A"-DSYS_linux_elf"; A"-DTARGET_i386"; A"-DNATIVE_CODE"; A"-O2"]);;
 	
 	let deps = [
 		"libraries/include/multiboot.h";
@@ -493,11 +493,6 @@ let caml_headers = [
             A"-ccopt"; A"-L .";
 			A"-ccopt"; A"-L ../tools/custom/lib";
             A"-ccopt"; A"-T ../kernel/kernel.ldscript";
-			A"-clibrary"; A"-lmlcairo";
-			A"-clibrary"; A"-lcairo";
-			A"-clibrary"; A"-lpixman-1";
-			A"-clibrary"; A"-lmlfreetype";
-			A"-clibrary"; A"-lfreetype";
 			A"-clibrary"; A"-lgcc";
             A"-clibrary"; A"-lc";
             A"-clibrary"; A"-lm";
@@ -507,7 +502,7 @@ let caml_headers = [
 			A"-clibrary"; A"-lx86emu";
         ]);;
 	
-	dep ["file:kernel/snowflake.native"] ["libkernel.a"; "libm.a"; "libc.a"; "libgcc.a"; "libbigarray.a"; "libthreads.a"; "libbitstring.a"; "libx86emu.a"; "libmlcairo.a"; "libmlfreetype.a"];;
+	dep ["file:kernel/snowflake.native"] ["libkernel.a"; "libm.a"; "libc.a"; "libgcc.a"; "libbigarray.a"; "libthreads.a"; "libbitstring.a"; "libx86emu.a";];;
 
 (*** ocamlopt.opt ***)
 		

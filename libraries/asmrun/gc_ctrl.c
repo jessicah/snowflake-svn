@@ -120,7 +120,7 @@ static value heap_stats (int returnstats)
          free_words = 0, free_blocks = 0, largest_free = 0,
          fragments = 0, heap_chunks = 0;
   char *chunk = caml_heap_start, *chunk_end;
-  char *cur_hp, *prev_hp;
+  char *cur_hp/*, *prev_hp*/;
   header_t cur_hd;
 
 #ifdef DEBUG
@@ -130,7 +130,7 @@ static value heap_stats (int returnstats)
   while (chunk != NULL){
     ++ heap_chunks;
     chunk_end = chunk + Chunk_size (chunk);
-    prev_hp = NULL;
+    /*prev_hp = NULL;*/
     cur_hp = chunk;
     while (cur_hp < chunk_end){
       cur_hd = Hd_hp (cur_hp);
@@ -139,8 +139,8 @@ static value heap_stats (int returnstats)
       case Caml_white:
         if (Wosize_hd (cur_hd) == 0){
           ++ fragments;
-          Assert (prev_hp == NULL
-                  || Color_hp (prev_hp) != Caml_blue
+          Assert (/*prev_hp == NULL
+                  ||*/ Color_hp (prev_hp) != Caml_blue
                   || cur_hp == caml_gc_sweep_hp);
         }else{
           if (caml_gc_phase == Phase_sweep && cur_hp >= caml_gc_sweep_hp){
@@ -185,7 +185,7 @@ static value heap_stats (int returnstats)
         */
         break;
       }
-      prev_hp = cur_hp;
+      /*prev_hp = cur_hp;*/
       cur_hp = Next (cur_hp);
     }                                          Assert (cur_hp == chunk_end);
     chunk = Chunk_next (chunk);
