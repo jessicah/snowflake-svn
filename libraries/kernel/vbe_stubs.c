@@ -45,7 +45,7 @@ static void bios_interrupt(unsigned char num, X86EMU_regs *regs)
 		X86EMU_setupMemFuncs(&x86emu_memfuncs);
 		x86emu_setup = 1;
 	}
-	
+
 	memset(&M, 0, sizeof M);
 	M.x86 = *regs;
 	/* Mmmm, fixed addresses */
@@ -54,12 +54,86 @@ static void bios_interrupt(unsigned char num, X86EMU_regs *regs)
 	M.x86.R_CS = 0x0;
 	M.x86.R_EIP = 0x2001;
 	*(u8 *)0x2001 = 0xf4; /* HLT, so the emulator knows where to stop */
-	
+
 	X86EMU_prepareForInt(num);
 	X86EMU_exec();
-	
+
 	*regs = M.x86;
 }
+
+#define SEGOFF2LIN(segoff) ((((segoff) & 0xFFFF0000) >> 12) + ((segoff) & 0xFFFF))
+
+typedef struct vbe_info {
+	char signature[4];		/* 'VESA' or 'VBE2' */
+	u16 version;
+	u32 oem_string_ptr;
+	u32 capabilities;
+	u32 video_mode_ptr;
+	u16 total_memory;
+	u16 oem_software_rev;
+	u32 oem_vendor_name_ptr;
+	u32 oem_product_name_ptr;
+	u32 oem_product_rev_ptr;
+	u8 _reserved[222];
+	u8 oem_data[256];
+} __attribute__((packed)) vbe_info_t;
+
+typedef struct vbe_mode_info {
+	/* All VBE versions */
+	u16 mode_attributes;
+	u8 wina_attributes;
+	u8 winb_attributes;
+	u16 win_granularity;
+	u16 win_size;
+	u16 wina_segment;
+	u16 winb_segment;
+	u32 win_func_ptr;
+	u16 bytes_per_scanline;
+
+	/* VBE 1.2 & up */
+	u16 x_res;
+	u16 y_res;
+	u8 char_width;
+	u8 char_height;
+	u8 plane_count;
+	u8 bits_per_pixel;
+	u8 bank_count;
+	u8 memory_model;
+	u8 bank_size;
+	u8 image_page_count;
+	u8 _reserved1;
+
+	/* Direct color fields */
+	u8 red_mask_size;
+	u8 red_field_pos;
+	u8 green_mask_size;
+	u8 green_field_pos;
+	u8 blue_mask_size;
+	u8 blue_field_pos;
+	u8 rsvd_mask_size;
+	u8 rsvd_field_pos;
+	u8 direct_color_mode_info;
+
+	/* VBE 2.0 & up */
+	u32 phys_base;
+	u8 _reserved2[6];
+
+	/* VBE 3.0 & up */
+	u16 lin_bytes_per_scanline;
+	u8 bnk_image_page_count;
+	u8 lin_image_page_count;
+	u8 lin_red_mask_size;
+	u8 lin_red_field_pos;
+	u8 lin_green_mask_size;
+	u8 lin_green_field_pos;
+	u8 lin_blue_mask_size;
+	u8 lin_blue_field_pos;
+	u8 lin_rsvd_mask_size;
+	u8 lin_rsvd_field_pos;
+	u8 max_pixel_clock;
+
+	u8 _reserved3[189];
+} __attribute__((packed)) vbe_mode_info_t;
 
 static unsigned long frame_buffer = 0;
 static unsigned short frame_width = 0;
@@ -73,25 +147,25 @@ static void vbe_switch_target_mode(int target_width, int target_height)
 	unsigned short max_height = 0;
 	unsigned short cur_width = 0;
 	unsigned short cur_height = 0;
-		
-	char *buffer = (char *)0x3000;
+
+	vbe_info_t *vbe_info = (vbe_info_t *)0x3000;
 	memset(&regs, 0, sizeof regs);
 	regs.R_EAX = 0x4F00;
-	buffer[0] = 'V';
-	buffer[1] = 'B';
-	buffer[2] = 'E';
-	buffer[3] = '2';
+	vbe_info->signature[0] = 'V';
+	vbe_info->signature[1] = 'B';
+	vbe_info->signature[2] = 'E';
+	vbe_info->signature[3] = '2';
 	regs.R_EDI = 0x3000;
-	
+
 	bios_interrupt(0x10, &regs);
-	
-	if (regs.R_EAX != 0x004F) {
+
+	if (regs.R_AX != 0x004F) {
 		dprintf("Couldn't find VBE2+\n");
 		return;
 	}
-	
-	/* buffer[0x0E] == pointer to list of modes */
-	unsigned short *mode_list = (unsigned short *)(buffer+0x0E);
+
+	unsigned short *mode_list = (unsigned short *)SEGOFF2LIN(vbe_info->video_mode_ptr);
+	vbe_mode_info_t *mode_info = (vbe_mode_info_t *)0x4000;
 	while(*mode_list != 0xFFFF) {
 		unsigned short mode = *mode_list;
 		++mode_list;
@@ -99,47 +173,47 @@ static void vbe_switch_target_mode(int target_width, int target_height)
 		memset(&regs, 0, sizeof regs);
 		regs.R_EAX = 0x4F01;
 		regs.R_ES = 0;
-		regs.R_EDI = 0x3000;
+		regs.R_EDI = 0x4000;
 		regs.R_ECX = mode;
-		
+
 		bios_interrupt(0x10, &regs);
-		
-		cur_width = *((unsigned short *)(buffer+0x12));
-		cur_height = *((unsigned short *)(buffer+0x14));
-		
+
+		cur_width = mode_info->x_res;
+		cur_height = mode_info->y_res;
+
 		/* check if it's a suitable mode */
-		unsigned short attr = *((unsigned short *)(buffer+0x00));
-		unsigned short scan_line = *((unsigned short *)(buffer+0x10));
-		unsigned char bpp = *((unsigned char *)(buffer+0x19));
-		unsigned char mm = *((unsigned char *)(buffer+0x1B));
-		
-		/*dprintf("mode %d: %dx%d, attr: %02x, scan_line: %d bytes, bpp: %d, memory model: %d\n",
-			mode, cur_width, cur_height, attr, scan_line, bpp, mm);*/
-		
+		unsigned short attr = mode_info->mode_attributes;
+		unsigned short scan_line = mode_info->bytes_per_scanline;
+		unsigned char bpp = mode_info->bits_per_pixel;
+		unsigned char mm = mode_info->memory_model;
+
+		dprintf("mode %x: %dx%d, attr: %02x, scan_line: %d bytes, bpp: %d, memory model: %x\n",
+			mode, cur_width, cur_height, attr, scan_line, bpp, mm);
+
 		if (attr & 0x90 == 0) {
 			/* doesn't support linear framebuffer */
-			//dprintf("skipping: doesn't support linear framebuffer\n");
+			dprintf("skipping: doesn't support linear framebuffer\n");
 			continue;
 		}
-		
+
 		if (bpp != 32 && bpp != 24) {
 			/* want 8-bits per colour */
-			//dprintf("skipping: not 8-bits per pixel\n");
+			dprintf("skipping: not 8-bits per pixel\n");
 			continue;
 		}
-		
+
 		if (mm != 6) {
 			/* want direct colour mode */
-			//dprintf("skipping: not direct colour mode\n");
+			dprintf("skipping: not direct colour mode\n");
 			continue;
 		}
-		
+
 		if ((scan_line / 4) != cur_width) {
 			/* not 32-bit colour mode */
-			//dprintf("skipping: not 32-bits per pixel\n");
+			dprintf("skipping: not 32-bits per pixel\n");
 			continue;
 		}
-		
+
 		if (cur_width == target_width && cur_height == target_height) {
 			max_width = cur_width;
 			max_height = cur_height;
@@ -150,26 +224,26 @@ static void vbe_switch_target_mode(int target_width, int target_height)
 			break;
 		}
 	}
-	
+
 	/* get mode info */
 	dprintf("getting mode info for %d\n", max_mode);
 	memset(&regs, 0, sizeof regs);
 	regs.R_EAX = 0x4f01;
 	regs.R_ES = 0;
-	regs.R_EDI = 0x3000;
+	regs.R_EDI = 0x4000;
 	regs.R_ECX = max_mode;
-	
+
 	bios_interrupt(0x10, &regs);
-	
-	frame_buffer = *((unsigned long *)(buffer+0x28));
-	unsigned short width = *((unsigned short *)(buffer+0x12));
-	unsigned short height = *((unsigned short *)(buffer+0x14));
-	
+
+	frame_buffer = mode_info->phys_base;
+	unsigned short width = mode_info->x_res;
+	unsigned short height = mode_info->y_res;
+
 	frame_width = width;
 	frame_height = height;
-	
+
 	dprintf("Framebuffer at 0x%08x, width: %d, height: %d\n", frame_buffer, frame_width, frame_height);
-	
+
 	/* set the mode */
 	memset(&regs, 0, sizeof regs);
 	regs.R_EAX = 0x4F02;
@@ -179,12 +253,12 @@ static void vbe_switch_target_mode(int target_width, int target_height)
 	} else {
 		regs.R_EBX = 3;
 	}
-	
+
 	dprintf("setting mode to %d\n", regs.R_EBX);
-	
+
 	bios_interrupt(0x10, &regs);
-	
-	dprintf("Switch: %04x\n", regs.R_EAX);
+
+	dprintf("Switch: %04x\n", regs.R_AX);
 }
 
 static void vbe_switch_best_mode()
@@ -195,54 +269,54 @@ static void vbe_switch_best_mode()
 	unsigned short max_height = 0;
 	unsigned short cur_width = 0;
 	unsigned short cur_height = 0;
-		
-	char *buffer = (char *)0x3000;
+
+	vbe_info_t *vbe_info = (vbe_info_t *)0x3000;
 	memset(&regs, 0, sizeof regs);
 	regs.R_EAX = 0x4F00;
-	buffer[0] = 'V';
-	buffer[1] = 'B';
-	buffer[2] = 'E';
-	buffer[3] = '2';
+	vbe_info->signature[0] = 'V';
+	vbe_info->signature[1] = 'B';
+	vbe_info->signature[2] = 'E';
+	vbe_info->signature[3] = '2';
 	regs.R_EDI = 0x3000;
-	
+
 	bios_interrupt(0x10, &regs);
-	
-	if (regs.R_EAX != 0x004F) {
+
+	if (regs.R_AX != 0x004F) {
 		dprintf("Couldn't find VBE2+\n");
 		return;
 	}
-	
-	/* buffer[0x0E] == pointer to list of modes */
-	unsigned short *mode_list = (unsigned short *)(buffer+0x0E);
+
+	unsigned short *mode_list = (unsigned short *)SEGOFF2LIN(vbe_info->video_mode_ptr);
+	vbe_mode_info_t *mode_info = (vbe_mode_info_t *)0x4000;
 	while(*mode_list != 0xFFFF) {
 		unsigned short mode = *mode_list;
 		++mode_list;
 		memset(&regs, 0, sizeof regs);
 		regs.R_EAX = 0x4F01;
 		regs.R_ES = 0;
-		regs.R_EDI = 0x3000;
+		regs.R_EDI = 0x4000;
 		regs.R_ECX = mode;
-		
+
 		bios_interrupt(0x10, &regs);
-		
-		cur_width = *((unsigned short *)(buffer+0x12));
-		cur_height = *((unsigned short *)(buffer+0x14));
-		
+
+		cur_width = mode_info->x_res;
+		cur_height = mode_info->y_res;
+
 		/* check if it's a suitable mode */
-		unsigned short attr = *((unsigned short *)(buffer+0x00));
-		unsigned short scan_line = *((unsigned short *)(buffer+0x10));
-		unsigned char bpp = *((unsigned char *)(buffer+0x19));
-		unsigned char mm = *((unsigned char *)(buffer+0x1B));
-		
+		unsigned short attr = mode_info->mode_attributes;
+		unsigned short scan_line = mode_info->bytes_per_scanline;
+		unsigned char bpp = mode_info->bits_per_pixel;
+		unsigned char mm = mode_info->memory_model;
+
 		/*dprintf("mode %d: %dx%d, attr: %02x, scan_line: %d bytes, bpp: %d, memory model: %d\n",
 			mode, cur_width, cur_height, attr, scan_line, bpp, mm);*/
-		
+
 		if (attr & 0x90 == 0) {
 			/* doesn't support linear framebuffer */
 			dprintf("skipping: doesn't support linear framebuffer\n");
 			continue;
 		}
-		
+
 		#if 0
 		if (bpp != 32 || bpp != 24) {
 			/* want 8-bits per colour */
@@ -250,19 +324,19 @@ static void vbe_switch_best_mode()
 			continue;
 		}
 		#endif
-		
+
 		if (mm != 6) {
 			/* want direct colour mode */
 			//dprintf("skipping: not direct colour mode\n");
 			continue;
 		}
-		
+
 		if ((scan_line / 4) != cur_width) {
 			/* not 32-bit colour mode */
 			//dprintf("skipping: not 32-bits per pixel\n");
 			continue;
 		}
-		
+
 		if (cur_width > max_width && cur_height > max_height) {
 			max_width = cur_width;
 			max_height = cur_height;
@@ -272,26 +346,26 @@ static void vbe_switch_best_mode()
 				(attr & 0x90 == 0) ? "false" : "true", bpp, mm, (scan_line / 4));
 		}
 	}
-	
+
 	/* get mode info */
 	dprintf("getting mode info for %d\n", max_mode);
 	memset(&regs, 0, sizeof regs);
 	regs.R_EAX = 0x4f01;
 	regs.R_ES = 0;
-	regs.R_EDI = 0x3000;
+	regs.R_EDI = 0x4000;
 	regs.R_ECX = max_mode;
-	
+
 	bios_interrupt(0x10, &regs);
-	
-	frame_buffer = *((unsigned long *)(buffer+0x28));
-	unsigned short width = *((unsigned short *)(buffer+0x12));
-	unsigned short height = *((unsigned short *)(buffer+0x14));
-	
+
+	frame_buffer = mode_info->phys_base;
+	unsigned short width = mode_info->x_res;
+	unsigned short height = mode_info->y_res;
+
 	frame_width = width;
 	frame_height = height;
-	
+
 	dprintf("Framebuffer at 0x%08x, width: %d, height: %d\n", frame_buffer, frame_width, frame_height);
-	
+
 	/* set the mode */
 	memset(&regs, 0, sizeof regs);
 	regs.R_EAX = 0x4F02;
@@ -301,18 +375,18 @@ static void vbe_switch_best_mode()
 	} else {
 		regs.R_EBX = 3;
 	}
-	
+
 	dprintf("setting mode to %d\n", regs.R_EBX);
-	
+
 	bios_interrupt(0x10, &regs);
-	
-	dprintf("Switch: %04x\n", regs.R_EAX);
+
+	dprintf("Switch: %04x\n", regs.R_AX);
 }
 
 static void vbe_switch(unsigned short mode)
 {
 	X86EMU_regs regs;
-	
+
 	/* detect presence of vbe2+ */
 	char *buffer = (char *)0x3000;
 	memset(&regs, 0, sizeof regs);
@@ -323,36 +397,36 @@ static void vbe_switch(unsigned short mode)
 	buffer[3] = '2';
 	regs.R_ES = 0;
 	regs.R_EDI = 0x3000;
-	
+
 	dprintf("Detecting presence of VBE2...\n");
-	
+
 	bios_interrupt(0x10, &regs);
-	
-	dprintf("Result: %04x\n", regs.R_EAX);
-	
+
+	dprintf("Result: %04x\n", regs.R_AX);
+
 	if ((regs.R_EAX & 0x00ff) != 0x4f) {
 		dprintf("VBE not supported\n");
 	}
-	
+
 	if ((regs.R_EAX & 0xff00) != 0) {
 		dprintf("VBE call failed: %04x\n", regs.R_EAX & 0xffff);
 	}
-	
+
 	/* get mode info */
 	memset(&regs, 0, sizeof regs);
 	regs.R_EAX = 0x4f01;
 	regs.R_ES = 0;
 	regs.R_EDI = 0x3000;
 	regs.R_ECX = mode;
-	
+
 	bios_interrupt(0x10, &regs);
-	
+
 	frame_buffer = *((unsigned long *)(buffer+0x28));
 	unsigned short width = *((unsigned short *)(buffer+0x12));
 	unsigned short height = *((unsigned short *)(buffer+0x14));
-	
+
 	dprintf("Framebuffer at 0x%08x, width: %d, height: %d\n", frame_buffer, width, height);
-	
+
 	/* set the mode */
 	memset(&regs, 0, sizeof regs);
 	regs.R_EAX = 0x4f02;
@@ -362,12 +436,12 @@ static void vbe_switch(unsigned short mode)
 	} else {
 		regs.R_EBX = 3;
 	}
-	
+
 	bios_interrupt(0x10, &regs);
-	
-	dprintf("Switch: %04x\n", regs.R_EAX);
-	
-	
+
+	dprintf("Switch: %04x\n", regs.R_AX);
+
+
 	/*cairo_surface_t *surface =
 		cairo_image_surface_create_for_data(
 			(unsigned char *)frame_buffer,
