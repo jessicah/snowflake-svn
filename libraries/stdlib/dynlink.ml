@@ -66,6 +66,7 @@ type dynheader = {
 let dyn_magic_number = "Caml2007D001"
 
 let read_file filename priv =
+	Printf.eprintf "read_file for %s\n" filename;
 	(* modified for snowflake... should be interesting... *)
 	let ic = open_in_bin filename in
 	let buffer = Buffer.create (1024 * 1042) in
@@ -74,18 +75,25 @@ let read_file filename priv =
 			Buffer.add_char buffer (input_char ic);
 		done;
 	with End_of_file -> () end;
+	Printf.eprintf "Read in plugin...\n";
 	let soname, symbols = ndl_load_elf filename (Buffer.contents buffer) in
+
+	Printf.eprintf "Loaded ELF object...\n";
 	
 	(* find "caml_plugin_header" symbol *)
 	let symbol = begin try 
 			List.assoc "caml_plugin_header" symbols
-		with _ -> raise(Error(Cannot_open_dll "not an OCaml plugin"))
+		with _ ->
+			Printf.eprintf "Couldn't find caml_plugin_header\n";
+			raise(Error(Cannot_open_dll "not an OCaml plugin"))
 	end in (* : string *)
 	
+	Printf.eprintf "Unmarshalling the header...\n";
 	(* sym is actually void* which is here treated as a string *)
 	let header : dynheader = Marshal.from_string symbol 0 in
 	if header.magic <> dyn_magic_number
 	then raise(Error(Not_a_bytecode_file filename));
+	Printf.eprintf "And done? :)\n";
 	(* what to return...? *)
 	(soname, symbols, header.units)
 
@@ -197,6 +205,7 @@ let may f = function
 	| Some x -> f x
 	
 let load_symbol symbols symbol =
+	Printf.eprintf "loading symbols for %s\n" symbol;
 	let optsym n = optsym symbol n symbols in
 	let frametable, unit, data, data_end, code, code_end, entrypoint =
 		optsym "__frametable", optsym "",
@@ -214,7 +223,9 @@ let load_symbol symbols symbol =
 	| Some x, Some y -> ndl_segment x y true
 	| _ -> ()
 	end;
-	may ndl_execute entrypoint
+	Printf.eprintf "registered frametable, global, and code segments... executing entrypoint...\n";
+	may ndl_execute entrypoint;
+	Printf.eprintf "and executed!\n"
 
 let loadunits filename symbols units state =
   let new_ifaces =

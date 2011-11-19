@@ -197,7 +197,7 @@ CAMLprim value caml_elfopen(value filename, value data)
 	/* Find important stuff */
 	for(dyn = dynamic; dyn->d_tag != DT_NULL; dyn++) {
 		if(dyn->d_tag == DT_TEXTREL) {
-			caml_invalid_argument("caml_dlopen: file contains text relocations");
+			//caml_invalid_argument("caml_dlopen: file contains text relocations");
 		} else if(dyn->d_tag < DT_NUM) {
 			dynamic_info[dyn->d_tag].d_val = dyn->d_un.d_val;
 		}
@@ -251,8 +251,9 @@ CAMLprim value caml_elfopen(value filename, value data)
 	}
 
 	if(dynamic_info[DT_JMPREL].d_ptr == 0) {
-		free(targ_image);
-		caml_invalid_argument("caml_dlopen: file missing DT_JMPREL");
+		//free(targ_image);
+		//caml_invalid_argument("caml_dlopen: file missing DT_JMPREL");
+		dprintf("warning: missing DT_JMPREL\n");
 	} else {
 		dynamic_info[DT_JMPREL].d_ptr += (Elf32_Addr)buf;
 		if(dynamic_info[DT_PLTREL].d_val == 0 || dynamic_info[DT_PLTRELSZ].d_val == 0 || dynamic_info[DT_PLTGOT].d_val == 0) {
@@ -268,6 +269,7 @@ CAMLprim value caml_elfopen(value filename, value data)
 			dynamic_info[DT_RELENT].d_val = sizeof(Elf32_Rel);
 		}
 	}
+	
 	if(dynamic_info[DT_INIT].d_ptr) {
 		dynamic_info[DT_INIT].d_ptr += (Elf32_Addr)targ_image;
 	}

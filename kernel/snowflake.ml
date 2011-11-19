@@ -44,7 +44,7 @@ let () =
 	IRC.init ();
 	StreamingPlayer.init ();*)
 
-	(*Dynlink.loadfile "/tarfs/plugin.cmxs";*)
+	Dynlink.loadfile "/tarfs/plugin.cmxs";
 	
 	(* let interrupts run *)
 	Asm.sti ();

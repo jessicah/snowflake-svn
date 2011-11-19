@@ -120,7 +120,8 @@ CAMLprim value caml_natdynlink_segment(void *sym, void *sym2, value v) {
 }
 
 CAMLprim value caml_natdynlink_execute(value entrypoint) {
-	value result = caml_callback(entrypoint, 0);
+	dprintf("entrypoint: 0x%08x\n", entrypoint);
+	value result = caml_callback(&entrypoint, 0);
 	return result;
 }
 
