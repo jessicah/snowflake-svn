@@ -327,8 +327,21 @@ let set_binary_mode_out _ _ = ()
 (* General input functions *)
 
 let open_in_gen mode perm name =
-	(* walk to inode, open it *)
-	raise Not_supported
+	(* ignore mode & perm *)
+	let path = Vfs.split_on_slash name in
+	match Vfs.walk path with
+	| None, _ -> raise Not_found
+	| Some inode, m ->
+		let module M = (val m : Vfs.FileSystem) in
+		if M.is_directory inode then
+			raise Not_found
+		else begin
+		let ic = {
+			ops = (module M.Ops : Vfs.Inode);
+			inode;
+		} in M.Ops.open_in (M.Ops.of_abstract_inode inode);
+		ic
+		end
 
 let open_in name =
   open_in_gen [Open_rdonly; Open_text] 0 name
@@ -336,7 +349,9 @@ let open_in name =
 let open_in_bin name =
   open_in_gen [Open_rdonly; Open_binary] 0 name
 
-let input_char _ = '\000'
+let input_char ic =
+	let module Ops = (val ic.ops : Inode) in
+	char_of_int (Ops.input_byte (Ops.of_abstract_inode ic.inode))
 
 let input ic s ofs len = invalid_arg "input"
 

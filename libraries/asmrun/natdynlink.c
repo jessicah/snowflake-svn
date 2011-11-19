@@ -100,6 +100,30 @@ CAMLprim value caml_natdynlink_open(value filename)
   CAMLreturn(res);
 }
 
+CAMLprim value caml_natdynlink_register_frametable(void *sym) {
+	caml_register_frametable(sym);
+	return Val_unit;
+}
+
+CAMLprim value caml_natdynlink_register_global(void *sym) {
+	caml_register_dyn_global(sym);
+	return Val_unit;
+}
+
+CAMLprim value caml_natdynlink_segment(void *sym, void *sym2, value v) {
+	if (Int_val(v) == 0) {
+		caml_dyn_data_segments = segment_cons(sym,sym2,caml_dyn_data_segments);
+	} else {
+		caml_dyn_code_segments = segment_cons(sym,sym2,caml_dyn_code_segments);
+	}
+	return Val_unit;
+}
+
+CAMLprim value caml_natdynlink_execute(value entrypoint) {
+	value result = caml_callback(entrypoint, 0);
+	return result;
+}
+
 CAMLprim value caml_natdynlink_run(void *handle, value symbol) {
   CAMLparam1 (symbol);
   CAMLlocal1 (result);

@@ -11,7 +11,7 @@
 /*                                                                     */
 /***********************************************************************/
 
-/* $Id: i386.S,v 1.48 2007-01-29 15:44:42 xleroy Exp $ */
+/* $Id$ */
 
 /* Asm part of the runtime system, Intel 386 processor */
 /* Must be preprocessed by cpp */
@@ -272,15 +272,12 @@ LBL(108):
         .globl  G(caml_raise_exn)
         .align  FUNCTION_ALIGN
 G(caml_raise_exn):
-#if 0
-				testl   $1, G(caml_backtrace_active)
+        testl   $1, G(caml_backtrace_active)
         jne     LBL(110)
-#endif
         movl    G(caml_exception_pointer), %esp
         popl    G(caml_exception_pointer)
         UNDO_ALIGN_STACK(8)
         ret
-#if 0
 LBL(110):
         movl    %eax, %esi          /* Save exception bucket in esi */
         movl    G(caml_exception_pointer), %edi /* SP of handler */
@@ -297,7 +294,6 @@ LBL(110):
         popl    G(caml_exception_pointer)
         UNDO_ALIGN_STACK(8)
         ret
-#endif
 
 /* Raise an exception from C */
 
@@ -305,16 +301,13 @@ LBL(110):
         .align  FUNCTION_ALIGN
 G(caml_raise_exception):
         PROFILE_C
-#if 0
 	testl   $1, G(caml_backtrace_active)
         jne     LBL(111)
-#endif
         movl    4(%esp), %eax
         movl    G(caml_exception_pointer), %esp
         popl    G(caml_exception_pointer)
         UNDO_ALIGN_STACK(8)
         ret
-#if 0
 LBL(111):
         movl    4(%esp), %esi          /* Save exception bucket in esi */
         ALIGN_STACK(12)
@@ -328,7 +321,6 @@ LBL(111):
         popl    G(caml_exception_pointer)
         UNDO_ALIGN_STACK(8)
         ret
-#endif
 
 /* Callback from C to Caml */
 
@@ -392,9 +384,17 @@ G(caml_ml_array_bound_error):
         ffree   %st(5)
         ffree   %st(6)
         ffree   %st(7)
-    /* Branch to [caml_array_bound_error] */
-        movl    $ G(caml_array_bound_error), %eax
-        jmp     G(caml_c_call)
+    /* Record lowest stack address and return address */
+        movl    (%esp), %edx
+        movl    %edx, G(caml_last_return_address)
+        leal    4(%esp), %edx
+        movl    %edx, G(caml_bottom_of_stack)
+    /* For MacOS X: re-align the stack */
+#ifdef SYS_macosx
+        andl	$-16, %esp
+#endif
+    /* Branch to [caml_array_bound_error] (never returns) */
+        call    G(caml_array_bound_error)
 
         .data
         .globl  G(caml_system__frametable)
@@ -423,4 +423,9 @@ Lmcount$stub:
         .indirect_symbol mcount
         hlt ; hlt ; hlt ; hlt ; hlt
         .subsections_via_symbols
+#endif
+
+#if defined(SYS_linux_elf)
+    /* Mark stack as non-executable, PR#4564 */
+        .section .note.GNU-stack,"",%progbits
 #endif

@@ -211,3 +211,75 @@ let read_dir path_list =
 	| None, _ -> raise Not_found
 
 (* we can't implement is_directory & read_dir in current state! *)
+
+external (=) : 'a -> 'a -> bool = "%equal"
+external (<>) : 'a -> 'a -> bool = "%notequal"
+external (<) : 'a -> 'a -> bool = "%lessthan"
+external (>) : 'a -> 'a -> bool = "%greaterthan"
+external (<=) : 'a -> 'a -> bool = "%lessequal"
+external (>=) : 'a -> 'a -> bool = "%greaterequal"
+
+external (&&) : bool -> bool -> bool = "%sequand"
+external (||) : bool -> bool -> bool = "%sequor"
+
+external (+) : int -> int -> int = "%addint"
+external (-) : int -> int -> int = "%subint"
+
+external raise : exn -> 'a = "%raise"
+
+let failwith s = raise(Failure s)
+let invalid_arg s = raise(Invalid_argument s)
+
+(* taken from string module *)
+
+external length : string -> int = "%string_length"
+external create : int -> string = "caml_create_string"
+external unsafe_get : string -> int -> char = "%string_unsafe_get"
+external unsafe_set : string -> int -> char -> unit = "%string_unsafe_set"
+external unsafe_blit : string -> int -> string -> int -> int -> unit
+                     = "caml_blit_string" "noalloc"
+external unsafe_fill : string -> int -> int -> char -> unit
+                     = "caml_fill_string" "noalloc"
+
+let make n c =
+  let s = create n in
+  unsafe_fill s 0 n c;
+  s
+
+let copy s =
+  let len = length s in
+  let r = create len in
+  unsafe_blit s 0 r 0 len;
+  r
+
+let sub s ofs len =
+  if ofs < 0 || len < 0 || ofs > length s - len
+  then invalid_arg "String.sub"
+  else begin
+    let r = create len in
+    unsafe_blit s ofs r 0 len;
+    r
+  end
+let rec index_rec s lim i c =
+  if i >= lim then raise Not_found else
+  if unsafe_get s i = c then i else index_rec s lim (i+1) c;;
+
+let index s c = index_rec s (length s) 0 c;;
+
+let index_from s i c =
+  if i < 0 || i > length s then invalid_arg "String.index_from" else
+  index_rec s (length s) i c;;
+
+(* taken from tarfs code *)
+let split_on_slash path =
+	let len = length path in
+	let rec split ix =
+		try
+			let slash = index_from path ix '/' in
+			if slash = 0 then split (slash + 1)
+			else sub path ix (slash - ix) :: split (slash + 1)
+		with Not_found -> sub path ix (len - ix) :: []
+	in
+	if len = 0 then []
+	else if len = 1 && (unsafe_get path 0) = '/' then []
+	else split 0

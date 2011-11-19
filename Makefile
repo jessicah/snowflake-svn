@@ -12,6 +12,8 @@ ISO = snowflake.iso
 all: myocamlbuild_config.ml
 	if [ ! -e tools/Makefile ] ; then cp -f tools/Makefile.in tools/Makefile; fi
 	$(MAKE) -C tools all
+	$(OCAMLBUILD) ocamlopt.opt
+	$(OCAMLBUILD) libraries/dummy/dlldummy.so
 	$(OCAMLBUILD) libraries/stdlib/stdlib.cmxa libraries/bigarray/bigarray.cmxa libraries/extlib/extlib.cmxa libraries/threads/threads.cmxa libraries/bitstring/bitstring.cmxa $(KERNEL)
 	rm -rf cdrom/iso_prep
 	# this should be done in myocamlbuild

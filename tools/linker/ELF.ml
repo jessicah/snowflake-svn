@@ -151,7 +151,8 @@ module O = struct
 			followed by the content, and be done with it *)
 		let io = output_channel oc in
 		(* ELF header *)
-		let shstrtab = "\000.text\000.shstrtab\000" in
+		(*let shstrtab = "\000.text\000.shstrtab\000" in*)
+		let shstrtab = "\000.shstrtab\000.text\000" in
 		let section_headers = [
 			{ (* NULL *)
 				st_name      = 0;
@@ -166,7 +167,7 @@ module O = struct
 				st_entsize   = 0;
 			};
 			{ (* .text *)
-				st_name      = 1;
+				st_name      = 11;
 				st_type      = Progbits;
 				st_flags     = [Alloc; Execute];
 				st_addr      = entry_point;
@@ -178,7 +179,7 @@ module O = struct
 				st_entsize   = 0;
 			};
 			{ (* .shstrtab *)
-				st_name      = 7;
+				st_name      = 1;
 				st_type      = Strtab;
 				st_flags     = [];
 				st_addr      = 0;
@@ -562,7 +563,7 @@ let open_files file_list =
 		List.map (function Object o -> o | _ -> assert false) o,
 		List.map (function Archive a -> a | _ -> assert false) a
 
-let objects, libraries = open_files (List.tl (Array.to_list Sys.argv))
+let objects, libraries = open_files ((input_files))
 
 let get_section obj name =
 	List.find begin function section ->
@@ -571,7 +572,7 @@ let get_section obj name =
 
 
 (* builds a string table *)
-let names = [ ""; ".text"; ".shstrtab" ]
+let names = [ "";  ".shstrtab"; ".text"; ]
 
 let build_string_table names =
 	let len = List.fold_left begin fun acc name ->

@@ -35,12 +35,12 @@ module IDE_stuff = struct
 	let read offset length =
 		let l = (length + 512) / 512 in
 		let s = offset / 512 in
-		(*Vt100.printf "reading data: %d (%d), %d (%d)\n" s offset l length;*)
+		(*Debug.printf "reading data: %d (%d), %d (%d)\n" s offset l length;*)
 		let disk = IDE.get IDE.Primary IDE.Master in
 		let data = IDE.read_disk disk s l in
 		(*for i = 0 to 511 do
-			if i mod 16 = 0 then Vt100.printf "\n%03x: " (i/16);
-			Vt100.printf "%c" data.[i];
+			if i mod 16 = 0 then Debug.printf "\n%03x: " (i/16);
+			Debug.printf "%c" data.[i];
 		done;*)
 		String.sub data (offset mod 512) length
 	
@@ -118,7 +118,9 @@ module FileSystem (*: Vfs.FileSystem*) = struct
 				| Some r ->
 					inode.offset <- r.ofs;
 					inode.position <- 0;
-					inode.length <- r.size
+					inode.length <- r.size;
+Debug.printf "open_in: offset: %d, position: %d, length: %d\n"
+	r.ofs 0 r.size
 		
 		let close_in _ = ()
 		let flush_in _ = ()
@@ -183,7 +185,9 @@ module FileSystem (*: Vfs.FileSystem*) = struct
 				trie = TarFile.restrict_direct path (Lazy.force trie);
 				offset = 0; position = 0; length = 0;
 			})
-		with Not_found -> None
+		with Not_found ->
+			Debug.printf "couldn't walk to inode\n";
+			None
 	
 	let is_directory inode =
 		match TarFile.find_empty (Ops.of_abstract_inode inode).trie with

@@ -77,7 +77,15 @@ let dummy_console =
 				term.{i * 2 + offset + 1} <- char_of_int 7;
 			done
 		method draw ch = term.{super#get_y,super#get_x * 2} <- Char.chr ((UChar.int_of_uchar ch) land 0xFF); 1
-		method update_cursor = ()
+		method update_cursor =
+			if super#get_x >= width then begin
+				super#set_x 0;
+				super#set_y (super#get_y + 1);
+			end;
+			if super#get_y >= height then begin
+				super#set_y (height - 1);
+				(* should scroll display... *)
+			end
 	end
 
 let current_console = ref dummy_console

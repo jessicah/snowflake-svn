@@ -22,6 +22,7 @@
 #include <threads.h>
 #include <signal.h>
 #include "alloc.h"
+#include "backtrace.h"
 #include "callback.h"
 #include "custom.h"
 #include "fail.h"
@@ -431,6 +432,8 @@ value caml_thread_uncaught_exception(value exn)  /* ML */
   char * msg = caml_format_exception(exn);
   dprintf("Thread %d killed on uncaught exception %s\n",
           Int_val(Ident(curr_thread->descr)), msg);
+  if (caml_backtrace_active) caml_print_exception_backtrace();
+else dprintf("no backtrace active\n");
   free(msg);
   return Val_unit;
 }

@@ -6,17 +6,33 @@ let () =
 	Debug.init (); (* replace stderr with one that writes to serial port *)
 	Ovt100.init (); (* replace stdout with one that writes to whatever the current console is *)
 	
+	(* turn on backtrace stuff; need to fix threading for this... *)
+	Printexc.record_backtrace true;
+
 	(* initialise a bunch of devices *)
+	Printf.eprintf "Random, Debug, Ovt100 initialised\n";
 	Vga.init ();
-	(*GraphicsConsole.init ();*)
+	Printf.eprintf "Vga initialised\n";
+	(*GraphicsConsole.init ();
+	Printf.eprintf "GraphicsConsole initialised\n";*)
 	Keyboard.init ();
+	Printf.eprintf "Keyboard initialised\n";
 	Ac97.init ();
+	Printf.eprintf "Ac97 initialised\n";
 	Pcnet.init ();
+	Printf.eprintf "Pcnet initialised\n";
 	RealTek8139.init ();
+	Printf.eprintf "RealTek8139 initialised\n";
 	NetworkStack.init ();
+	Printf.eprintf "NetworkStack initialised\n";
 	IRC.init ();
+	Printf.eprintf "IRC initialised\n";
 	IDE.init ();
+	Printf.eprintf "IDE initialised\n";
 	Tar_vfs.init ();
+	Printf.eprintf "Tar_vfs initialised\n";
+	Files.init ();
+	Printf.eprintf "Files initialised\n";
 	
 	(*ICH0.init ();
 	IDE.init ();
@@ -27,6 +43,8 @@ let () =
 	TarFileSystem.init ();*)
 	IRC.init ();
 	StreamingPlayer.init ();*)
+
+	(*Dynlink.loadfile "/tarfs/plugin.cmxs";*)
 	
 	(* let interrupts run *)
 	Asm.sti ();
@@ -87,4 +105,6 @@ let () =
 	end*)
 	
 	(* finished, so launch the shell *)
-	Shell.init ()
+	Printf.eprintf "Launching Shell... ";
+	Shell.init ();
+	Printf.eprintf "completed; snowflake init exiting.\n"

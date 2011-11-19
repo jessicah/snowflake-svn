@@ -9,7 +9,7 @@ module M = Myocamlbuild_config;;
 Options.ocamlopt := P"./ocamlopt.opt";;
 Options.ocamlc := P"./ocamlopt.opt";;
 
-flag ["ocaml"; "compile"; "snowflake"] & S[A"-nostdlib"; A"-freestanding"; A"-g"];;
+flag ["ocaml"; "compile"; "snowflake"] & S[A"-g"; A"-nostdlib"; A"-freestanding"; A"-g"];;
 flag ["ocaml"; "link"; "snowflake"] & S[A"-nostdlib"; A"-freestanding"];;
 
 flag ["c"; "compile"; "snowflake"] & S[A"-m32"; A"-g"; A"-fno-stack-protector"];;
@@ -151,6 +151,7 @@ let mk_stlib ?(copy = true) stlib =
 
 let caml_headers = [
 		"libraries/include/caml/alloc.h";
+		"libraries/include/caml/backtrace.h";
 		"libraries/include/caml/callback.h";
 		"libraries/include/caml/compact.h";
 		"libraries/include/caml/config.h";
@@ -500,6 +501,8 @@ let caml_headers = [
 			A"-clibrary"; A"-lthreads";
 			A"-clibrary"; A"-lbitstring";
 			A"-clibrary"; A"-lx86emu";
+A"-ccopt"; A"-export-dynamic";
+A"-cclib"; A"libraries/dummy/dlldummy.so";
         ]);;
 	
 	dep ["file:kernel/snowflake.native"] ["libkernel.a"; "libm.a"; "libc.a"; "libgcc.a"; "libbigarray.a"; "libthreads.a"; "libbitstring.a"; "libx86emu.a";];;

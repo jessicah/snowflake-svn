@@ -11,9 +11,11 @@
 (*                                                                     *)
 (***********************************************************************)
 
-(* $Id: printexc.ml,v 1.18 2004-01-16 15:24:02 doligez Exp $ *)
+(* $Id$ *)
 
 open Printf;;
+
+let printers = ref []
 
 let locfmt = format_of_string "File \"%s\", line %d, characters %d-%d: %s";;
 
@@ -40,18 +42,25 @@ let fields x =
   | n -> sprintf "(%s%s)" (field x 1) (other_fields x 2)
 ;;
 
-let to_string = function
-  | Out_of_memory -> "Out of memory"
-  | Stack_overflow -> "Stack overflow"
-  | Match_failure(file, line, char) ->
-      sprintf locfmt file line char (char+5) "Pattern matching failed"
-  | Assert_failure(file, line, char) ->
-      sprintf locfmt file line char (char+6) "Assertion failed"
-  | x ->
-      let x = Obj.repr x in
-      let constructor = (Obj.magic(Obj.field (Obj.field x 0) 0) : string) in
-      constructor ^ (fields x)
-;;
+let to_string x =
+  let rec conv = function
+    | hd :: tl ->
+        (match try hd x with _ -> None with
+        | Some s -> s
+        | None -> conv tl)
+    | [] ->
+        match x with
+        | Out_of_memory -> "Out of memory"
+        | Stack_overflow -> "Stack overflow"
+        | Match_failure(file, line, char) ->
+            sprintf locfmt file line char (char+5) "Pattern matching failed"
+        | Assert_failure(file, line, char) ->
+            sprintf locfmt file line char (char+6) "Assertion failed"
+        | _ ->
+            let x = Obj.repr x in
+            let constructor = (Obj.magic(Obj.field (Obj.field x 0) 0) : string) in
+            constructor ^ (fields x) in
+  conv !printers
 
 let print fct arg =
   try
@@ -68,3 +77,62 @@ let catch fct arg =
     flush stdout;
     eprintf "Uncaught exception: %s\n" (to_string x);
     exit 2
+
+type loc_info =
+  | Known_location of bool   (* is_raise *)
+                    * string (* filename *)
+                    * int    (* line number *)
+                    * int    (* start char *)
+                    * int    (* end char *)
+  | Unknown_location of bool (*is_raise*)
+
+external get_exception_backtrace:
+  unit -> loc_info array option = "caml_get_exception_backtrace"
+
+let format_loc_info pos li =
+  let is_raise =
+    match li with
+    | Known_location(is_raise, _, _, _, _) -> is_raise
+    | Unknown_location(is_raise) -> is_raise in
+  let info =
+    if is_raise then
+      if pos = 0 then "Raised at" else "Re-raised at"
+    else
+      if pos = 0 then "Raised by primitive operation at" else "Called from"
+  in
+  match li with
+  | Known_location(is_raise, filename, lineno, startchar, endchar) ->
+      sprintf "%s file \"%s\", line %d, characters %d-%d"
+              info filename lineno startchar endchar
+  | Unknown_location(is_raise) ->
+      sprintf "%s unknown location"
+              info
+
+let print_backtrace outchan =
+  match get_exception_backtrace() with
+  | None ->
+      fprintf outchan
+        "(Program not linked with -g, cannot print stack backtrace)\n"
+  | Some a ->
+      for i = 0 to Array.length a - 1 do
+        if a.(i) <> Unknown_location true then
+          fprintf outchan "%s\n" (format_loc_info i a.(i))
+      done
+
+let get_backtrace () =
+  match get_exception_backtrace() with
+  | None ->
+     "(Program not linked with -g, cannot print stack backtrace)\n"
+  | Some a ->
+      let b = Buffer.create 1024 in
+      for i = 0 to Array.length a - 1 do
+        if a.(i) <> Unknown_location true then
+          bprintf b "%s\n" (format_loc_info i a.(i))
+      done;
+      Buffer.contents b
+
+external record_backtrace: bool -> unit = "caml_record_backtrace"
+external backtrace_status: unit -> bool = "caml_backtrace_status"
+
+let register_printer fn =
+  printers := fn :: !printers
