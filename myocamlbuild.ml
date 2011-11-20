@@ -19,6 +19,10 @@ dep ["ocaml"; "compile"; "snowflake"] ["ocamlopt.opt"];;
 
 flag ["ocamldep"] (A"-native");;
 
+(* plugin stuff *)
+flag ["ocaml"; "native"; "shared"; "library"]
+	& S[A"-cclib"; A"-nostdlib"; A"-cclib"; A"-Wl,-nostdlib"; A"-cclib"; Sh"-Wl,-hash-style=sysv"];;
+
 let snowflake_lib name =
     ocaml_lib ~extern:true ~byte:false ~native:true ~dir:("libraries/"^name) ~tag_name:("snowflake_"^name) ("libraries/"^name^"/"^name);;
 
@@ -61,6 +65,31 @@ rule "c -> o"
 		let tags = tags_of_pathname c ++ "c" ++ "compile" in
         Cmd(S [A(M._gcc); T(tags); A"-c"; P c; A"-o"; Px o])
 	end;;
+
+(*
+(* rules taken from ocaml_specific.ml in ocamlbuild *)
+
+module O = Ocamlbuild_pack.Ocaml_compiler;;
+
+rule "ocaml: mldylib & cmx* & o* -> cmxs & so"
+  ~tags:["ocaml"; "native"; "shared"; "library"]
+  ~prods:["%.cmxs"; x_dll]
+  ~dep:"%.mldylib"
+  (O.native_shared_library_link_mldylib "%.mldylib" "%.cmxs");;
+
+rule "ocaml: cmx & o -> cmxs & so"
+  ~tags:["ocaml"; "native"; "shared"; "library"]
+  ~prods:["%.cmxs"; x_dll]
+  ~deps:["%.cmx"; x_o]
+  (O.native_shared_library_link "%.cmx" "%.cmxs");;
+
+rule "ocaml: cmxa & a -> cmxs & so"
+  ~tags:["ocaml"; "native"; "shared"; "library"]
+  ~prods:["%.cmxs"; x_dll]
+  ~deps:["%.cmxa"; x_a]
+  (O.native_shared_library_link ~tags:["linkall"] "%.cmxa" "%.cmxs");;
+
+*)
 
 let copy_rule' ?insert src dst =
         copy_rule (sprintf "%s -> %s" src dst) ?insert src dst;;

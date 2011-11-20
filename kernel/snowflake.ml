@@ -25,14 +25,15 @@ let () =
 	Printf.eprintf "RealTek8139 initialised\n";
 	NetworkStack.init ();
 	Printf.eprintf "NetworkStack initialised\n";
-	IRC.init ();
-	Printf.eprintf "IRC initialised\n";
+	(*IRC.init ();
+	Printf.eprintf "IRC initialised\n";*)
 	IDE.init ();
 	Printf.eprintf "IDE initialised\n";
 	Tar_vfs.init ();
 	Printf.eprintf "Tar_vfs initialised\n";
 	Files.init ();
 	Printf.eprintf "Files initialised\n";
+	TCP.init (); (* doesn't get linked in! *)
 	
 	(*ICH0.init ();
 	IDE.init ();
@@ -45,6 +46,14 @@ let () =
 	StreamingPlayer.init ();*)
 
 	Dynlink.loadfile "/tarfs/plugin.cmxs";
+
+	Printf.eprintf "Attempting to load IRC client at runtime...\n";
+
+begin try
+	Dynlink.loadfile "/tarfs/irc.cmxs";
+with Dynlink.Error e -> Printf.eprintf "FAILURE: %s\n" (Dynlink.error_message e);
+	Printexc.print_backtrace stderr;
+end;
 	
 	(* let interrupts run *)
 	Asm.sti ();

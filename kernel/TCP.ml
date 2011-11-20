@@ -339,4 +339,4 @@ let reassemble segment =
 	assert (check segment);
 	String.concat "" (List.map (fun (_,_,c) -> c) segment)
 
-	
+let init () = ()

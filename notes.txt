@@ -1,0 +1,7 @@
+
+# example of how to build a plugin
+_build/ocamlopt.opt -nostdlib -cclib -nostdlib -cclib -Wl,-nostdlib -cclib -Wl,-hash-style=sysv -I _build/libraries/stdlib -shared -o <plugin>.cmxs <sources>.ml
+
+# how to generate the archives.tar needed for running :)
+cp _builds/plugins/irc.cmxs .
+tar cf archives.tar plugin.cmxs irc.cmxs

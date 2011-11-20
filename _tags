@@ -19,6 +19,9 @@ true: -byte, native, nostdlib
 <libraries/{bigarray,extlib,threads,bitstring,cairo,freetype}/**.ml*>: snowflake_stdlib
 <libraries/{cairo,freetype}/**.ml*>: snowflake_bigarray
 
+#<plugins/**.*>: snowflake_extlib, snowflake_threads, snowflake_stdlib, snowflake_bitstring, snowflake_bigarray
+<plugins/**.*>: -byte, native
+
 <{libraries,kernel}/**/*.*>: linkall
 
 <libraries/m/**/*.*>: libm
