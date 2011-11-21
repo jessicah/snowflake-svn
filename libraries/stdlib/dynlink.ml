@@ -163,6 +163,9 @@ let add_check_ifaces allow_ext filename ui ifaces =
            else raise (Error(Unavailable_unit name))
     ) ifaces ui.imports_cmi
 
+let print_crc out crc =
+	String.iter (fun ch -> Printf.fprintf out "\\%03d" (Char.code ch)) crc
+
 let check_implems filename ui implems =
   List.iter
     (fun (name, crc) ->
@@ -183,8 +186,10 @@ let check_implems filename ui implems =
        try
          let (old_crc,old_src,state) = StrMap.find name implems in
          if crc <> cmx_not_found_crc && old_crc <> crc
-         then raise(Error(Inconsistent_implementation(name)))
-         else match state with
+         then begin 
+Printf.eprintf "CRCs not match :(\ncrc: %a\nold_crc: %a\ncmx_not_found: %a\n" print_crc crc print_crc old_crc print_crc cmx_not_found_crc;
+raise(Error(Inconsistent_implementation(name)))
+         end else match state with
            | Check_inited i ->
                if ndl_globals_inited() < i
                then raise(Error(Unavailable_unit name))
