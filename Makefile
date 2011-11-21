@@ -33,6 +33,11 @@ all: myocamlbuild_config.ml
 		-quiet -o $(ISO) cdrom/iso_prep/
 	rm -f file.lst files.tar
 
+archive.tar:
+	$(OCAMLBUILD) -I kernel -I libraries/stdlib -I libraries/extlib -I libraries/threads -ignore Pervasives,List,Lexing,Parsing,String,Array plugins/irc.cmxs
+	cp $(BUILDDIR)/plugins/irc.cmxs .
+	tar cf $@ irc.cmxs
+
 myocamlbuild_config.ml: myocamlbuild_config.ml.in
 	sed -e 's/@TOOLSPREFIX@/$(subst /,\/,$(TOOLSPREFIX))/' $< > $@
 

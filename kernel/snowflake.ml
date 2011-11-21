@@ -45,7 +45,7 @@ let () =
 	IRC.init ();
 	StreamingPlayer.init ();*)
 
-	Dynlink.loadfile "/tarfs/plugin.cmxs";
+	(*Dynlink.loadfile "/tarfs/plugin.cmxs";*)
 
 	Printf.eprintf "Attempting to load IRC client at runtime...\n";
 
