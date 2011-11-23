@@ -24,6 +24,7 @@ flag ["ocaml"; "native"; "shared"; "library"]
 	& S[A"-cclib"; A"-nostdlib"; A"-cclib"; A"-Wl,-nostdlib"; A"-cclib"; Sh"-Wl,-hash-style=sysv"];;
 
 let snowflake_lib name =
+	flag ["ocaml";"compile";"plugin"] & S[A"-I";A("libraries/"^name)];
     ocaml_lib ~extern:true ~byte:false ~native:true ~dir:("libraries/"^name) ~tag_name:("snowflake_"^name) ("libraries/"^name^"/"^name);;
 
 let link_C_library stlib a env build =
@@ -143,6 +144,10 @@ let copy_rule' ?insert src dst =
 		A"bitstring_persistent.cma";
 		A"pa_bitstring.cmo";
 	]);;
+
+(*** kernel ***)
+
+	flag ["ocaml";"compile";"plugin"] & S[A"-I";A"kernel"];;
 
 (*** static libraries ***)
 

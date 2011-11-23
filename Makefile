@@ -34,7 +34,7 @@ all: myocamlbuild_config.ml
 	rm -f file.lst files.tar
 
 archive.tar:
-	$(OCAMLBUILD) -I kernel -I libraries/stdlib -I libraries/extlib -I libraries/threads -ignore Pervasives,List,Lexing,Parsing,String,Array plugins/irc.cmxs
+	$(OCAMLBUILD) -tag plugin plugins/irc.cmxs
 	cp $(BUILDDIR)/plugins/irc.cmxs .
 	tar cf $@ irc.cmxs
 
