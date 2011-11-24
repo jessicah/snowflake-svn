@@ -14,7 +14,7 @@ static unsigned int __attribute__((section(".bss.pagealigned"),used)) page_dir[1
 static unsigned int __attribute__((section(".bss.pagealigned"))) first_page_table[1024];
 static unsigned int __attribute__((section(".bss.pagealigned"))) last_page_table[1024];
 
-static void paging_init(void)
+void paging_init(void)
 {
 	int i;
 	// build a simple pagedir
@@ -82,7 +82,7 @@ void __startup(multiboot_info_t *multiboot, int magic)
 	caml_enter_blocking_section();
 	
 	// caml_startup has finished initialising the OS
-	//dprintf("INFO: Startup completed. Exiting startup thread...\r\n");
+	dprintf("INFO: Startup completed. Exiting startup thread...\r\n");
 }
 
 // simplistic handing out of memory to malloc()

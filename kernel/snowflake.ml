@@ -7,7 +7,7 @@ let () =
 	Ovt100.init (); (* replace stdout with one that writes to whatever the current console is *)
 	
 	(* turn on backtrace stuff; need to fix threading for this... *)
-	Printexc.record_backtrace true;
+	(*Printexc.record_backtrace true;*)
 
 Printf.printf "init starting...\n";
 

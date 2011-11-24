@@ -211,34 +211,9 @@ type out_channel = Vfs.io_channel
 
 external magic : 'a -> 'b = "%identity"
 
-(* to allow definition of stdin/stdout/stderr *)
-module NullInode = struct
-	type t = unit
-	
-	let open_in _ = raise Not_supported
-	let close_in _ = raise Not_supported
-	let input_byte _ = raise Not_supported
-	let input_bytes _ _ _ _ = raise Not_supported
-	let seek_in _ _ = raise Not_supported
-	let pos_in _ = raise Not_supported
-	let length_in _ = raise Not_supported
-	
-	let open_out _ = raise Not_supported
-	let close_out _ = raise Not_supported
-	let flush_out _ = raise Not_supported
-	let output_byte _ _ = raise Not_supported
-	let output_bytes _ _ _ _ = raise Not_supported
-	let seek_out _ _ = raise Not_supported
-	let pos_out _ = raise Not_supported
-	let length_out _ = raise Not_supported
-	
-	let of_abstract_inode _ = ()
-	let to_abstract_inode () = magic ()
-end
-
-let stdin  = { ops = (module NullInode : Inode); inode = magic () }
-let stdout = { ops = (module NullInode : Inode); inode = magic () }
-let stderr = { ops = (module NullInode : Inode); inode = magic () }
+let stdin  = { inode = Vfs.null_inode }
+let stdout = { inode = Vfs.null_inode }
+let stderr = { inode = Vfs.null_inode }
 
 (* General output functions *)
 
@@ -258,8 +233,7 @@ let open_out_bin name =
   open_out_gen [Open_wronly; Open_creat; Open_trunc; Open_binary] 0o666 name
 
 let flush oc =
-	let module Ops = (val oc.ops : Inode) in
-	Ops.flush_out (Ops.of_abstract_inode oc.inode)
+	oc.inode.flush_out ()
 
 (*external out_channels_list : unit -> out_channel list = "caml_ml_out_channels_list"*)
 (*let flush_all () =
@@ -273,17 +247,14 @@ let flush_all () = ()
 let unsafe_output oc s ofs len =
 	let len = ref len in
 	let pos = ref ofs in 
-	let module Ops = (val oc.ops : Inode) in
-	let inode = Ops.of_abstract_inode oc.inode in
 	while !len > 0 do
-		let written = Ops.output_bytes inode s !pos !len in
+		let written = oc.inode.output_bytes s !pos !len in
 		len := !len - written;
 		pos := !pos + written;
 	done
 
 let output_char oc ch =
-	let module Ops = (val oc.ops : Inode) in
-	Ops.output_byte (Ops.of_abstract_inode oc.inode) (int_of_char ch)
+	oc.inode.output_byte (int_of_char ch)
 
 let output_string oc s =
 	unsafe_output oc s 0 (string_length s)
@@ -294,8 +265,7 @@ let output oc s ofs len =
 	else unsafe_output oc s ofs len
 
 let output_byte oc byte =
-	let module Ops = (val oc.ops : Inode) in
-	Ops.output_byte (Ops.of_abstract_inode oc.inode) byte
+	oc.inode.output_byte byte
 
 let output_binary_int oc bin =
 	output_byte oc ((bin asr 24) land 0xff);
@@ -306,17 +276,13 @@ let output_binary_int oc bin =
 let output_value chan v = failwith "output_value not implemented"
 
 let seek_out oc pos =
-	let module Ops = (val oc.ops : Inode) in
-	Ops.seek_out (Ops.of_abstract_inode oc.inode) pos
+	oc.inode.seek_out pos
 let pos_out oc =
-	let module Ops = (val oc.ops : Inode) in
-	Ops.pos_out (Ops.of_abstract_inode oc.inode)
+	oc.inode.pos_out ()
 let out_channel_length oc =
-	let module Ops = (val oc.ops : Inode) in
-	Ops.length_out (Ops.of_abstract_inode oc.inode)
+	oc.inode.length_out ()
 let close_out_channel oc =
-	let module Ops = (val oc.ops : Inode) in
-	Ops.close_out (Ops.of_abstract_inode oc.inode)
+	oc.inode.close_out ()
 
 let close_out oc = flush oc; close_out_channel oc
 let close_out_noerr oc =
@@ -329,19 +295,13 @@ let set_binary_mode_out _ _ = ()
 let open_in_gen mode perm name =
 	(* ignore mode & perm *)
 	let path = Vfs.split_on_slash name in
-	match Vfs.walk path with
-	| None, _ -> raise Not_found
-	| Some inode, m ->
-		let module M = (val m : Vfs.FileSystem) in
-		if M.is_directory inode then
-			raise Not_found
-		else begin
-		let ic = {
-			ops = (module M.Ops : Vfs.Inode);
-			inode;
-		} in M.Ops.open_in (M.Ops.of_abstract_inode inode);
-		ic
-		end
+	let inode = Vfs.walk path in
+	if inode.is_directory () then
+		raise Not_found
+	else begin
+		inode.open_in ();
+		{ inode }
+	end
 
 let open_in name =
   open_in_gen [Open_rdonly; Open_text] 0 name
@@ -350,8 +310,7 @@ let open_in_bin name =
   open_in_gen [Open_rdonly; Open_binary] 0 name
 
 let input_char ic =
-	let module Ops = (val ic.ops : Inode) in
-	char_of_int (Ops.input_byte (Ops.of_abstract_inode ic.inode))
+	char_of_int (ic.inode.input_byte ())
 
 let input ic s ofs len = invalid_arg "input"
 

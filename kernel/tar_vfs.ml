@@ -112,7 +112,7 @@ module FileSystem (*: Vfs.FileSystem*) = struct
 	module Ops (*: Vfs.Inode*) = struct
 		type t = inode
 		
-		let open_in inode =
+		let open_in inode _ =
 			match TarFile.find_empty inode.trie with
 				| None -> failwith "not a file"
 				| Some r ->
@@ -122,9 +122,9 @@ module FileSystem (*: Vfs.FileSystem*) = struct
 Debug.printf "open_in: offset: %d, position: %d, length: %d\n"
 	r.ofs 0 r.size
 		
-		let close_in _ = ()
-		let flush_in _ = ()
-		let input_byte inode =
+		let close_in _ _ = ()
+		let flush_in _ _ = ()
+		let input_byte inode _ =
 			if inode.position >= inode.length then raise End_of_file;
 			(* find disk sector offset+position in *)
 			let sector = (inode.offset + inode.position) / 512 in
@@ -159,38 +159,22 @@ Debug.printf "open_in: offset: %d, position: %d, length: %d\n"
 			if npos > inode.length || npos < 0 then raise (Invalid_argument "npos");
 			inode.position <- npos
 		
-		let pos_in inode = inode.position
+		let pos_in inode _ = inode.position
 		
-		let length_in inode = inode.length
+		let length_in inode _ = inode.length
 		
-		open Vfs
-		
-		let open_out _ = raise Not_supported
-		let close_out _ = raise Not_supported
-		let flush_out _ = raise Not_supported
-		let output_byte _ = raise Not_supported
-		let output_bytes _ _ _ _ = raise Not_supported
-		let seek_out _ _ = raise Not_supported
-		let pos_out _ = raise Not_supported
-		let length_out _ = raise Not_supported
-		
-		let of_abstract_inode : abstract_inode -> t = Obj.magic
-		let to_abstract_inode : t -> abstract_inode = Obj.magic
 	end
 	
 	let trie = lazy (trie ())
 	
-	let walk path = try
-			Some (Ops.to_abstract_inode {
+	let walk path =
+			{
 				trie = TarFile.restrict_direct path (Lazy.force trie);
 				offset = 0; position = 0; length = 0;
-			})
-		with Not_found ->
-			Debug.printf "couldn't walk to inode\n";
-			None
+			}
 	
-	let is_directory inode =
-		match TarFile.find_empty (Ops.of_abstract_inode inode).trie with
+	let is_directory cookie _ =
+		match TarFile.find_empty cookie.trie with
 			None -> true | _ -> false		
 	
 	let rec nub = function
@@ -198,13 +182,32 @@ Debug.printf "open_in: offset: %d, position: %d, length: %d\n"
 		| x :: rest -> x :: nub rest
 		| [] -> []
 	
-	let read_dir inode =
-		match TarFile.find_empty (Ops.of_abstract_inode inode).trie with
+	let read_dir cookie _ =
+		match TarFile.find_empty cookie.trie with
 		| Some _ -> failwith "Not a directory"
 		| None ->
-			let entries = TarFile.fold (fun elt -> List.hd elt) (Ops.of_abstract_inode inode).trie in
+			let entries = TarFile.fold (fun elt -> List.hd elt) cookie.trie in
 			nub (List.sort compare entries)
 end
 
+open Vfs
+
 let init () =
-	Vfs.mount (module FileSystem : Vfs.FileSystem) "tarfs"
+	let filesystem = {
+		walk = (fun path ->
+			let cookie = FileSystem.walk path in
+			{
+				null_inode with
+				open_in = FileSystem.Ops.open_in cookie;
+				close_in = FileSystem.Ops.close_in cookie;
+				input_byte = FileSystem.Ops.input_byte cookie;
+				input_bytes = FileSystem.Ops.input_bytes cookie;
+				seek_in = FileSystem.Ops.seek_in cookie;
+				pos_in = FileSystem.Ops.pos_in cookie;
+				length_in = FileSystem.Ops.length_in cookie;
+				is_directory = FileSystem.is_directory cookie;
+				read_dir = FileSystem.read_dir cookie;
+			});
+	} in
+
+	Vfs.mount filesystem "tarfs"

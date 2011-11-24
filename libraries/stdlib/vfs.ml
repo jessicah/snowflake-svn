@@ -100,73 +100,61 @@ type abstract_inode
 
 exception Not_supported
 
-module type Inode = sig
-	type t
-	
-	(* Input *)
-	val open_in : t -> unit
-	val close_in : t -> unit
-	val input_byte : t -> int
-	val input_bytes : t -> string -> int -> int -> int
-	val seek_in : t -> int -> unit
-	val pos_in : t -> int
-	val length_in : t -> int
-	
-	(* Output *)
-	val open_out : t -> unit
-	val close_out : t -> unit
-	val flush_out : t -> unit
-	val output_byte : t -> int -> unit
-	val output_bytes : t -> string -> int -> int -> int
-	val seek_out : t -> int -> unit
-	val pos_out : t -> int
-	val length_out : t -> int
-	
-	(* Coerce between abstract_inode & t *)
-	val of_abstract_inode : abstract_inode -> t
-	val to_abstract_inode : t -> abstract_inode
-end
+(* a filesystem will walk to an inode and return a record of function handles;
+	the filesystem can use currying to hide filesystem-specific info that it needs	
+ *)
 
-(*module NullInode : Inode = struct
-	type t = abstract_inode
-	
-	let open_in _ = raise Not_supported
-	let close_in _ = raise Not_supported
-	let input_byte _ = raise Not_supported
-	let input_bytes _ _ _ _ = raise Not_supported
-	let seek_in _ _ = raise Not_supported
-	let pos_in _ = raise Not_supported
-	let length_in _ = raise Not_supported
-	
-	let open_out _ = raise Not_supported
-	let close_out _ = raise Not_supported
-	let flush_out _ = raise Not_supported
-	let output_byte _ = raise Not_supported
-	let output_bytes _ _ _ _ = raise Not_supported
-	let seek_out _ _ = raise Not_supported
-	let pos_out _ = raise Not_supported
-	let length_out _ = raise Not_supported
-	
-	let of_abstract_inode x = x
-	let to_abstract_inode x = x
-end*)
+type inode = {
+	open_in : unit -> unit;
+	close_in : unit -> unit;
+	input_byte : unit -> int;
+	input_bytes : string -> int -> int -> int;
+	seek_in : int -> unit;
+	pos_in : unit -> int;
+	length_in : unit -> int;
 
-module type FileSystem = sig
-	type inode
-	
-	module Ops : Inode with type t = inode (* should it use = or := ... *)
-	
-	val walk : string list -> abstract_inode option (* raising Not_found is probably better than the option type? *)
-	
-	val is_directory : abstract_inode -> bool
-	
-	val read_dir : abstract_inode -> string list
-		
-end
+	open_out : unit -> unit;
+	close_out : unit -> unit;
+	flush_out : unit -> unit;
+	output_byte : int -> unit;
+	output_bytes : string -> int -> int -> int;
+	seek_out : int -> unit;
+	pos_out : unit -> int;
+	length_out : unit -> int;
+
+	is_directory : unit -> bool;
+
+	read_dir : unit -> string list;
+}
+
+external raise : exn -> 'a = "%raise"
+
+let null_inode = {
+	open_in = (fun _ -> raise Not_supported);
+	close_in = (fun _ -> raise Not_supported);
+	input_byte = (fun _ -> raise Not_supported);
+	input_bytes = (fun _ _ _ -> raise Not_supported);
+	seek_in = (fun _ -> raise Not_supported);
+	pos_in = (fun _ -> raise Not_supported);
+	length_in = (fun _ -> raise Not_supported);
+	open_out = (fun _ -> raise Not_supported);
+	close_out = (fun _ -> raise Not_supported);
+	flush_out = (fun _ -> raise Not_supported);
+	output_byte = (fun _ -> raise Not_supported);
+	output_bytes = (fun _ _ _ -> raise Not_supported);
+	seek_out = (fun _ -> raise Not_supported);
+	pos_out = (fun _ -> raise Not_supported);
+	length_out = (fun _ -> raise Not_supported);
+	is_directory = (fun _ -> raise Not_supported);
+	read_dir = (fun _ -> raise Not_supported);
+}
+
+type file_system = {
+	walk : string list -> inode;
+}
 
 type io_channel = {
-	ops : (module Inode);
-	inode : abstract_inode;
+	mutable inode : inode;
 }
 
 (* remember, no Pervasives here... *)
@@ -178,7 +166,8 @@ external (:=): 'a ref -> 'a -> unit = "%setfield0"
 external raise : exn -> 'a = "%raise"
 external (=) : 'a -> 'a -> bool = "%equal"
 
-let filesystems = ref ([] : (string * (module FileSystem)) list)
+
+let filesystems = ref ([] : (string * file_system) list)
 
 let mount filesystem path =
 	(* if String.contains '/' path then failwith "invalid mount path"; *)
@@ -201,14 +190,15 @@ let rec assoc x = function
 
 let walk path_list =
 	let root :: paths = path_list in
-	let module FS = (val (assoc root !filesystems) : FileSystem) in
-	FS.walk paths, (module FS : FileSystem)
+	let fs = assoc root !filesystems in
+	fs.walk paths
 
 let read_dir path_list =
-	match (walk path_list) with
-	| Some inode, fs -> 
-		let module FS = (val fs : FileSystem) in FS.read_dir inode
-	| None, _ -> raise Not_found
+	let inode = walk path_list in
+	if inode.is_directory () then
+		inode.read_dir ()
+	else
+		raise Not_found
 
 (* we can't implement is_directory & read_dir in current state! *)
 
@@ -225,7 +215,6 @@ external (||) : bool -> bool -> bool = "%sequor"
 external (+) : int -> int -> int = "%addint"
 external (-) : int -> int -> int = "%subint"
 
-external raise : exn -> 'a = "%raise"
 
 let failwith s = raise(Failure s)
 let invalid_arg s = raise(Invalid_argument s)

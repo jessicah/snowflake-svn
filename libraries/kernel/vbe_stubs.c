@@ -139,6 +139,8 @@ static unsigned long frame_buffer = 0;
 static unsigned short frame_width = 0;
 static unsigned short frame_height = 0;
 
+extern void paging_init(void);
+
 static void vbe_switch_target_mode(int target_width, int target_height)
 {
 	X86EMU_regs regs;
@@ -259,6 +261,8 @@ static void vbe_switch_target_mode(int target_width, int target_height)
 	bios_interrupt(0x10, &regs);
 
 	dprintf("Switch: %04x\n", regs.R_AX);
+
+paging_init();
 }
 
 static void vbe_switch_best_mode()
