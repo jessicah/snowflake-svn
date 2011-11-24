@@ -537,7 +537,6 @@ let caml_headers = [
 			A"-clibrary"; A"-lx86emu";
 A"-ccopt"; A"-export-dynamic";
 A"-cclib"; A"libraries/dummy/dlldummy.so";
-A"-linkall";
         ]);;
 	
 	dep ["file:kernel/snowflake.native"] ["libkernel.a"; "libm.a"; "libc.a"; "libgcc.a"; "libbigarray.a"; "libthreads.a"; "libbitstring.a"; "libx86emu.a";];;

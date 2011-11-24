@@ -187,7 +187,7 @@ static void vbe_switch_target_mode(int target_width, int target_height)
 		unsigned char bpp = mode_info->bits_per_pixel;
 		unsigned char mm = mode_info->memory_model;
 
-		dprintf("mode %x: %dx%d, attr: %02x, scan_line: %d bytes, bpp: %d, memory model: %x\n",
+		dprintf("mode 0x%x: %dx%d, attr: %02x, scan_line: %d bytes, bpp: %d, memory model: %x\n",
 			mode, cur_width, cur_height, attr, scan_line, bpp, mm);
 
 		if (attr & 0x90 == 0) {
@@ -218,7 +218,7 @@ static void vbe_switch_target_mode(int target_width, int target_height)
 			max_width = cur_width;
 			max_height = cur_height;
 			max_mode = mode;
-			dprintf("new selection: %d@%dx%d\n", max_mode, max_width, max_height);
+			dprintf("new selection: 0x%x@%dx%d\n", max_mode, max_width, max_height);
 			dprintf("linear framebuffer: %s, bits/pixel: %d, memory model: %d, scanline: %d\n",
 				(attr & 0x90 == 0) ? "false" : "true", bpp, mm, (scan_line / 4));
 			break;
@@ -226,7 +226,7 @@ static void vbe_switch_target_mode(int target_width, int target_height)
 	}
 
 	/* get mode info */
-	dprintf("getting mode info for %d\n", max_mode);
+	dprintf("getting mode info for 0x%0x\n", max_mode);
 	memset(&regs, 0, sizeof regs);
 	regs.R_EAX = 0x4f01;
 	regs.R_ES = 0;
@@ -254,7 +254,7 @@ static void vbe_switch_target_mode(int target_width, int target_height)
 		regs.R_EBX = 3;
 	}
 
-	dprintf("setting mode to %d\n", regs.R_EBX);
+	dprintf("setting mode to 0x%0x\n", regs.R_EBX);
 
 	bios_interrupt(0x10, &regs);
 

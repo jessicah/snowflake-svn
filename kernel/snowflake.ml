@@ -9,22 +9,26 @@ let () =
 	(* turn on backtrace stuff; need to fix threading for this... *)
 	Printexc.record_backtrace true;
 
+Printf.printf "init starting...\n";
+
 	(* initialise a bunch of devices *)
 	Printf.eprintf "Random, Debug, Ovt100 initialised\n";
 	Vga.init ();
 	Printf.eprintf "Vga initialised\n";
-	(*GraphicsConsole.init ();
-	Printf.eprintf "GraphicsConsole initialised\n";*)
+	GraphicsConsole.init ();
+	Printf.eprintf "GraphicsConsole initialised\n";
 	Keyboard.init ();
 	Printf.eprintf "Keyboard initialised\n";
-	Ac97.init ();
+	Printf.printf "Keyboard initialised\n";
+	Printf.eprintf "Printf test done\n";
+	(*Ac97.init ();
 	Printf.eprintf "Ac97 initialised\n";
 	Pcnet.init ();
 	Printf.eprintf "Pcnet initialised\n";
 	RealTek8139.init ();
 	Printf.eprintf "RealTek8139 initialised\n";
 	NetworkStack.init ();
-	Printf.eprintf "NetworkStack initialised\n";
+	Printf.eprintf "NetworkStack initialised\n";*)
 	(*IRC.init ();
 	Printf.eprintf "IRC initialised\n";*)
 	IDE.init ();
