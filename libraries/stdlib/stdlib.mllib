@@ -9,6 +9,7 @@ Array
 ArrayLabels
 Buffer
 Callback
+CamlinternalLazy
 CamlinternalMod
 CamlinternalOO
 Char

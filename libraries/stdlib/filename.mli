@@ -15,7 +15,7 @@
 
 (** Operations on file names. *)
 
-(*val current_dir_name : string
+val current_dir_name : string
 (** The conventional name for the current directory (e.g. [.] in Unix). *)
 
 val parent_dir_name : string
@@ -105,4 +105,4 @@ val quote : string -> string
     with programs that follow the standard Windows quoting
     conventions.
  *)
-*)
+

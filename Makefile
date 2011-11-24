@@ -34,9 +34,11 @@ all: myocamlbuild_config.ml
 	rm -f file.lst files.tar
 
 archive.tar:
-	$(OCAMLBUILD) -tag plugin plugins/irc.cmxs
+	$(OCAMLBUILD) -tag plugin -classic-display plugins/irc.cmxs
 	cp $(BUILDDIR)/plugins/irc.cmxs .
-	tar cf $@ irc.cmxs
+	$(MAKE) -C plugins/ocamlopt.opt all
+	cp plugins/ocamlopt.opt/optmain.cmxs .
+	tar cf $@ irc.cmxs optmain.cmxs
 
 myocamlbuild_config.ml: myocamlbuild_config.ml.in
 	sed -e 's/@TOOLSPREFIX@/$(subst /,\/,$(TOOLSPREFIX))/' $< > $@
@@ -50,9 +52,11 @@ qemu:
 
 clean:
 	$(OCAMLBUILD) -clean || true
+	$(MAKE) -C plugins/ocamlopt.opt clean
 	rm -f $(ISO)
 	rm -rf cdrom/iso_prep
 	rm -f myocamlbuild_config.ml
+	rm -f archive.tar
 
 distclean: clean
 	$(MAKE) -C tools clean

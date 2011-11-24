@@ -51,6 +51,7 @@ let () =
 
 begin try
 	Dynlink.loadfile "/tarfs/irc.cmxs";
+	Dynlink.loadfile "/tarfs/optmain.cmxs";
 with Dynlink.Error e -> Printf.eprintf "FAILURE: %s\n" (Dynlink.error_message e);
 	Printexc.print_backtrace stderr;
 end;

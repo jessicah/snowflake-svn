@@ -34,3 +34,4 @@ i386.o
 dl.o
 natdynlink.o
 backtrace.o
+meta.o
