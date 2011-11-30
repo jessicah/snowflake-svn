@@ -188,10 +188,11 @@ let rec assoc x = function
     [] -> raise Not_found
   | (a,b)::l -> if a = x then b else assoc x l
 
-let walk path_list =
-	let root :: paths = path_list in
-	let fs = assoc root !filesystems in
-	fs.walk paths
+let walk = function
+	| [] -> raise Not_found
+	| root :: paths ->
+		let fs = assoc root !filesystems in
+		fs.walk paths
 
 let read_dir path_list =
 	let inode = walk path_list in

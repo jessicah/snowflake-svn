@@ -22,6 +22,10 @@ flag ["ocamldep"] (A"-native");;
 (* plugin stuff *)
 flag ["ocaml"; "native"; "shared"; "library"]
 	& S[A"-cclib"; A"-nostdlib"; A"-cclib"; A"-Wl,-nostdlib"; A"-cclib"; Sh"-Wl,-hash-style=sysv"];;
+	
+(* dlldummy.so *)
+flag ["dummy"; "compile"] & S[A"-nostdlib";A"-Wl,-nostdlib"];;
+flag ["dummy"; "ocamlmklib"] & S[A"-ldopt";A"-nostdlib";A"-ldopt"; A"-Wl,-nostdlib"; A"-ldopt";A"-Wl,'-z -nodefaultlib'";];;
 
 let snowflake_lib name =
 	flag ["ocaml";"compile";"plugin"] & S[A"-I";A("libraries/"^name)];

@@ -16,8 +16,6 @@ all: myocamlbuild_config.ml
 	$(OCAMLBUILD) libraries/dummy/dlldummy.so
 	$(OCAMLBUILD) libraries/stdlib/stdlib.cmxa libraries/bigarray/bigarray.cmxa libraries/extlib/extlib.cmxa libraries/threads/threads.cmxa libraries/bitstring/bitstring.cmxa $(KERNEL)
 	rm -rf cdrom/iso_prep
-	# this should be done in myocamlbuild
-	#strip -s $(BUILDDIR)/$(KERNEL)
 	cd $(BUILDDIR) && find -name '*.o' -or -name '*.a' | sed -e 's/\.\///' > ../file.lst
 	echo kernel/snowflake.native >> file.lst
 	cd $(BUILDDIR) && tar cf ../files.tar -T ../file.lst
@@ -25,16 +23,14 @@ all: myocamlbuild_config.ml
 	cp cdrom/stage2_eltorito cdrom/iso_prep/boot/grub/
 	cp $(BUILDDIR)/$(KERNEL) cdrom/iso_prep/boot/snowflake.elf
 	cp cdrom/menu.lst cdrom/iso_prep/boot/grub/
-	#touch example.wav # think it need be around for grub menu.lst file...
 	cp files.tar cdrom/iso_prep/
-	#cp example.wav cdrom/iso_prep/
 	mkisofs -R -b boot/grub/stage2_eltorito -no-emul-boot \
 		-boot-load-size 4 -boot-info-table \
 		-quiet -o $(ISO) cdrom/iso_prep/
 	rm -f file.lst files.tar
 
 archive.tar:
-	$(OCAMLBUILD) -tag plugin -classic-display plugins/irc.cmxs
+	$(OCAMLBUILD) -tag plugin plugins/irc.cmxs
 	cp $(BUILDDIR)/plugins/irc.cmxs .
 	$(MAKE) -C plugins/ocamlopt.opt all
 	cp plugins/ocamlopt.opt/optmain.cmxs .

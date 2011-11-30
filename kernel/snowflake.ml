@@ -21,14 +21,14 @@ Printf.printf "init starting...\n";
 	Printf.eprintf "Keyboard initialised\n";
 	Printf.printf "Keyboard initialised\n";
 	Printf.eprintf "Printf test done\n";
-	(*Ac97.init ();
+	Ac97.init ();
 	Printf.eprintf "Ac97 initialised\n";
 	Pcnet.init ();
 	Printf.eprintf "Pcnet initialised\n";
 	RealTek8139.init ();
 	Printf.eprintf "RealTek8139 initialised\n";
 	NetworkStack.init ();
-	Printf.eprintf "NetworkStack initialised\n";*)
+	Printf.eprintf "NetworkStack initialised\n";
 	(*IRC.init ();
 	Printf.eprintf "IRC initialised\n";*)
 	IDE.init ();

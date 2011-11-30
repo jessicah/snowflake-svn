@@ -169,7 +169,7 @@ let read_line t () =
 				(* got the '\n' we needed to complete the line *)
 				len' := !len' - 1;
 				String.blit buf' 1 buf' 0 !len';
-				let h::t = acc in
+				let h,t = List.hd acc, List.tl acc in
 				String.concat "" (List.rev (String.sub h 0 (String.length h - 1) :: t))
 			end else begin
 				(* didn't start with an '\n'... *)

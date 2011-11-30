@@ -127,8 +127,8 @@ let create pcii =
 	let in16 = AddressSpace.read16 pcii.resources.(0) in
 	let in32 = AddressSpace.read32 pcii.resources.(0) in
 	
-	let m = Mutex.create () in
-	let cv = Condition.create () in
+(*	let m = Mutex.create () in
+	let cv = Condition.create () in*)
 	
 	let module RTL8139 = struct
 		type t =

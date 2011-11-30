@@ -334,7 +334,10 @@ let rec output_byte byte =
 	try
 		let s = Buffer.contents utf8_buffer in
 		UTF8.validate s;
-		output_bytes s 0 (String.length s);
+		let len = output_bytes s 0 (String.length s) in
+		if len <> String.length s then begin
+			Printf.eprintf "ovt100: warning: couldn't output all bytes!\n";
+		end;
 		Buffer.clear utf8_buffer
 	with UTF8.Malformed_code -> ()
 and output_bytes buf ofs len =

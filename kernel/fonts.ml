@@ -95,7 +95,7 @@ let load_glyph list =
 
 let load_glyphs list =
 	let list = List.tl list in
-	let glyphs = List.fold_right (fun string (x::xs) -> if string = "ENDCHAR" then []::(x::xs) else (string::x)::xs) list [[]] in
+	let glyphs = List.fold_right (fun string xl -> if string = "ENDCHAR" then []::xl else (string::(List.hd xl))::(List.tl xl)) list [[]] in
 	let array = Array.init 65536 (fun _ -> None) in
 	List.iter (fun glyph -> try Scanf.sscanf (List.hd (List.tl glyph)) "ENCODING %d" (fun i -> array.(i) <- Some (load_glyph glyph)) with _ -> ()) glyphs;
 	return array;;
