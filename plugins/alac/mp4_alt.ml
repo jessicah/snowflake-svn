@@ -27,7 +27,7 @@ let box ic offset =
 	really_input ic kind 0 4;
 	if size = 0 then failwith "large box"
 	else if size = 1 then failwith "rest of file box"
-	else { kind; offset = pos_in ic; size }
+	else { kind; offset = pos_in ic; size = size }
 
 let rec find_box ic kind offset limit =
 	if offset >= limit then raise Not_found

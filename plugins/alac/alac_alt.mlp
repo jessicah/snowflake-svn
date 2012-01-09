@@ -353,7 +353,7 @@ out_num_samples := num_samples;
 			raise Done
 		| x -> failf "unexpected frame element: %d%!" (of_element x)
 		end;
-	(*done;*) `ok !out_num_samples with Done -> `ok !out_num_samples | _ -> `fail !out_num_samples
+	(*done;*) `ok !out_num_samples with Done -> `ok !out_num_samples | ex -> `fail (!out_num_samples,ex)
 
 let openfile filename =
 	let ic = open_in_bin filename in
@@ -385,21 +385,29 @@ let openfile filename =
 	
 	seek_in ic mdat.Mp4_alt.offset;
 	really_input ic buffer 0 (min size (in_channel_length ic - pos_in ic));
-	
-	begin try while true do
+
+	let length = mdat.Mp4_alt.offset + mdat.Mp4_alt.size - 8 in
+
+	begin try while (pos_in ic < length) do
 		(* decode *)
 		let decoded = decode bitbuffer decode_buffer (Int32.to_int !config.frame_length) !config.num_channels in
 		(* not terribly efficient writing to output file *)
-let bytes,ok = match decoded with `ok b -> b,true | `fail b -> b, false in
-		for i = 0 to (bytes * !config.num_channels * !config.bit_depth / 8) - 1 do
+		let ok, decoded = match decoded with `ok n -> true, n | `fail (n,ex) ->
+			Printf.printf "error: %s\n" (Printexc.to_string ex); false, n in
+		for i = 0 to (decoded * !config.num_channels * !config.bit_depth / 8) - 1 do
 			output_byte oc decode_buffer.{i};
 		done;
-		if not ok then failwith "no more okay buffers";
+		if not ok then raise Not_found;
 		(* refill *)
 		seek_in ic (pos_in ic - size + bitbuffer.BitBuffer.current);
 		bitbuffer.BitBuffer.current <- 0;
 		really_input ic buffer 0 (min size (in_channel_length ic - pos_in ic));
-	done with ex -> Printf.printf "end? ex: %s" (Printexc.to_string ex); end;
+	done with 
+		| Invalid_argument "really_input" ->
+			Printf.printf "len = %d, pos = %d, length = %d\n" (in_channel_length ic) (pos_in ic) length
+		| ex -> Printf.printf "end? ex: %s" (Printexc.to_string ex); end;
+	Printf.printf "decoded!\n";
+	Printf.printf " *** len = %d, pos = %d, length = %d\n" (in_channel_length ic) (pos_in ic) length;
 	close_in ic;
 	seek_out oc 0x2B;
 	let len = out_channel_length oc - 44 in
@@ -407,32 +415,5 @@ let bytes,ok = match decoded with `ok b -> b,true | `fail b -> b, false in
 	Printf.fprintf oc "%c%c%c%c"
 		(s 24) (s 16) (s 8) (s 0);
 	close_out oc
-
-(*let to_pcm_data filename =
-	let mdat = openfile filename in (* a bitstring... *)
-	let decode_buffer = Array1.create int8_unsigned c_layout (4096 lsl 6) in
-	let buffer = String.make !config.max_frame_bytes '\000' in
-	let bitbuffer = BitBuffer.create buffer !config.max_frame_bytes in
-	let more = ref true in
-	let oc = open_out_bin "pcm.raw" in
-	while !more do
-		try
-			let decoded = decode bitbuffer decode_buffer (Int32.to_int !config.frame_length) !config.num_channels in
-			if
-		if bitbuffer.BitBuffer.current >= bitbuffer.BitBuffer.byte_size then begin
-			Printf.printf "done!\n";
-			more := false;
-		end;
-		(* not terribly efficient... *)
-		for i = 0 to (decoded * !config.num_channels * !config.bit_depth / 8) - 1 do
-			output_byte oc decode_buffer.{i};
-		done;
-		with Failure msg ->
-			Printf.printf "WARNING: %s\nskipping frame...\n%!" msg
-		(*to_hex decode_buffer;*)
-	done;
-	close_out oc
-
-let () = to_pcm_data Sys.argv.(1)*)
 
 let () = openfile Sys.argv.(1)
