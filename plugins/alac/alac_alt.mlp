@@ -212,6 +212,9 @@ Printf.printf "\n";*)
 					override lor BitBuffer.read bits 16;
 				end else num_samples in
 
+out_num_samples := num_samples;
+			
+
 			if escape_flag = 0 then begin
 				(* compressed frame, read rest of parameters *)
 				Printf.printf "compressed frame...\n%!";
@@ -333,7 +336,6 @@ Printf.printf "\n";*)
 			Matrix.unmix16 !mix_buffer_U !mix_buffer_V out16 num_channels num_samples !mix_bits !mix_res;
 
 			(* *out_num_samples = num_samples *)
-			out_num_samples := num_samples;
 			Printf.printf "processed %d samples\n%!" num_samples;
 			Printf.printf "bitbuffer position: %d.%d\n%!" bits.BitBuffer.current bits.BitBuffer.bit_index;
 			to_hex2 (Array1.sub sample_buffer 0 num_samples);
@@ -351,7 +353,7 @@ Printf.printf "\n";*)
 			raise Done
 		| x -> failf "unexpected frame element: %d%!" (of_element x)
 		end;
-	(*done;*) !out_num_samples with Done -> !out_num_samples
+	(*done;*) `ok !out_num_samples with Done -> `ok !out_num_samples | _ -> `fail !out_num_samples
 
 let openfile filename =
 	let ic = open_in_bin filename in
@@ -374,6 +376,8 @@ let openfile filename =
 	(* conversion time... *)
 	
 	let oc = open_out_bin "pcm.raw" in
+	Printf.fprintf oc
+		"RIFF****WAVEfmt \x10\x00\x00\x00\x01\x00\x02\x00\x44\xAC\x00\x00\x10\xB1\x02\x00\x04\x00\x10\x00data****";
 	let size = (Int32.to_int !config.max_frame_bytes) + 1 in
 	let decode_buffer = Array1.create int8_unsigned c_layout (4096 lsl 6) in
 	let buffer = String.make size '\000' in
@@ -386,15 +390,22 @@ let openfile filename =
 		(* decode *)
 		let decoded = decode bitbuffer decode_buffer (Int32.to_int !config.frame_length) !config.num_channels in
 		(* not terribly efficient writing to output file *)
-		for i = 0 to (decoded * !config.num_channels * !config.bit_depth / 8) - 1 do
+let bytes,ok = match decoded with `ok b -> b,true | `fail b -> b, false in
+		for i = 0 to (bytes * !config.num_channels * !config.bit_depth / 8) - 1 do
 			output_byte oc decode_buffer.{i};
 		done;
+		if not ok then failwith "no more okay buffers";
 		(* refill *)
 		seek_in ic (pos_in ic - size + bitbuffer.BitBuffer.current);
 		bitbuffer.BitBuffer.current <- 0;
 		really_input ic buffer 0 (min size (in_channel_length ic - pos_in ic));
 	done with ex -> Printf.printf "end? ex: %s" (Printexc.to_string ex); end;
 	close_in ic;
+	seek_out oc 0x2B;
+	let len = out_channel_length oc - 44 in
+	let s b = Char.chr ((len lsr b) land 0xFF) in
+	Printf.fprintf oc "%c%c%c%c"
+		(s 24) (s 16) (s 8) (s 0);
 	close_out oc
 
 (*let to_pcm_data filename =
