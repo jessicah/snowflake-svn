@@ -8,14 +8,12 @@ open ArrayTypes
 let unmix16 (u : int32a) (v : int32a) (out : int16a) stride num_samples mixbits = function (* mixres *)
 	| 0 -> (* the else branch *)
 		(* conventional separated stereo *)
-		Printf.printf "conventional separated stereo\n%!";
 		for j = 0 to num_samples - 1 do
 			out.{j * stride} <- Int32.to_int u.{j}; (* cast from 32 to 16 bit *)
 			out.{j * stride + 1} <- Int32.to_int v.{j}; (* cast from 32 to 16 bit *)
 		done
 	| mixres ->
 		(* matrixed stereo *)
-		Printf.printf "matrixed stereo\n%!";
 		for j = 0 to num_samples - 1 do
 			let l = Int32.sub (Int32.add u.{j} v.{j}) (Int32.shift_right_logical (Int32.mul (Int32.of_int mixres) v.{j}) mixbits) in
 			let r = Int32.sub l v.{j} in

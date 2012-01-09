@@ -106,7 +106,7 @@ let dyn_get bits (m : int32) (k : int) =
 	end
 
 let dyn_get_32bit bits (m : int32) (k : int) (maxbits : int) =
-	(* constant *) let max_prefix_32 = 9 in
+	let max_prefix_32 = 9 in
 
 	let bit_offset = bits.BitBuffer.bit_index in
 	let stream = shift_left (peek_big bits (32-bit_offset)) bit_offset in
@@ -151,34 +151,24 @@ let dyn_decomp params bitstream (pc : int32a) num_samples max_size =
 	let kb_local = to_int params.kb in
 	let wb_local = params.wb in
 	let out = ref 0 in
-(*Printf.printf "dyn_decomp:\n";
-for i = 0 to 16 * 8 - 1 do
-	Printf.printf "%02x " (Char.code bitstream.BitBuffer.buffer.[bitstream.BitBuffer.current+i]);
-	if (i+1) mod 16 = 0 then Printf.printf "\n";
-done;*)
+
 	while !c < num_samples do
 		let m = shift_right_logical !mb qbshift in
 		let k = lg3a m in
-(*Printf.printf "k: %x, " k;*)
 		let k = if k < kb_local then k else kb_local in
 		let m = sub (shift_left one k) one in
 		
 		let n = dyn_get_32bit bitstream m k max_size in
-(*Printf.printf "n: %lx, " n;*)
 
 		let ndecode = add n !zmode in
-		let multiplier = neg (logand ndecode one) (*-(ndecode land 1)*) in
+		let multiplier = neg (logand ndecode one) in
 		let multiplier = logor multiplier one in
-		(*let del = ((ndecode+1) lsr 1) * multiplier in*)
 		let del = mul (shift_right_logical (add ndecode one) 1) multiplier in
 
-		(* *outPtr++ = del; *)
 		pc.{!out} <- del; incr out;
-		(*Printf.printf "del: %08lx\n" del;*)
 
 		incr c;
 
-		(*mb := pb_local*(n + !zmode) + !mb - ((pb_local * !mb) asr qbshift);*)
 		mb := add (mul pb_local (add n !zmode)) (sub !mb (shift_right (mul pb_local !mb) qbshift));
 
 		(* update mean tracking *)
@@ -187,17 +177,14 @@ done;*)
 
 		zmode := zero;
 
-		(*if ((!mb lsl mmulshift) < qb) && (!c < num_samples) then begin*)
 		if ((shift_left !mb mmulshift) < qb) && (!c < num_samples) then begin
 			zmode := one;
 			let k = (lead !mb) - bitoff + ((to_int !mb + moff) asr mdenshift) in (* asr or lsr? *)
-			(*let mz = ((1 lsl k)-1) land wb_local in*)
 			let mz = logand (sub (shift_left one k) one) wb_local in
 
 			let n = dyn_get bitstream mz k in
 
 			begin try for j = 0 to to_int n - 1 do
-				(* *outPtr++ = 0; *)
 				pc.{!out} <- zero; incr out;
 				incr c;
 			done; with _ -> () end;

@@ -5,92 +5,13 @@ open Bigarray
 
 open ArrayTypes
 
-(* int32_t *pc1, int32_t *out, int32_t num, int16_t *coefs, int32_t numactive, uint32_t chanbits, uint32_t denshift *)
-
-(* returns nothing; output goes into out *)
-
-(*
-uint32_t chanshift = 32 - chanbits;
-int32_t denhalf = 1 << (denshift - 1);
-
-out[0] = pc1[0];
-if (numactive == 0)
-{
-	if ((num > 1) && (pc1 != out))
-		memcpy(&out[1], &pc1[1], (num - 1) * sizeof(int32_t));
-	return;
-}
-if (numactive == 31)
-{
-	int32_t prev = out[0];
-	for (j = 1; j < num; j++)
-	{
-		int32_t del = pc1[j] + prev;
-		prev = (del << chanshift) >> chanshift;
-		out[j] = prev;
-	}
-	return;
-}
-
-for (j = 1; j <= numactive; j++)
-{
-	int32_t del = pc1[j] + out[j-1];
-	out[j] = (del << chanshift) >> chanshift;
-}
-
-int32_t lim = numactive + 1;
-
-/* skip numactive optimisations for now... */
-
-for (j = lim; j < num; j++)
-{
-	int32_t sum1 = 0;
-	int32_t *pout = out + j - 1;
-	int32_t top = out[j-lim];
-
-	for (k = 0; k < numactive; k++)
-		sum1 += coefs[k] * (pout[-k] - top);
-
-	int32_t del = pc1[j];
-	int32_t del0 = del;
-	int32_t sg = sign_of_int(del); /* inlined */
-	del += top + ((sum1 + denhalf) >> denshift);
-	out[j] = (del << chanshift) >> chanshift;
-
-	if (sg > 0)
-	{
-		for (k = (numactive - 1); k >= 0; k--)
-		{
-			int32_t dd = top - pout[-k];
-			int32_t sgn = sign_of_int(dd); /* inlined */
-			coefs[k] -= sgn;
-			del0 -= (numactive - k) * ((sgn * dd) >> denshift);
-			if (del0 <= 0)
-				break;
-		}
-	}
-	else if (sg < 0)
-	{
-		for (k = (numactive - 1); k >= 0; k--)
-		{
-			int32_t dd = top - pout[-k];
-			int32_t sgn = sign_of_int(dd); /* inlined */
-			coefs[k] += sgn;
-			del0 -= (numactive - k) * ((-sgn * dd) >> denshift);
-			if (del0 >= 0)
-				break;
-		}
-	}
-}
-*)
-
 let sign_of_int i =
 	let negishift = Int32.shift_right_logical (Int32.neg i) 31 in
 	Int32.logor negishift (Int32.shift_right i 31)
 
 let rec loop_while p f = function
-| n when n >= 0 -> if p (f n) then loop_while p f (n-1)
-| _ -> ()
+	| n when n >= 0 -> if p (f n) then loop_while p f (n-1)
+	| _ -> ()
 
 let unpc_block (pc1 : int32a) (out : int32a) num (coefs : int16a) numactive chanbits denshift =
 	let chanshift = 32 - chanbits in
@@ -109,13 +30,10 @@ let unpc_block (pc1 : int32a) (out : int32a) num (coefs : int16a) numactive chan
 			out.{j} <- !prev;
 		done
 	end else begin
-Printf.printf "loop1:\n";
 		for j = 1 to numactive do
 			let del = Int32.add pc1.{j} out.{j-1} in
 			out.{j} <- Int32.shift_right (Int32.shift_left del chanshift) chanshift;
-Printf.printf "%08lx " out.{j};
 		done;
-Printf.printf "\n";
 
 		let lim = numactive + 1 in
 
