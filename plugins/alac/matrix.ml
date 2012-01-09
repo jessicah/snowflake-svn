@@ -1,9 +1,6 @@
 
 (* ALAC : Matrix Decoding *)
 
-module Printf = struct
-	let printf args = Printf.kprintf ignore args
-end
 
 open ArrayTypes
 

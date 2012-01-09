@@ -5,10 +5,6 @@ open Bigarray
 
 open ArrayTypes
 
-module Printf = struct
-	let printf args = Printf.kprintf ignore args
-end
-
 (* int32_t *pc1, int32_t *out, int32_t num, int16_t *coefs, int32_t numactive, uint32_t chanbits, uint32_t denshift *)
 
 (* returns nothing; output goes into out *)

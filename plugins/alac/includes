@@ -1,0 +1,14 @@
+
+#directory "+bitstring";;
+#load "unix.cma";;
+#load "bigarray.cma";;
+#load "dynlink.cma";;
+#load "camlp4o.cma";;
+#load "bitstring.cma";;
+#load "bitstring_persistent.cma";;
+#load "pa_bitstring.cmo";;
+#load "bitBuffer.cmo";;
+#load "adaptiveGolomb.cmo";;
+#load "dynamicPredictor.cmo";;
+#load "matrix.cmo";;
+#load "mp4_alt.cmo";;

@@ -1,7 +1,10 @@
 
+(* alac alternative version, chunked data input *)
+
+
 (* ALAC : Decoder *)
 
-let failf args = Printf.kprintf failwith args
+let failf args = ignore (*Printf.kprintf failwith args*)
 
 (*module Printf = struct
 	let printf args = Printf.kprintf ignore args
@@ -35,32 +38,7 @@ let to_element x = match x with
 	| 5 -> PCE
 	| 6 -> FIL
 	| 7 -> END
-	| n -> failf "invalid element type: %d" n
-
-(* link in the other modules until have a full decoder and don't need this hack :p *)
-
-(*open BitBuffer
-open ArrayTypes
-open DynamicPredictor
-open Matrix
-open AdaptiveGolomb*)
-
-(* ALACDecoder.h
-	int32 Init (void* inMagicCookier, uint32_t inMagicCookieSize)
-	int32 Decode (struct BitBuffer *bits, uint8_t *sampleBuffer, uint32_t numSamples, uint32_t numChannels, uint32_t *outNumSamples)
-	
-	ALACSpecificConfig mConfig
-	
-	int32_t FillElement (struct BitBuffer *bits)
-	int32_t DataStreamElement (struct BitBuffer *bits)
-	
-	uint16_t mActiveElements
-	
-	int32_t *mMixBufferU
-	int32_t *mMixBufferV
-	int32_t *mPredictor
-	uint16_t *mShiftBuffer /* this is a sub-array of mPredictor */
-*)
+	| n -> failwith "to_element"
 
 type specific_config = {
 	frame_length : int32; (* uint32 *)
@@ -126,7 +104,7 @@ let rec init bits =
 			avg_bit_rate = avg_bit_rate;
 			sample_rate = sample_rate;
 		})
-	| { _ } -> failwith "alac: missing/invalid cookie"
+	| { _ : -1 : bitstring } -> failwith "alac: missing/invalid cookie"
 
 let fill_element bits =
 	let count = match BitBuffer.read_small bits 4 with
@@ -282,12 +260,12 @@ Printf.printf "\n";*)
 				(* dyn_decomp( &agParams, bits, mPredictor, numSamples, chanBits, &bits1 ) *)
 				Printf.printf "decompress and run predictor for left channel...\n%!";
 				AdaptiveGolomb.dyn_decomp ag_params bits !predictor num_samples chan_bits;
-				to_hex2 (BigarrayUtils.int32_to_uint8 !predictor);
+				(*to_hex2 (BigarrayUtils.int32_to_uint8 !predictor);*)
 
 				Printf.printf "unblocking... modeU = %d\n%!" mode_U;
 				if mode_U = 0 then begin
 					DynamicPredictor.unpc_block !predictor !mix_buffer_U num_samples coefs_U num_U chan_bits den_shift_U;
-					to_hex2 (BigarrayUtils.int32_to_uint8 !mix_buffer_U);
+					(*to_hex2 (BigarrayUtils.int32_to_uint8 !mix_buffer_U);*)
 				end else begin
 					(* the special "num_active = 31" mode can be done in-place *)
 					DynamicPredictor.unpc_block !predictor !predictor num_samples coefs_U 31 chan_bits 0;
@@ -298,12 +276,12 @@ Printf.printf "\n";*)
 				let ag_params = AdaptiveGolomb.make_params !config.mb ((pb * pb_factor_V) / 4) !config.kb num_samples num_samples !config.max_run in
 				Printf.printf "decompress and run predictor for right channel...\n%!";
 				AdaptiveGolomb.dyn_decomp ag_params bits !predictor num_samples chan_bits;
-				to_hex2 (BigarrayUtils.int32_to_uint8 !predictor);
+				(*to_hex2 (BigarrayUtils.int32_to_uint8 !predictor);*)
 
 				Printf.printf "unblocking... modeV = %d\n%!" mode_U;
 				if mode_V = 0 then begin
 					DynamicPredictor.unpc_block !predictor !mix_buffer_V num_samples coefs_V num_V chan_bits den_shift_V;
-					to_hex2 (BigarrayUtils.int32_to_uint8 !mix_buffer_V);
+					(*to_hex2 (BigarrayUtils.int32_to_uint8 !mix_buffer_V);*)
 				end else begin
 					DynamicPredictor.unpc_block !predictor !predictor num_samples coefs_V 31 chan_bits 0;
 					DynamicPredictor.unpc_block !predictor !mix_buffer_V num_samples coefs_V num_V chan_bits den_shift_V;
@@ -376,8 +354,12 @@ Printf.printf "\n";*)
 	(*done;*) !out_num_samples with Done -> !out_num_samples
 
 let openfile filename =
-	let cookie, mdat = Mp4.openfile filename in
-	let cookie = init cookie in
+	let ic = open_in_bin filename in
+	let cookie, mdat = Mp4_alt.openfile ic in
+	seek_in ic cookie.Mp4_alt.offset;
+	let buffer = String.make cookie.Mp4_alt.size '\000' in
+	really_input ic buffer 0 cookie.Mp4_alt.size;
+	let cookie = init (Bitstring.bitstring_of_string buffer) in
 	print_specific_config cookie;
 	(* set up global config *)
 	config := cookie;
@@ -388,19 +370,44 @@ let openfile filename =
 	predictor := Array1.create int32 c_layout (Int32.to_int cookie.frame_length * 4);
 	(* "shift off" buffer shares memory with predictor buffer *)
 	shift_buffer := BigarrayUtils.int32_to_uint16 !predictor;
-	mdat
+	
+	(* conversion time... *)
+	
+	let oc = open_out_bin "pcm.raw" in
+	let size = (Int32.to_int !config.max_frame_bytes) + 1 in
+	let decode_buffer = Array1.create int8_unsigned c_layout (4096 lsl 6) in
+	let buffer = String.make size '\000' in
+	let bitbuffer = BitBuffer.create buffer size in
+	
+	seek_in ic mdat.Mp4_alt.offset;
+	really_input ic buffer 0 (min size (in_channel_length ic - pos_in ic));
+	
+	begin try while true do
+		(* decode *)
+		let decoded = decode bitbuffer decode_buffer (Int32.to_int !config.frame_length) !config.num_channels in
+		(* not terribly efficient writing to output file *)
+		for i = 0 to (decoded * !config.num_channels * !config.bit_depth / 8) - 1 do
+			output_byte oc decode_buffer.{i};
+		done;
+		(* refill *)
+		seek_in ic (pos_in ic - size + bitbuffer.BitBuffer.current);
+		bitbuffer.BitBuffer.current <- 0;
+		really_input ic buffer 0 (min size (in_channel_length ic - pos_in ic));
+	done with ex -> Printf.printf "end? ex: %s" (Printexc.to_string ex); end;
+	close_in ic;
+	close_out oc
 
-let to_pcm_data filename =
+(*let to_pcm_data filename =
 	let mdat = openfile filename in (* a bitstring... *)
 	let decode_buffer = Array1.create int8_unsigned c_layout (4096 lsl 6) in
-	let bitbuffer = BitBuffer.from_bitstring mdat in
-	Printf.printf "media data length = %d bytes\n" (Bitstring.bitstring_length mdat / 8);
-	let i = ref 1 in
+	let buffer = String.make !config.max_frame_bytes '\000' in
+	let bitbuffer = BitBuffer.create buffer !config.max_frame_bytes in
 	let more = ref true in
 	let oc = open_out_bin "pcm.raw" in
 	while !more do
-		try let decoded = decode bitbuffer decode_buffer (Int32.to_int !config.frame_length) !config.num_channels in
-		Printf.printf "decoded buffer %d\n%!" !i; incr i;
+		try
+			let decoded = decode bitbuffer decode_buffer (Int32.to_int !config.frame_length) !config.num_channels in
+			if
 		if bitbuffer.BitBuffer.current >= bitbuffer.BitBuffer.byte_size then begin
 			Printf.printf "done!\n";
 			more := false;
@@ -415,4 +422,6 @@ let to_pcm_data filename =
 	done;
 	close_out oc
 
-let () = to_pcm_data Sys.argv.(1)
+let () = to_pcm_data Sys.argv.(1)*)
+
+let () = openfile Sys.argv.(1)

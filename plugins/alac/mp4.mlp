@@ -72,7 +72,7 @@ let show_sample_description bits =
 		_ : 32; (* compression id, packet size *)
 		sample_rate : 16 : bigendian;
 		_ : 16;
-		cookie : -1 : bitstring }
+		_ : -1 : bitstring }
 	->
 		Printf.printf "format id = %s, channels = %d, bitrate = %d, sample rate = %d\n"
 			format_id channels_per_frame bits_per_channel sample_rate
