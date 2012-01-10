@@ -1,5 +1,6 @@
 
 open PCI
+open AudioMixer
 
 type io_space = {
 	read8   : int -> int;
@@ -67,7 +68,7 @@ let create device =
 		let m = Mutex.create()
 		let cv = Condition.create()
 		
-		let ready_queue = Queue.create ()
+		(*let ready_queue = Queue.create ()
 		let free_queue  = Queue.create ()
 		
 		let isr () =
@@ -122,7 +123,53 @@ let create device =
 			Mutex.lock m;
 			Queue.push buffer ready_queue;
 			Condition.broadcast cv;
-			Mutex.unlock m
+			Mutex.unlock m*)
+
+		open BlockIO
+		(* from old ICH0 sources... *)
+		let isr () =
+			if next_buffer (last_valid ()) <> current () then begin
+				(* clear the interrupt, by writing '1' to bit 3 *)
+				nabmbar.write16 R.status (nabmbar.read16 R.status lor 8);
+				Mutex.lock m;
+				Condition.signal cv;
+				Mutex.unlock m;
+			end
+		
+		let output block_input =
+			(* the length = total size of input - current position *)
+			let len = Array1.dim block_input.data in
+			(*let samples = Array1.dim block_input.data - block_input.pos in*)
+			let rec loop () =
+				if block_input.pos >= len then begin
+					(* we've finished! *)
+					Debug.printf "no more audio\n";
+				end else begin
+					(* we can shuffle more data into the card *)
+					Debug.printf "adding another buffer\n";
+					Mutex.lock m;
+					while next_buffer (last_valid ()) = current () do
+						(* wait for a free buffer *)
+						Debug.printf "buffers full\n";
+						Condition.wait cv m;
+					done;
+					Mutex.unlock m;
+					(* get the next buffer *)
+					let ix = next_buffer (last_valid ()) in
+					let buffer = buffers.(ix) in
+					(* copy data into the buffer *)
+					let size = min (buffer_size * 2) (len - block_input.pos) in
+					if size < (buffer_size * 2) then
+						BlockIO.blit block_input (Array1.sub buffer 0 size)
+					else
+						BlockIO.blit block_input buffer;
+					(* send the command byte and size (in samples) *)
+					bdl.{2*ix+1} <- Int32.logor 0x8000_0000l (Int32.of_int (size lsr 1));
+					nabmbar.write8 R.last_valid ix;
+					loop ()
+				end
+			in loop ()
+
 		
 	end in
 	
@@ -158,10 +205,14 @@ let create device =
 	C.set_bit C.nabmbar R.control 4; (* interrupts for buffer completion *)
 	Printf.printf "ich0: on request line %02X\n" device.request_line;
 	
-	(* add all the buffers to the free queue *)
+	(*(* add all the buffers to the free queue *)
 	for i = 0 to Array.length C.buffers - 1 do
 		Queue.push C.buffers.(i) C.free_queue;
-	done;
+	done;*)
+	(* register an interrupt handler *)
+	Interrupts.create device.request_line C.isr;
+	C.set_bit C.nabmbar R.control 4; (* interrupts for buffer completion *)
+	Printf.printf "ich0: on request line %02X\n" device.request_line;
 	
 	(* start output *)
 	C.nabmbar.write8 R.control (C.nabmbar.read8 R.control lor 1);
@@ -169,10 +220,10 @@ let create device =
 	(* register with the audio mixer *)
 	let sample_rate = C.nambar.read16 R.sample_rate in
 	Printf.printf "ich0: sample rate = %d\n" sample_rate;
-	(*AudioMixer.register_device {
+	AudioMixer.register_device {
 		format = 16, sample_rate, 2;
 		output = C.output;
-	}*)()
+	}
 
 let init () =
 	DeviceManager.add_driver "intel ac'97" create 0x8086 0x2415; (* http://svn.berlios.de/wsvn/haiku/haiku/trunk/src/add-ons/kernel/drivers/audio/ac97/ichaudio/ichaudio.c *)

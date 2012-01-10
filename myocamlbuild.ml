@@ -21,7 +21,9 @@ flag ["ocamldep"] (A"-native");;
 
 (* plugin stuff *)
 flag ["ocaml"; "native"; "shared"; "library"]
-	& S[A"-cclib"; A"-nostdlib"; A"-cclib"; A"-Wl,-nostdlib"; A"-cclib"; Sh"-Wl,-hash-style=sysv"];;
+	& S[A"-cclib"; A"-nostdlib"; A"-cclib"; A"-Wl,-nostdlib"; A"-cclib"; Sh"-Wl,-hash-style=sysv";];;
+
+flag ["file:plugins/alac/alac.cmxs"] & S[A"-I"; A"plugins/alac"];;
 	
 (* dlldummy.so *)
 flag ["dummy"; "compile"] & S[A"-nostdlib";A"-Wl,-nostdlib"];;
@@ -70,6 +72,21 @@ rule "c -> o"
 		let tags = tags_of_pathname c ++ "c" ++ "compile" in
         Cmd(S [A(M._gcc); T(tags); A"-c"; P c; A"-o"; Px o])
 	end;;
+
+rule "ocamlmklib"
+	~prods:["%.a"; "%.cmxa"]
+	~dep:"%.mklib"
+	~insert:`top
+	(fun env build ->
+		let mklib = env "%.mklib" and lib = env "%" in
+		let objs = string_list_of_file mklib in
+		let include_dirs = Pathname.include_dirs_of (Pathname.dirname lib) in
+		let results = build (List.map (fun o -> List.map (fun dir -> dir/o) include_dirs) objs) in
+		let objs = List.map begin function
+			| Good o -> o
+			| Bad exn -> raise exn
+		end results in
+		Cmd(S[!Options.ocamlmklib; A"-failsafe"; A"-o"; Px lib; atomize objs]));;
 
 (*
 (* rules taken from ocaml_specific.ml in ocamlbuild *)

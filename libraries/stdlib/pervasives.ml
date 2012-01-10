@@ -314,20 +314,28 @@ let input_char ic =
 
 let input ic s ofs len = invalid_arg "input"
 
-let unsafe_really_input _ _ _ _ = raise End_of_file
+let rec unsafe_really_input ic s ofs len =
+	if len <= 0 then () else begin
+		let r = ic.inode.input_bytes s ofs len in
+		if r = 0 then raise End_of_file
+		else unsafe_really_input ic s (ofs+r) (len-r)
+	end
 
-let really_input _ _ _ = raise End_of_file
+let really_input ic s ofs len =
+	if ofs < 0 || len < 0 || ofs > string_length s - len
+	then invalid_arg "really_input"
+	else unsafe_really_input ic s ofs len
 
 let input_scan_line _ = 0
 
 let input_line _ = raise End_of_file
 
-let input_byte _ = raise End_of_file
+let input_byte ic = ic.inode.input_byte ()
 let input_binary_int _ = raise End_of_file
 let input_value _ = raise End_of_file
-let seek_in _ _ = ()
-let pos_in _ = 0
-let in_channel_length _ = 0
+let seek_in ic offset = ic.inode.seek_in offset
+let pos_in ic = ic.inode.pos_in ()
+let in_channel_length ic = ic.inode.length_in ()
 let close_in _ = ()
 let close_in_noerr _ = ()
 let set_binary_mode_in _ _ = ()

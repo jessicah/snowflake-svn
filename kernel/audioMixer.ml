@@ -37,7 +37,9 @@ module Wave = struct
 	
 	let read_chunk ic =
 		let id = really_nread ic 4 in
+Debug.printf "chunk: %s\r\n" id;
 		let length = read_i32 ic in
+Debug.printf "chunk length = %d\r\n" length;
 		{ id = id; length = length; }
 	
 	let read blockIO =
@@ -56,9 +58,12 @@ module Wave = struct
 		let avg_bytes_per_sec = read_i32 chunk in
 		let block_align = read_ui16 chunk in
 		let bits_per_sec = read_ui16 chunk in
+Debug.printf "channels = %d, sample rate = %d, bytes/sec = %d, align = %d, bits/sec = %d\r\n"
+	channels samples_per_sec avg_bytes_per_sec block_align bits_per_sec;
 		let rec loop chunk =
 			if chunk.id <> "data"
 			then begin
+Debug.printf "chunk not data, is %s\r\n" chunk.id;
 				ignore (really_nread ic chunk.length);
 				loop (read_chunk ic)
 			end else {
@@ -115,7 +120,7 @@ let play_to_raw device data =
 	begin try
 		device.output data
 	with ex ->
-		Vt100.printf "play_to_raw: %s\n" (Printexc.to_string ex)
+		Printf.printf "play_to_raw: %s\n" (Printexc.to_string ex)
 	end
 
 let play_to device wave =
@@ -128,7 +133,7 @@ let play_to device wave =
 		begin try
 			device.output wave.input;
 		with ex ->
-			Vt100.printf "play_to: %s\n" (Printexc.to_string ex)
+			Printf.printf "play_to: %s\n" (Printexc.to_string ex)
 		end
 	(*| (bits,hertz,chans)
 		when bits = wave.bits_per_sec && bits = 16

@@ -20,6 +20,7 @@ true: -byte, native, nostdlib
 <libraries/{cairo,freetype}/**.ml*>: snowflake_bigarray
 
 <plugins/**.*>: -byte, native
+<plugins/alac/alac_alt.ml>: use_bitstring
 
 <libraries/dummy/**.*>: dummy
 <libraries/dummy/*.o>: compile

@@ -15,8 +15,8 @@ Printf.printf "init starting...\n";
 	Printf.eprintf "Random, Debug, Ovt100 initialised\n";
 	Vga.init ();
 	Printf.eprintf "Vga initialised\n";
-	GraphicsConsole.init ();
-	Printf.eprintf "GraphicsConsole initialised\n";
+	(*GraphicsConsole.init ();
+	Printf.eprintf "GraphicsConsole initialised\n";*)
 	Keyboard.init ();
 	Printf.eprintf "Keyboard initialised\n";
 	Printf.printf "Keyboard initialised\n";
@@ -38,6 +38,7 @@ Printf.printf "init starting...\n";
 	Files.init ();
 	Printf.eprintf "Files initialised\n";
 	TCP.init (); (* doesn't get linked in! *)
+	MusicPlayer.init ();
 	
 	(*ICH0.init ();
 	IDE.init ();
@@ -55,7 +56,9 @@ Printf.printf "init starting...\n";
 
 begin try
 	Dynlink.loadfile "/tarfs/irc.cmxs";
-	Dynlink.loadfile "/tarfs/optmain.cmxs";
+	(*Dynlink.loadfile "/tarfs/optmain.cmxs";*)
+	Dynlink.loadfile "/tarfs/distcc.cmxs";
+	Dynlink.loadfile "/tarfs/alac.cmxs";
 with Dynlink.Error e -> Printf.eprintf "FAILURE: %s\n" (Dynlink.error_message e);
 	Printexc.print_backtrace stderr;
 end;

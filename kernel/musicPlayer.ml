@@ -5,43 +5,50 @@ open Arg
 open Shell
 open Bigarray
 
-let bg = ref false
-let name = ref ""
-let files = ref []
-let playing = ref false
+(* raised when a decoder is given a file it doesn't support *)
+exception Not_compatible
 
-let add_dir path =
-	files := List.filter
-		(fun n -> ExtString.String.ends_with n ".wav")
-		(TarFileSystem.dir_list path)
-	
-let play_file () =
-	if !playing then
-		failwith "already playing a file";
-	(*if String.length !name = 0 then
-		failwith "filename not specified";*)
-	if !files = [] then
-		failwith "no files to play";
-	let spawn_thread = true in
-	bg := false;
-	ignore (Thread.create begin fun () ->
-		playing := true;
-		List.iter begin fun name ->
-			let ba = try
-					TarFileSystem.open_file name
-				with Not_found -> failwith "file not found"
-			in
-			let blockIO = BlockIO.make ba in
-			AudioMixer.play (AudioMixer.Wave.read blockIO);
-		end !files;
-		playing := false;
-	end () "music player")
+type decoder = {
+	openfile : string -> in_channel * BlockIO.input; (* bigarray *)
+	decode   : in_channel -> BlockIO.input -> bool; (* if there more to decode *)
+}
+
+let decoders : decoder list ref = ref []
+
+let register_decoder decoder =
+	decoders := decoder :: !decoders
+
+(* based loosely on the streaming music player code *)
+let rec play_file filename = function
+	| [] -> failwith "no valid decoder available"
+	| decoder :: decoders ->
+		try
+			let handle, blockio = decoder.openfile filename in
+			AudioMixer.play (AudioMixer.Wave.read blockio);
+			let more = decoder.decode handle blockio in
+			let more = ref more in
+			while !more do
+				(* refills the decode_buffer, so reset blockio position to 0 *)
+(*Debug.printf ".";
+				AudioMixer.play_raw blockio;*)
+Debug.printf "+";
+				blockio.BlockIO.pos <- 0;
+				let more' = decoder.decode handle blockio in
+				more := more';
+			done;
+Debug.printf "!";
+		with
+			| Not_compatible -> play_file filename decoders
+			| ex ->
+				Printexc.print_backtrace stderr;
+				raise ex (* just re-raise anything we don't know about *)
+
+let play_file filename =
+	Printexc.record_backtrace true;
+	play_file filename !decoders;
+	Printexc.record_backtrace false
 
 (* hack around linking *)
 
 let init () =
-	add_command "musicplayer" play_file [
-		"-bg", Set bg, " Play in the background (ignored)";
-		"-play", Set_string name, " File to play (ignored)";
-		"-playdir", String add_dir, " Directory of files to play";
-	]
+	add_command "musicplayer" ignore ~anon:play_file []

@@ -66,7 +66,7 @@ let blit_from_string str input =
 let make_io input = IO.from_in_chars (object
 		method get () =
 			input.pos <- input.pos + 1;
-			if input.pos = Array1.dim input.data then
+			if input.pos > Array1.dim input.data then
 				raise IO.No_more_input;
 			char_of_int input.data.{input.pos - 1}
 		method close_in () = ()

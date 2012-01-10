@@ -118,9 +118,7 @@ module FileSystem (*: Vfs.FileSystem*) = struct
 				| Some r ->
 					inode.offset <- r.ofs;
 					inode.position <- 0;
-					inode.length <- r.size;
-Debug.printf "open_in: offset: %d, position: %d, length: %d\n"
-	r.ofs 0 r.size
+					inode.length <- r.size
 		
 		let close_in _ _ = ()
 		let flush_in _ _ = ()
@@ -132,6 +130,7 @@ Debug.printf "open_in: offset: %d, position: %d, length: %d\n"
 			(*let buffer = IDE.read_disk 0x00 sector 1 in*)
 			let buffer = IDE_stuff.read_sector sector in
 			inode.position <- inode.position + 1;
+			(*Debug.printf "input_byte: %d\r\n" (Char.code buffer.[offset]);*)
 			Char.code buffer.[offset]
 		
 		let input_bytes inode obuf ofs len =
@@ -139,16 +138,20 @@ Debug.printf "open_in: offset: %d, position: %d, length: %d\n"
 			else begin
 				let n = (inode.offset + inode.position) / 512 in
 				let s = min len (inode.length - inode.position - len) in
-				for i = 0 to s / 512 - 1 do
+				let buf = IDE_stuff.read_sector n in
+				let pos = inode.position mod 512 in
+				String.blit buf pos obuf ofs (min s (512-pos));
+				for i = 1 to s / 512 - 1 do
 					(*let buf = IDE.read_disk 0x00 (i+n) 1 in*)
 					let buf = IDE_stuff.read_sector (i+n) in
-					String.blit buf 0 obuf (i * 512 + ofs) 512;
+					String.blit buf 0 obuf (i * 512 + ofs - pos) 512;
 				done;
-				if s mod 512 <> 0 then begin
+				(* this bit isn't quite right given bit above... *)
+				if (s-pos) mod 512 <> 0 && ((s/512)+n) <> n then begin
 					let rem = s mod 512 in
 					(*let buf = IDE.read_disk 0x00 ((s / 512) + n) 1 in*)
 					let buf = IDE_stuff.read_sector ((s / 512) + n) in
-					String.blit buf 0 obuf (String.length obuf - rem) rem;
+					String.blit buf 0 obuf (String.length obuf - rem - pos) rem;
 				end;
 				(* return *)
 				inode.position <- inode.position + s;

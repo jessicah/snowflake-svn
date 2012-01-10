@@ -326,6 +326,10 @@ let open_readline ip port =
 	let t = connect ip port in
 	{ tcp = t; send = t.do_output; recv = RingBuffer.read_line t.rb }
 
+let open_readbuffer ip port =
+	let t = connect ip port in
+	t, t.do_output, RingBuffer.mk_input t.rb
+
 (* this is close, but not quite what we want *)
 type segment = (int * int * string) list
 

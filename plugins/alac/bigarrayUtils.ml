@@ -8,7 +8,7 @@ open Bigarray
 let of_string string =
 	let ba = Array1.create char c_layout (String.length string) in
 	for i = 0 to String.length string - 1 do
-		Array1.unsafe_set ba i string.[i];
+		Array1.set ba i string.[i];
 	done;
 	ba
 

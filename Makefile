@@ -9,7 +9,9 @@ KERNEL = kernel/snowflake.native
 
 ISO = snowflake.iso
 
-all: myocamlbuild_config.ml
+all: kernel archive
+
+kernel: myocamlbuild_config.ml
 	if [ ! -e tools/Makefile ] ; then cp -f tools/Makefile.in tools/Makefile; fi
 	$(MAKE) -C tools all
 	$(OCAMLBUILD) ocamlopt.opt
@@ -29,12 +31,17 @@ all: myocamlbuild_config.ml
 		-quiet -o $(ISO) cdrom/iso_prep/
 	rm -f file.lst files.tar
 
-archive.tar:
+archive: kernel
 	$(OCAMLBUILD) -tag plugin plugins/irc.cmxs
 	cp $(BUILDDIR)/plugins/irc.cmxs .
+	$(OCAMLBUILD) -tag plugin -classic-display plugins/distcc/distcc.cmxs
+	cp $(BUILDDIR)/plugins/distcc/distcc.cmxs .
 	$(MAKE) -C plugins/ocamlopt.opt all
 	cp plugins/ocamlopt.opt/optmain.cmxs .
-	tar cf $@ irc.cmxs optmain.cmxs
+	$(OCAMLBUILD) -tag plugin -classic-display plugins/alac/bigutils.cmxa
+	$(OCAMLBUILD) -tag plugin -classic-display -lib plugins/alac/bigutils plugins/alac/alac.cmxs
+	cp $(BUILDDIR)/plugins/alac/alac.cmxs .
+	tar cf archive.tar irc.cmxs optmain.cmxs distcc.cmxs alac.cmxs common-reaction.m4a
 
 myocamlbuild_config.ml: myocamlbuild_config.ml.in
 	sed -e 's/@TOOLSPREFIX@/$(subst /,\/,$(TOOLSPREFIX))/' $< > $@
