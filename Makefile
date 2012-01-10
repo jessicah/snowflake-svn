@@ -34,14 +34,14 @@ kernel: myocamlbuild_config.ml
 archive: kernel
 	$(OCAMLBUILD) -tag plugin plugins/irc.cmxs
 	cp $(BUILDDIR)/plugins/irc.cmxs .
-	$(OCAMLBUILD) -tag plugin -classic-display plugins/distcc/distcc.cmxs
+	$(OCAMLBUILD) -tag plugin plugins/distcc/distcc.cmxs
 	cp $(BUILDDIR)/plugins/distcc/distcc.cmxs .
 	$(MAKE) -C plugins/ocamlopt.opt all
 	cp plugins/ocamlopt.opt/optmain.cmxs .
-	$(OCAMLBUILD) -tag plugin -classic-display plugins/alac/bigutils.cmxa
-	$(OCAMLBUILD) -tag plugin -classic-display -lib plugins/alac/bigutils plugins/alac/alac.cmxs
+	$(OCAMLBUILD) -tag plugin plugins/alac/bigutils.cmxa
+	$(OCAMLBUILD) -tag plugin -lib plugins/alac/bigutils plugins/alac/alac.cmxs
 	cp $(BUILDDIR)/plugins/alac/alac.cmxs .
-	tar cf archive.tar irc.cmxs optmain.cmxs distcc.cmxs alac.cmxs common-reaction.m4a
+	tar cf archive.tar irc.cmxs optmain.cmxs distcc.cmxs alac.cmxs $(wildcard *.m4a) $(wildcard *.wav)
 
 myocamlbuild_config.ml: myocamlbuild_config.ml.in
 	sed -e 's/@TOOLSPREFIX@/$(subst /,\/,$(TOOLSPREFIX))/' $< > $@

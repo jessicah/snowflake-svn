@@ -134,7 +134,8 @@ let create device =
 				Mutex.lock m;
 				Condition.signal cv;
 				Mutex.unlock m;
-			end
+				Debug.printf "emptied a buffer\n"
+			end else Debug.printf "do nothing\n"
 		
 		let output block_input =
 			(* the length = total size of input - current position *)
@@ -146,7 +147,6 @@ let create device =
 					Debug.printf "no more audio\n";
 				end else begin
 					(* we can shuffle more data into the card *)
-					Debug.printf "adding another buffer\n";
 					Mutex.lock m;
 					while next_buffer (last_valid ()) = current () do
 						(* wait for a free buffer *)
@@ -154,6 +154,7 @@ let create device =
 						Condition.wait cv m;
 					done;
 					Mutex.unlock m;
+					Debug.printf "adding another buffer\n";
 					(* get the next buffer *)
 					let ix = next_buffer (last_valid ()) in
 					let buffer = buffers.(ix) in
@@ -209,10 +210,6 @@ let create device =
 	for i = 0 to Array.length C.buffers - 1 do
 		Queue.push C.buffers.(i) C.free_queue;
 	done;*)
-	(* register an interrupt handler *)
-	Interrupts.create device.request_line C.isr;
-	C.set_bit C.nabmbar R.control 4; (* interrupts for buffer completion *)
-	Printf.printf "ich0: on request line %02X\n" device.request_line;
 	
 	(* start output *)
 	C.nabmbar.write8 R.control (C.nabmbar.read8 R.control lor 1);

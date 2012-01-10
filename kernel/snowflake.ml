@@ -34,7 +34,7 @@ Printf.printf "init starting...\n";
 	IDE.init ();
 	Printf.eprintf "IDE initialised\n";
 	Tar_vfs.init ();
-	Printf.eprintf "Tar_vfs initialised\n";
+	Printf.printf "Tar_vfs initialised\n";
 	Files.init ();
 	Printf.eprintf "Files initialised\n";
 	TCP.init (); (* doesn't get linked in! *)
@@ -59,7 +59,7 @@ begin try
 	(*Dynlink.loadfile "/tarfs/optmain.cmxs";*)
 	Dynlink.loadfile "/tarfs/distcc.cmxs";
 	Dynlink.loadfile "/tarfs/alac.cmxs";
-with Dynlink.Error e -> Printf.eprintf "FAILURE: %s\n" (Dynlink.error_message e);
+with Dynlink.Error e -> Printf.printf "FAILURE: %s\n" (Dynlink.error_message e);
 	Printexc.print_backtrace stderr;
 end;
 	
