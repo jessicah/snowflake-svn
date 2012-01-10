@@ -1,7 +1,7 @@
 
 all: alac32.native alt.native
 
-alt.native: arrayTypes.cmi bigutils.cmxa matrix.cmx dynamicPredictor.cmx bitBuffer.cmx adaptiveGolomb.cmx mp4_alt.cmx alac_alt.cmx
+alt.native: arrayTypes.cmi bigutils.cmxa matrix.cmx dynamicPredictor.cmx bitBuffer.cmx adaptiveGolomb.cmx mp4_alt.cmx alac2.cmx
 	../../tools/custom/bin/ocamlopt.opt -I +bitstring unix.cmxa bitstring.cmxa bigarray.cmxa bigutils.cmxa $(filter-out %.cmi, $+) -I . -o $@
 
 alac32.native: arrayTypes.cmi bigutils.cmxa matrix.cmx dynamicPredictor.cmx bitBuffer.cmx adaptiveGolomb.cmx mp4.cmx alac.cmx

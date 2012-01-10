@@ -371,7 +371,7 @@ while !continue do
 		false, n
 	in
 	ok := ok';
-	
+	Debug.printf "+";
 	(* update position in stream *)
 	seek_in ic (pos_in ic - size + bitbuffer.current);
 	offset := !offset + decoded;

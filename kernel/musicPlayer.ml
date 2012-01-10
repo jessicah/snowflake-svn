@@ -29,9 +29,9 @@ let rec play_file filename = function
 			let more = ref more in
 			while !more do
 				(* refills the decode_buffer, so reset blockio position to 0 *)
-(*Debug.printf ".";
-				AudioMixer.play_raw blockio;*)
-Debug.printf "+";
+(*Debug.printf ".";*)
+				(*AudioMixer.play_raw blockio;*)(* just decode for now, to see how fast it is... *)
+(*Debug.printf "+";*)
 				blockio.BlockIO.pos <- 0;
 				let more' = decoder.decode handle blockio in
 				more := more';

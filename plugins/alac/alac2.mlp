@@ -333,6 +333,7 @@ let openfile filename =
 		for i = 0 to (decoded * !config.num_channels * !config.bit_depth / 8) - 1 do
 			output_byte oc decode_buffer.{i};
 		done;
+Printf.printf "+%!";
 		if not ok then raise Not_found;
 		(* refill *)
 		seek_in ic (pos_in ic - size + bitbuffer.current);
