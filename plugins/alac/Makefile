@@ -1,7 +1,7 @@
 
 all: alac32.native alt.native
 
-alt.native: arrayTypes.cmi bigutils.cmxa matrix.cmx dynamicPredictor.cmx bitBuffer.cmx adaptiveGolomb.cmx mp4_alt.cmx alac2.cmx
+alt.native: arrayTypes.cmi bigutils.cmxa matrix.cmx dynamicPredictor.cmx bitBuffer.cmx adaptiveGolomb.cmx mp4_alt.cmx decoder.cmx alac2.cmx
 	../../tools/custom/bin/ocamlopt.opt -I +bitstring unix.cmxa bitstring.cmxa bigarray.cmxa bigutils.cmxa $(filter-out %.cmi, $+) -I . -o $@
 
 alac32.native: arrayTypes.cmi bigutils.cmxa matrix.cmx dynamicPredictor.cmx bitBuffer.cmx adaptiveGolomb.cmx mp4.cmx alac.cmx
@@ -12,6 +12,11 @@ bigutils.cmxa: arrayTypes.cmi bigarray_extra_stubs.o bigarrayUtils.cmx
 
 clean:
 	rm -f *.cm[aoix] *.cmxa *.[ao] *.so alac32.native
+
+decoder.cmx: decoder.ml
+	camlp4o -I `ocamlc -where`/bitstring bitstring.cma bitstring_persistent.cma pa_bitstring.cmo -printer Camlp4OCamlPrinter -impl $< > $(basename $@).tmp
+	../../tools/custom/bin/ocamlopt.opt -inline 100 -noassert  -I +bitstring -c -impl $(basename $@).tmp -o $@
+	rm $(basename $@).tmp
 
 %.cmx: %.ml
 	../../tools/custom/bin/ocamlopt.opt -inline 100 -noassert  -I +bitstring -c $< -o $@

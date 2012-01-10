@@ -12,6 +12,8 @@ type t = {
 let get bits offset =
 	Char.code bits.buffer.[bits.current + offset]
 
+let empty = { buffer = ""; current = 0; bit_index = 0; byte_size = 0 }
+
 let create buffer byte_size =
 	{ buffer = buffer; current = 0; bit_index = 0; byte_size = byte_size }
 
