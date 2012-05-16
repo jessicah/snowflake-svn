@@ -88,8 +88,10 @@ void __startup(multiboot_info_t *multiboot, int magic)
 // simplistic handing out of memory to malloc()
 extern char *sbrk(int);
 
+char* heap_end = 0;
+
 char *sbrk(int incr){
-  static char *heap_end;
+  //static char *heap_end;
   char *prev_heap_end;
 
   if ( heap_end == 0 ) {

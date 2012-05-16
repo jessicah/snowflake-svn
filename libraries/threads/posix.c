@@ -164,15 +164,23 @@ static void caml_thread_enter_blocking_section(void)
   curr_thread->external_raise = external_raise;
 #endif
   }
+#if 0
   /* Tell other threads that the runtime is free */
   mutex_lock(&caml_runtime_mutex);
   caml_runtime_busy = 0;
   mutex_unlock(&caml_runtime_mutex);
   cond_signal(&caml_runtime_is_free);
+#else
+	/* clear interrupts; change flag; start interrupts */
+	asm volatile("cli");
+	caml_runtime_busy = 0;
+	asm volatile("sti");
+#endif
 }
 
 static void caml_thread_leave_blocking_section(void)
 {
+#if 0
   /* Wait until the runtime is free */
   mutex_lock(&caml_runtime_mutex);
   while (caml_runtime_busy) {
@@ -182,6 +190,21 @@ static void caml_thread_leave_blocking_section(void)
   }
   caml_runtime_busy = 1;
   mutex_unlock(&caml_runtime_mutex);
+  
+#else
+	/* clear interrupts; test flag; start interrupts; busy loop */
+	asm volatile("cli");
+	int busy = caml_runtime_busy;
+	while (busy) {
+		asm volatile("sti");
+		/* another thread holds the 'runtime' lock, so wait */
+		thread_yield();
+		asm volatile("cli");
+		busy = caml_runtime_busy;
+	}
+	caml_runtime_busy = 1;
+	asm volatile("sti");
+#endif
   /* Update curr_thread to point to the thread descriptor corresponding
      to the thread currently executing */
   if (thread_getspecific() != NULL) {

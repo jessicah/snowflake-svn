@@ -236,7 +236,7 @@ let init () =
 	(* hardcode eth addr for 130.123.131.129 cause it won't reply :( *)
 	Hashtbl.add ARP.table (P.IPv4.Addr(130,123,131,129)) (P.Ethernet.Addr(0x00,0x12,0xDA,0xF7,0x77,0xFF));
 	
-	let send_arps () =
+	(*let send_arps () =
 		while true do
 			try
 			Thread.yield ();
@@ -246,7 +246,7 @@ let init () =
 			done
 			with _ -> ()
 		done
-	in
+	in*)
 	
 	let read_thread () =
 		(* this is a blocking call until data ready *)
@@ -288,7 +288,7 @@ let init () =
 		(* start the read thread *)
 		ignore (Thread.create read_thread () "netstack_read");
 		(* send out ARP packets lots; see what happens *)
-		ignore (Thread.create send_arps() "send_arps");
+		(*ignore (Thread.create send_arps() "send_arps");*)
 	in
 	ignore (Thread.create thread_fun () "netstack_init")
 
@@ -318,7 +318,11 @@ module EthernetDriver : functor (Driver : ETHERNET) -> sig
 			let t = Driver.init () in
 			Interrupts.create_i irq (Driver.isr t rx_buffer);
 			t
-		let read () = Event.sync (Event.receive rx_buffer)
+		let read () =
+			Debug.printf "waiting for packet from driver\n";
+			let packet = Event.sync (Event.receive rx_buffer) in
+			Debug.printf "got a packet from driver\n";
+			packet
 		let write t packet = Driver.send t packet
 		let address t = Driver.address t
 	end

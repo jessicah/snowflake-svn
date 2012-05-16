@@ -294,13 +294,15 @@ let create pcii =
 					Printf.printf "rtl: writing negative value to capr\n";*)
 				out16 Registers.capr (properties.receivebufferoffset - 16); (* what happens if this is negative? *)
 				(* send received packet to the rx_buffer *)
+				Debug.printf "submitting packet to recv buffer\n";
 				Event.sync (Event.send rx_buffer int_list);
+				Debug.printf "packet submitted\n";
 			with Break -> Printf.printf "rtl.read error!\r\n" | Restart -> read properties rx_buffer
 		
 		let rec isr properties rx_buffer () =
 			try
 				let isr_contents = in16 Registers.isr in
-				if isr_contents = 0 then raise Break;
+				if isr_contents = 0 then (Debug.printf "exit isr\n"; raise Break);
 				if isr_contents land InterruptStatusBits.transmitok <> 0 then begin
 					(* with cv never being signalled, if we had more than 4 calls to send above
 					   simultaneously, the driver would block *)

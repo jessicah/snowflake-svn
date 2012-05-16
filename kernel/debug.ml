@@ -3,7 +3,7 @@ open IO
 open Asm
 open Char
 
-let logging = ref false
+let logging = ref true
 
 let output_byte byte =
 	if byte = code '\n' then out8 0x3f8 (code '\r'); out8 0x3f8 byte
