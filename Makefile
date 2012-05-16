@@ -12,7 +12,7 @@ ISO = snowflake.iso
 all: kernel archive
 
 kernel: myocamlbuild_config.ml
-	if [ ! -e tools/Makefile ] ; then cp -f tools/Makefile.in tools/Makefile; fi
+	if [ ! -e tools/Makefile ] ; then chmod a+x tools/configure; tools/configure; fi
 	$(MAKE) -C tools all
 	$(OCAMLBUILD) ocamlopt.opt
 	$(OCAMLBUILD) libraries/dummy/dlldummy.so
@@ -55,7 +55,7 @@ qemu:
 
 clean:
 	$(OCAMLBUILD) -clean || true
-	$(MAKE) -C plugins/ocamlopt.opt clean
+	$(MAKE) -C plugins/ocamlopt.opt clean || true
 	rm -f $(ISO)
 	rm -rf cdrom/iso_prep
 	rm -f myocamlbuild_config.ml

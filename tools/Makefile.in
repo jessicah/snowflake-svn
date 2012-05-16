@@ -18,7 +18,7 @@ ocamlopt.opt: $(OCAMLFILE)
 	cp -f boot-c-parts.sh $(OCAML)/build/
 	cp -f install.sh $(OCAML)/build/
 	cd $(OCAML) && patch -Np0 -i ../ocaml.dev.patch
-	cd $(OCAML) && ./configure -cc "gcc -m32" -as "as --32" -asflags "--size-check=warning" -aspp "gcc -m32 -c" -prefix $(PWD)/custom -no-curses -no-pthread -no-tk
+	cd $(OCAML) && ./configure -cc "gcc -m32" -as "as --32" -asflags "@ASFLAGS@" -aspp "gcc -m32 -c" -prefix $(PWD)/custom -no-curses -no-pthread -no-tk
 #	cd $(OCAML) && ./configure -cc "gcc -m32" -as "as --32 --size-check=warning" -aspp "gcc -m32 -c" -prefix $(PWD)/custom -no-curses -no-pthread -no-tk
 #	cp -f Compflags $(OCAML)/stdlib/
 	$(MAKE) -C $(OCAML) opt.opt

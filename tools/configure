@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# lame "configure" script
+
+as --size-check=warning - </dev/null &>/dev/null
+
+if [ $? -eq 0 ] ; then
+	echo as: disable size check warning
+	sed -e 's/@ASFLAGS@/--size-check=warning/g' tools/Makefile.in > tools/Makefile
+else
+	echo as: no size check support
+	sed -e 's/@ASFLAGS@//g' tools/Makefile.in > tools/Makefile
+fi
+
+rm -f a.out
