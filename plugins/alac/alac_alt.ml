@@ -21,6 +21,8 @@ let t = {
 	bitbuffer = BitBuffer.create "" 0;
 }
 
+let real_decode_buffer = Array1.create int8_unsigned c_layout (4096 lsl 6)
+
 let openfile filename =
 	begin try
 		let ic = open_in_bin filename in
@@ -43,7 +45,8 @@ let openfile filename =
 		(* stuff for music player *)
 
 		(* set up buffers *)
-		let decode_buffer = Array1.create int8_unsigned c_layout (4096 lsl 6) in
+		let decode_buffer = Array1.create int8_unsigned c_layout (4096 lsl 8) in
+		Array1.fill real_decode_buffer 0;
 		let size = (Int32.to_int cookie.max_frame_bytes) + 1 in
 		t.buffer <- String.make (Int32.to_int cookie.max_frame_bytes+1) '\000';
 		t.bitbuffer <- BitBuffer.create t.buffer (Int32.to_int cookie.max_frame_bytes+1);
@@ -97,7 +100,7 @@ while !continue do
 	t.bitbuffer.current <- 0;
 	really_input ic t.buffer 0 (min size (in_channel_length ic - pos_in ic));
 
-	let decoded = Decoder.decode t.bitbuffer (Array1.sub blockio.data !offset chunk_size) frame_length t.cookie.num_channels in
+	let decoded = Decoder.decode t.bitbuffer real_decode_buffer frame_length t.cookie.num_channels in
 	let ok', decoded = match decoded with `ok n -> true, n | `fail (n,ex) ->
 		Printf.eprintf "error decoding: %s\n" (Printexc.to_string ex);
 		for i = 0 to 16 do
@@ -117,6 +120,8 @@ while !continue do
 	(* refill *)
 	seek_in ic (pos_in ic - size + t.bitbuffer.current);
 	last := pos_in ic;
+	(* copy to blockio *)
+	Array1.blit (Array1.sub real_decode_buffer 0 decoded) (Array1.sub blockio.data !offset decoded);
 	offset := !offset + decoded;
 	
 	continue := (pos_in ic < length && ok') && ((Array1.dim blockio.data - !offset) >= chunk_size);

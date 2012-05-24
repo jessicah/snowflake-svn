@@ -179,7 +179,7 @@ let status = "[status]"
 let run server port nick pass channel' =
 	UI.init ();
 	UI.redraw ();
-	UI.add_line status "Connecting to Freenode...";
+	UI.add_line status "Connecting to server...";
 	let socket = TCP.open_readline server port in
 	let writer, read_line = socket.TCP.send, socket.TCP.recv in
 	let sender sender = try
@@ -317,19 +317,27 @@ let run server port nick pass channel' =
 
 let nick = ref "snowflake-os"
 let pass = ref ""
+(* freenode configuration *)
+let server = ref "216.155.130.130"
+let port = ref 8000
 
 let test () =
 	if !nick = "snowflake-os" && !pass = "" then
 		Printf.printf "irc: specify password for snowflake-os or use a different nick\n"
-	else run freenode 8000 !nick !pass "#snowflake"
+	else begin
+		let server = NetworkProtocolStack.IPv4.from_string !server in
+		run !server !port !nick !pass "#snowflake"
+	end
 
 open Shell
 open Arg
 
 let init () =
 	add_command "irc" test [
-		"-nick", Set_string nick, " <nickname>";
-		"-pass", Set_string pass, " <password";
+		"-nick", Set_string nick, "   <nickname>";
+		"-pass", Set_string pass, "   <password>";
+		"-server", Set_string server, " <server>";
+		"-port", Set_int port, "   <port>";
 	]
 
 (* added for dynlink to run the init function... *)

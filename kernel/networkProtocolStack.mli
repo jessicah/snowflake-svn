@@ -73,6 +73,8 @@ module IPv4 : sig
 	
 	val to_string : addr -> string
 
+	val from_string : string -> addr
+
 end
 
 module UDP : sig

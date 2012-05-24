@@ -193,6 +193,8 @@ module IPv4 = struct
 		Addr(a,b,c,d) ->
 			Printf.sprintf "%d.%d.%d.%d" a b c d
 
+	let from_string string =
+		Scanf.sscanf string "%d.%d.%d.%d" (fun a b c d -> Addr(a,b,c,d))
 end
 
 module UDP = struct

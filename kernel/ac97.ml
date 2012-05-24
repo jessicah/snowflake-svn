@@ -147,13 +147,14 @@ let create device =
 					Debug.printf "no more audio\n";
 				end else begin
 					(* we can shuffle more data into the card *)
-					Mutex.lock m;
+					(*Mutex.lock m;*)
 					while next_buffer (last_valid ()) = current () do
 						(* wait for a free buffer *)
 						Debug.printf "buffers full\n";
-						Condition.wait cv m;
+						Thread.yield ();
+						(*Condition.wait cv m;*)
 					done;
-					Mutex.unlock m;
+					(*Mutex.unlock m;*)
 					Debug.printf "adding another buffer\n";
 					(* get the next buffer *)
 					let ix = next_buffer (last_valid ()) in
