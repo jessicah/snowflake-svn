@@ -131,6 +131,7 @@ let create device =
 			if next_buffer (last_valid ()) <> current () then begin
 				(* clear the interrupt, by writing '1' to bit 3 *)
 				nabmbar.write16 R.status (nabmbar.read16 R.status lor 8);
+				Debug.printf "waking output\n";
 				Mutex.lock m;
 				Condition.signal cv;
 				Mutex.unlock m;
@@ -205,6 +206,7 @@ let create device =
 	(* register an interrupt handler *)
 	Interrupts.create device.request_line C.isr;
 	C.set_bit C.nabmbar R.control 4; (* interrupts for buffer completion *)
+	C.nabmbar.write8 R.control (C.nabmbar.read8 R.control lor 8);
 	Printf.printf "ich0: on request line %02X\n" device.request_line;
 	
 	(*(* add all the buffers to the free queue *)

@@ -3,12 +3,14 @@ external unsafe_lock : Mutex.t -> unit = "caml_mutex_unsafe_lock"
 external unsafe_unlock : Mutex.t -> unit = "caml_mutex_unsafe_unlock"
 
 let create irq cb =
+	Debug.printf "registering interrupt handler for %d\n" irq;
 	let m = Mutex.create () in
 	Mutex.lock m; (* lock it so handler is blocked *)
 	let _ = Thread.create (fun () ->
 		while true do
 			(* acquire locked mutex *)
 			unsafe_lock m;
+			Debug.printf "invoking handler for %d\n" irq;
 			cb ();
 			(* signal interrupt controller that we're done *)
 			Asm.out8 0x20 0x20;
@@ -17,7 +19,7 @@ let create irq cb =
 		done
 	) () (Printf.sprintf "irq %d" irq) in
 	let u () = unsafe_unlock m in
-	ignore (Sys.signal irq (Sys.Signal_handle (fun _ -> u ())))
+	ignore (Sys.signal irq (Sys.Signal_handle (fun _ -> Debug.printf "unlocking interrupt thread %d\n" irq; u ())))
 
 (*open Gc
 let print_stat () =

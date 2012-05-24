@@ -73,7 +73,7 @@ while !continue do
 	for i = 0 to (decoded * cookie.num_channels * cookie.bit_depth / 8) - 1 do
 		output_byte oc decode_buffer.{i};
 	done;
-	Printf.eprintf "+%!";
+(*	Printf.eprintf "+%!";*)
 	(* refill *)
 	seek_in ic (pos_in ic - size + bitbuffer.current);
 	last := pos_in ic;

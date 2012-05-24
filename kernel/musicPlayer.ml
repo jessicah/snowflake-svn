@@ -46,7 +46,9 @@ Debug.printf "!";
 
 let play_file filename =
 	Printexc.record_backtrace true;
+	Asm.cli ();
 	play_file filename !decoders;
+	Asm.sti ();
 	Printexc.record_backtrace false
 
 (* hack around linking *)

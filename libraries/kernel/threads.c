@@ -177,6 +177,7 @@ void thread_sleep()
 {
 	dprintf("thread %d sleeping\r\n", current->id);
 	current->status = BLOCKED;
+	list_remove(&current->run_link);
 	schedule();
 }
 
@@ -230,8 +231,9 @@ static void wait_on(link_t *head)
 	list_append((link_t *)&node.link, head);
 	
 	/* Sleep */
-	current->status = BLOCKED;
-	schedule();
+	/*current->status = BLOCKED;
+	schedule();*/
+	thread_sleep();
 }
 
 static void wake_first(link_t *head)
@@ -248,8 +250,9 @@ static void wake_first(link_t *head)
 	
 	/* And wake up that thread */
 	assert(node->thread->status == BLOCKED);
-	node->thread->status = RUNNABLE;
-	list_append(&node->thread->run_link, &run_queue);
+	/*node->thread->status = RUNNABLE;
+	list_append(&node->thread->run_link, &run_queue);*/
+	thread_wake(node->thread);
 #ifdef DEBUG_THREADS	
 	dprintf("w %x woke thread %d\r\n", (long)head, node->thread->id);
 #endif
@@ -267,8 +270,9 @@ static void wake_all(link_t *head)
 		
 		/* And wake up that thread */
 		assert(node->thread->status == BLOCKED);
-		node->thread->status = RUNNABLE;
-		list_append(&node->thread->run_link, &run_queue);
+		/*node->thread->status = RUNNABLE;
+		list_append(&node->thread->run_link, &run_queue);*/
+		thread_wake(node->thread);
 	}
 }
 

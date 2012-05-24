@@ -142,6 +142,7 @@ void caml_execute_signal(int signal_number, int in_signal_handler)
   sigprocmask(SIG_BLOCK, &sigs, &sigs);
 #endif
 	//if (signal_number==11)dprintf ("[%u] irq 11: execute signal\n", get_ticks());
+	if(signal_number!=11)dprintf("callback for %d\n", signal_number);
   res = caml_callback_exn(
            Field(caml_signal_handlers, signal_number),
            Val_int((signal_number)));

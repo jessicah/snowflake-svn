@@ -81,9 +81,11 @@ DECLARE_SIGNAL_HANDLER(handle_signal)
 #endif
   if (sig < 0 || sig >= NSIG) return;
   if (caml_try_leave_blocking_section_hook ()) {
+	if(sig!=11)dprintf("executing signal %d\n", sig);
     caml_execute_signal(sig, 1);
     caml_enter_blocking_section_hook();
   } else {
+	  if(sig!=11)dprintf("recording signal %d\n", sig);
     caml_record_signal(sig);
   /* Some ports cache [caml_young_limit] in a register.
      Use the signal context to modify that register too, but only if

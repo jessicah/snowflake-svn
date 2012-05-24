@@ -12,7 +12,7 @@ Options.ocamlc := P"./ocamlopt.opt";;
 flag ["ocaml"; "compile"; "snowflake"] & S[A"-g"; A"-nostdlib"; A"-freestanding"; A"-g"];;
 flag ["ocaml"; "link"; "snowflake"] & S[A"-nostdlib"; A"-freestanding"];;
 
-flag ["c"; "compile"; "snowflake"] & S[A"-m32"; A"-g"; A"-fno-stack-protector"];;
+flag ["c"; "compile"; "snowflake"] & S[A"-m32"; A"-g"; A"-fno-stack-protector"; A"-DDEBUG_THREADS"; ];;
 flag ["S"; "compile"; "snowflake"] & S[A"-m32"; A"-g"];;
 
 dep ["ocaml"; "compile"; "snowflake"] ["ocamlopt.opt"];;
